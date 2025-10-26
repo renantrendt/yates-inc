@@ -1,12 +1,14 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useMail } from '@/contexts/MailContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Task } from '@/types';
 
 export default function Home() {
   const { employee, isLoggedIn } = useAuth();
+  const { createConversation } = useMail();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({
@@ -16,8 +18,17 @@ export default function Home() {
     assigned_to_name: '',
     due_date: '',
   });
+  const [client, setClient] = useState<any>(null);
 
   const isCEO = employee?.id === '000001';
+
+  // Check if client is logged in
+  useEffect(() => {
+    const savedClient = localStorage.getItem('yates-client');
+    if (savedClient) {
+      setClient(JSON.parse(savedClient));
+    }
+  }, []);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -52,6 +63,22 @@ export default function Home() {
       .eq('id', taskId);
 
     if (!error) {
+      // If task reaches 100%, auto-delete and send message to Logan
+      if (newProgress === 100) {
+        // Delete the task
+        await supabase.from('tasks').delete().eq('id', taskId);
+
+        // Send message to Logan (CEO)
+        const message = `Task "${task.task_name}" has been completed by ${employee.name} and automatically removed.`;
+        await createConversation(
+          `Task Completed: ${task.task_name}`,
+          ['000001', employee.id], // Logan and the employee
+          message,
+          employee.id,
+          'high' // High priority for task completion
+        );
+      }
+
       fetchTasks();
     }
   };
@@ -109,6 +136,34 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* User Indicator - Top Right */}
+      {(employee || client) && (
+        <div className="fixed top-20 right-4 z-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg px-4 py-3 border-2 border-blue-500">
+          <div className="text-xs text-gray-500 dark:text-gray-400 font-semibold mb-1">
+            Logged in as:
+          </div>
+          {employee ? (
+            <div>
+              <div className="text-sm font-bold text-gray-900 dark:text-white">
+                {employee.name}
+              </div>
+              <div className="text-xs text-blue-600 dark:text-blue-400">
+                {employee.role} • Employee ID: {employee.id}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="text-sm font-bold text-gray-900 dark:text-white">
+                @{client?.username}
+              </div>
+              <div className="text-xs text-green-600 dark:text-green-400">
+                Client • {client?.mail_handle}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 text-white py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

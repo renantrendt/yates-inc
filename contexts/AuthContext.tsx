@@ -42,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password: data.password,
         role: data.role,
         bio: data.bio,
+        mail_handle: data.mail_handle,
       };
 
       setEmployee(employeeData);

@@ -2,12 +2,20 @@
 
 import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
+import { useMail } from '@/contexts/MailContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useClient } from '@/contexts/ClientContext';
 import { useState } from 'react';
 import CartSidebar from './CartSidebar';
+import InboxSidebar from './InboxSidebar';
 
 export default function Navbar() {
   const { cartCount } = useCart();
+  const { unreadCount } = useMail();
+  const { isLoggedIn } = useAuth();
+  const { isClient } = useClient();
   const [showCart, setShowCart] = useState(false);
+  const [showInbox, setShowInbox] = useState(false);
 
   return (
     <>
@@ -42,6 +50,34 @@ export default function Navbar() {
               >
                 EL
               </Link>
+              
+              {/* Inbox button - visible for EVERYONE */}
+              <button
+                onClick={() => setShowInbox(true)}
+                className="relative text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium"
+                title="Inbox"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-6 h-6"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
+                  />
+                </svg>
+                {unreadCount > 0 && (isLoggedIn || isClient) && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
               <button
                 onClick={() => setShowCart(true)}
                 className="relative text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium"
@@ -58,6 +94,7 @@ export default function Navbar() {
         </div>
       </nav>
       <CartSidebar isOpen={showCart} onClose={() => setShowCart(false)} />
+      <InboxSidebar isOpen={showInbox} onClose={() => setShowInbox(false)} />
     </>
   );
 }
