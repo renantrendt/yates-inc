@@ -116,3 +116,5 @@ Your Yates Inc. website should now be fully functional!
 - Assigned employees can only increase their task progress
 - All product images are in the `/public` folder
 
+
+

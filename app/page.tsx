@@ -108,9 +108,9 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-20">
+      <section className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 text-white py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-5xl font-bold mb-6">Welcome to Yates Inc.</h1>
           <p className="text-xl max-w-3xl">
@@ -120,23 +120,23 @@ export default function Home() {
       </section>
 
       {/* Main Content */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 bg-gray-50">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid md:grid-cols-2 gap-8">
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-3xl font-bold mb-4 text-gray-900">About Us</h2>
-            <p className="text-gray-800 mb-4 leading-relaxed">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h2 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">About Us</h2>
+            <p className="text-gray-800 dark:text-gray-300 mb-4 leading-relaxed">
               At Yates Inc., we believe in transparency and innovation. 
               Our products come with cutting-edge pricing models that 
               truly reflect their value proposition.
             </p>
-            <p className="text-gray-800 leading-relaxed">
+            <p className="text-gray-800 dark:text-gray-300 leading-relaxed">
               From custom photoshop services to premium household items, 
               we've got everything you need to enhance your lifestyle.
             </p>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-3xl font-bold mb-4 text-gray-900">Why Choose Us?</h2>
-            <ul className="space-y-3 text-gray-800 text-lg">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h2 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">Why Choose Us?</h2>
+            <ul className="space-y-3 text-gray-800 dark:text-gray-300 text-lg">
               <li className="flex items-center"><span className="text-green-600 mr-2 text-xl">✓</span> Innovative pricing models</li>
               <li className="flex items-center"><span className="text-green-600 mr-2 text-xl">✓</span> Premium quality products</li>
               <li className="flex items-center"><span className="text-green-600 mr-2 text-xl">✓</span> Professional service</li>
@@ -148,10 +148,10 @@ export default function Home() {
 
       {/* WTBD Section (Only for logged-in employees) */}
       {isLoggedIn && (
-        <section className="bg-white py-12">
+        <section className="py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-bold">WTBD - What To Be Done</h2>
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white">WTBD - What To Be Done</h2>
               {isCEO && (
                 <button
                   onClick={() => setShowAddTask(!showAddTask)}
@@ -164,8 +164,8 @@ export default function Home() {
 
             {/* Add Task Form (CEO Only) */}
             {showAddTask && isCEO && (
-              <div className="bg-gray-50 p-6 rounded-lg mb-6">
-                <h3 className="text-xl font-semibold mb-4">Create New Task</h3>
+              <div className="bg-gray-50 dark:bg-gray-700 p-6 rounded-lg mb-6">
+                <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Create New Task</h3>
                 <div className="space-y-4">
                   <input
                     type="text"
@@ -174,7 +174,7 @@ export default function Home() {
                     onChange={(e) =>
                       setNewTask({ ...newTask, task_name: e.target.value })
                     }
-                    className="w-full border rounded px-3 py-2"
+                    className="w-full border dark:border-gray-600 rounded px-3 py-2 dark:bg-gray-800 dark:text-white"
                   />
                   <textarea
                     placeholder="Description (optional)"
@@ -182,7 +182,7 @@ export default function Home() {
                     onChange={(e) =>
                       setNewTask({ ...newTask, description: e.target.value })
                     }
-                    className="w-full border rounded px-3 py-2"
+                    className="w-full border dark:border-gray-600 rounded px-3 py-2 dark:bg-gray-800 dark:text-white"
                     rows={3}
                   />
                   <div className="grid md:grid-cols-2 gap-4">
@@ -193,7 +193,7 @@ export default function Home() {
                       onChange={(e) =>
                         setNewTask({ ...newTask, assigned_to_id: e.target.value })
                       }
-                      className="border rounded px-3 py-2"
+                      className="border dark:border-gray-600 rounded px-3 py-2 dark:bg-gray-800 dark:text-white"
                     />
                     <input
                       type="text"
@@ -202,7 +202,7 @@ export default function Home() {
                       onChange={(e) =>
                         setNewTask({ ...newTask, assigned_to_name: e.target.value })
                       }
-                      className="border rounded px-3 py-2"
+                      className="border dark:border-gray-600 rounded px-3 py-2 dark:bg-gray-800 dark:text-white"
                     />
                   </div>
                   <input
@@ -211,7 +211,7 @@ export default function Home() {
                     onChange={(e) =>
                       setNewTask({ ...newTask, due_date: e.target.value })
                     }
-                    className="w-full border rounded px-3 py-2"
+                    className="w-full border dark:border-gray-600 rounded px-3 py-2 dark:bg-gray-800 dark:text-white"
                   />
                   <button
                     onClick={addTask}
@@ -230,10 +230,10 @@ export default function Home() {
                 return (
                   <div
                     key={task.id}
-                    className="bg-gray-50 p-6 rounded-lg shadow border"
+                    className="bg-gray-50 dark:bg-gray-700 p-6 rounded-lg shadow border dark:border-gray-600"
                   >
                     <div className="flex justify-between items-start mb-3">
-                      <h3 className="text-xl font-semibold">{task.task_name}</h3>
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{task.task_name}</h3>
                       {isCEO && (
                         <button
                           onClick={() => deleteTask(task.id)}
@@ -244,19 +244,19 @@ export default function Home() {
                       )}
                     </div>
                     {task.description && (
-                      <p className="text-gray-600 text-sm mb-3">
+                      <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">
                         {task.description}
                       </p>
                     )}
-                    <p className="text-sm text-gray-700 mb-2">
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
                       <strong>Assigned to:</strong> {task.assigned_to_name}
                     </p>
                     <div className="mb-3">
-                      <div className="flex justify-between text-sm mb-1">
+                      <div className="flex justify-between text-sm mb-1 text-gray-700 dark:text-gray-300">
                         <span>Progress</span>
                         <span>{task.progress_percentage}%</span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-4">
+                      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4">
                         <div
                           className="bg-blue-600 h-4 rounded-full transition-all"
                           style={{ width: `${task.progress_percentage}%` }}
@@ -276,7 +276,7 @@ export default function Home() {
                       )}
                     </div>
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600">
+                      <span className="text-gray-600 dark:text-gray-400">
                         <strong>Due:</strong>
                       </span>
                       {isCEO ? (
@@ -284,10 +284,10 @@ export default function Home() {
                           type="date"
                           value={task.due_date}
                           onChange={(e) => updateDueDate(task.id, e.target.value)}
-                          className="border rounded px-2 py-1 text-sm"
+                          className="border dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-800 dark:text-white"
                         />
                       ) : (
-                        <span>{new Date(task.due_date).toLocaleDateString()}</span>
+                        <span className="text-gray-700 dark:text-gray-300">{new Date(task.due_date).toLocaleDateString()}</span>
                       )}
                     </div>
                   </div>
@@ -296,7 +296,7 @@ export default function Home() {
             </div>
 
             {tasks.length === 0 && (
-              <p className="text-center text-gray-500 py-8">
+              <p className="text-center text-gray-500 dark:text-gray-400 py-8">
                 No tasks yet. {isCEO && 'Click "Add Task" to create one!'}
               </p>
             )}

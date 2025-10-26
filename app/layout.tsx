@@ -26,14 +26,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="bg-gray-50 dark:bg-gray-900">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 dark:bg-gray-900`}
       >
         <AuthProvider>
           <CartProvider>
             <Navbar />
-            <main className="pt-16">
+            <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
               {children}
             </main>
           </CartProvider>

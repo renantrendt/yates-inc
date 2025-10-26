@@ -1,8 +1,7 @@
 'use client';
 
 import { useCart } from '@/contexts/CartContext';
-import { useState } from 'react';
-import PaymentModal from './PaymentModal';
+import { useRouter } from 'next/navigation';
 
 interface CartSidebarProps {
   isOpen: boolean;
@@ -11,11 +10,11 @@ interface CartSidebarProps {
 
 export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
   const { cart, removeFromCart, updateQuantity, cartTotal } = useCart();
-  const [showPayment, setShowPayment] = useState(false);
+  const router = useRouter();
 
   const handlePayment = () => {
-    setShowPayment(true);
-    onClose(); // Close sidebar when opening payment modal
+    onClose(); // Close sidebar
+    router.push('/pay'); // Navigate to pay page
   };
 
   return (
@@ -31,18 +30,18 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
 
       {/* Sidebar */}
       <div
-        className={`fixed right-0 top-0 h-full w-96 bg-white shadow-xl z-[110] transform transition-transform duration-300 ${
+        className={`fixed right-0 top-0 h-full w-96 bg-white dark:bg-gray-800 shadow-xl z-[110] transform transition-transform duration-300 ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="p-6 border-b">
+          <div className="p-6 border-b dark:border-gray-700 bg-white dark:bg-gray-800">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Shopping Cart</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Shopping Cart</h2>
               <button
                 onClick={onClose}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-2xl"
               >
                 ×
               </button>
@@ -50,15 +49,15 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
           </div>
 
           {/* Cart Items */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-gray-800">
             {cart.length === 0 ? (
-              <p className="text-gray-500 text-center mt-8">Your cart is empty</p>
+              <p className="text-gray-700 dark:text-gray-300 text-center mt-8">Your cart is empty</p>
             ) : (
               <div className="space-y-4">
                 {cart.map((item) => (
                   <div
                     key={item.product.id}
-                    className="flex items-center space-x-4 border-b pb-4"
+                    className="flex items-center space-x-4 border-b dark:border-gray-700 pb-4"
                   >
                     <img
                       src={item.product.image}
@@ -66,15 +65,15 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                       className="w-16 h-16 object-cover rounded"
                     />
                     <div className="flex-1">
-                      <h3 className="font-medium text-sm text-gray-900">{item.product.name}</h3>
-                      <p className="text-gray-600 text-sm font-semibold">{item.product.price}</p>
+                      <h3 className="font-medium text-sm text-gray-900 dark:text-white">{item.product.name}</h3>
+                      <p className="text-gray-600 dark:text-gray-400 text-sm font-semibold">{item.product.price}</p>
                       <div className="flex items-center space-x-3 mt-2">
                         <select
                           value={item.quantity}
                           onChange={(e) =>
                             updateQuantity(item.product.id, parseInt(e.target.value))
                           }
-                          className="border border-gray-300 rounded px-3 py-1 text-sm text-gray-900 bg-white"
+                          className="border border-gray-300 dark:border-gray-600 rounded px-3 py-1 text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700"
                         >
                           {[1, 2, 3, 4, 5].map((num) => (
                             <option key={num} value={num}>
@@ -98,10 +97,10 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
 
           {/* Footer */}
           {cart.length > 0 && (
-            <div className="p-6 border-t">
+            <div className="p-6 border-t dark:border-gray-700 bg-white dark:bg-gray-800">
               <div className="flex justify-between items-center mb-4">
-                <span className="text-lg font-semibold">Total:</span>
-                <span className="text-xl font-bold">
+                <span className="text-lg font-semibold text-gray-900 dark:text-white">Total:</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-white">
                   ${cartTotal.toFixed(2)}
                 </span>
               </div>
@@ -115,12 +114,6 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
           )}
         </div>
       </div>
-
-      {/* Payment Modal */}
-      <PaymentModal
-        isOpen={showPayment}
-        onClose={() => setShowPayment(false)}
-      />
     </>
   );
 }
