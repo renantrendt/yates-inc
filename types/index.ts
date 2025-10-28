@@ -79,6 +79,7 @@ export interface Conversation {
   last_message: string;
   last_message_at: string;
   unread_count: number;
+  unread_for?: Record<string, number>; // Object with employee/client ID as key and unread count as value
   created_at: string;
   priority: 'normal' | 'high';
 }
