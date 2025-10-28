@@ -3,6 +3,13 @@ export default function TOSPage() {
     <div className="min-h-screen py-12 bg-gray-50 dark:bg-gray-900">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-4xl font-bold mb-8 text-gray-900 dark:text-white">Terms of Service</h1>
+        <div className="bg-red-500 border-4 border-red-700 rounded-lg p-6 mb-8">
+          <p className="text-white front-bold text-xl text-center">
+          THIS WEBSITE IS MADE AS A JOKE 100%, and it was made by middle schoolers just for fun!! 
+    DO NOT expect the product to arrive because WE ARE <span className="text-3xl">NOT</span> SELLING ANYTHING IN HERE!! 
+    please do not sue us tks.
+    </p>
+        </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8">
           <div className="prose prose-sm max-w-none space-y-6">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">

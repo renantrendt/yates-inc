@@ -6,7 +6,7 @@ export const products: Product[] = [
     name: 'Customizable Photoshops (CPS)',
     price: 'Custom',
     priceFloat: 0,
-    image: '/door.png',
+    image: 'N/A',
     isCustom: true,
     hasAddToCart: false,
   },
