@@ -120,3 +120,4 @@ Wait actually, I just realized - you want regular visitors to see the inbox icon
 - Mail handles are unique
 - Everything persists in localStorage for clients
 
+

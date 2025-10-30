@@ -34,14 +34,14 @@ export default function RootLayout({
       >
         <AuthProvider>
           <ClientProvider>
-            <CartProvider>
+          <CartProvider>
               <MailProvider>
-                <Navbar />
-                <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
-                  {children}
-                </main>
+            <Navbar />
+            <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
+              {children}
+            </main>
               </MailProvider>
-            </CartProvider>
+          </CartProvider>
           </ClientProvider>
         </AuthProvider>
       </body>

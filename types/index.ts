@@ -6,6 +6,7 @@ export interface Product {
   priceFloat: number;
   hoverText?: string;
   image: string;
+  images?: string[]; // For carousel/gallery
   isCustom?: boolean;
   hasAddToCart?: boolean;
 }

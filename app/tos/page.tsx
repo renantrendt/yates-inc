@@ -6,7 +6,9 @@ export default function TOSPage() {
         <div className="bg-red-500 border-4 border-red-700 rounded-lg p-6 mb-8">
           <p className="text-white front-bold text-xl text-center">
           THIS WEBSITE IS MADE AS A JOKE 100%, and it was made by middle schoolers just for fun!! 
-    DO NOT expect the product to arrive because WE ARE <span className="text-3xl">NOT</span> SELLING ANYTHING IN HERE!! 
+    DO NOT expect the product to arrive because WE ARE <span className="text-3xl">NOT</span> SELLING ANYTHING IN HERE!!
+    by the way, we are not afilliated with the people who made the products, also none of the jobs that 
+    we have are not actually real, like we aren't actually lawyers, or like the Proffecional Photoshop Editors, aren't actually professional.
     please do not sue us tks.
     </p>
         </div>

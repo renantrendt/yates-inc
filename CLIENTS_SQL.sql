@@ -20,3 +20,4 @@ CREATE INDEX IF NOT EXISTS idx_clients_mail_handle ON clients (mail_handle);
 -- DONE! Clients can now register usernames.
 -- ============================================
 
+

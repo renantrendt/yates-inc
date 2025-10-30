@@ -1,9 +1,42 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
 export default function ContactPage() {
+  const backgrounds = ['/dinosaur.png', '/100Gvs1M.png', '/thanos.png'];
+  const [currentBg, setCurrentBg] = useState(0);
+
+  // Auto-scroll through backgrounds every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentBg((prev) => (prev + 1) % backgrounds.length);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div className="min-h-screen py-12 bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-4xl font-bold mb-8 text-gray-900 dark:text-white">Contact Us</h1>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8">
+    <div className="min-h-screen py-12 relative overflow-hidden">
+      {/* Auto-scrolling background images */}
+      {backgrounds.map((bg, index) => (
+        <div
+          key={bg}
+          className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000"
+          style={{
+            backgroundImage: `url(${bg})`,
+            opacity: currentBg === index ? 1 : 0,
+            zIndex: currentBg === index ? 1 : 0,
+          }}
+        />
+      ))}
+
+      {/* Dark overlay for readability */}
+      <div className="absolute inset-0 bg-black/40 z-10" />
+
+      {/* Content */}
+      <div className="relative z-20 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h1 className="text-4xl font-bold mb-8 text-white drop-shadow-lg">Contact Us</h1>
+        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-xl p-8">
           <div className="prose prose-lg max-w-none">
             <p className="text-lg text-gray-800 dark:text-gray-300 leading-relaxed">
               You are able to contact us by either:

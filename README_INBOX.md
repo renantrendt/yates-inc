@@ -57,3 +57,4 @@ When you click **"✉️ New"**, you'll see:
 
 The error will tell you exactly what table is missing!
 
+

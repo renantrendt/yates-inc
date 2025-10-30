@@ -148,7 +148,7 @@ export default function Home() {
                 {employee.name}
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400">
-                {employee.role} • Employee ID: {employee.id}
+                {employee.role}
               </div>
             </div>
           ) : (
@@ -169,7 +169,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-5xl font-bold mb-6">Welcome to Yates Inc.</h1>
           <p className="text-xl max-w-3xl">
-            XXX - place holder text for the company description
+            This is a Photoshop company focused mainly on selling photoshop services, and some other random products.
           </p>
         </div>
       </section>
