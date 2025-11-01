@@ -30,8 +30,9 @@ CREATE TABLE employees (
 INSERT INTO employees (id, name, password, role, bio) VALUES
   ('000001', 'Logan Wall Fencer', 'CEOBOSS', 'CEO', 'Logan, is the CEO and founder of Yates Inc. He has spend a lot of time and effort, making this the greatest company he could every think of.'),
   ('39187', 'Mr. Michael Mackenzy McKale Mackelayne', 'MMMS', 'CPS/HR', 'Michael, is who does everything of our designs, and how things will work, he also is our Human Rights manager. Michael also is one of our 2 first hires, together with Bernardo. Michael is very hard working and is able to accomplish multiple Ps, a day, he one made 60% of our daily revenue, doing 21 Ps, and 2 30minute long videos to 5M+ subs channels.'),
-  ('392318', 'Bernardo', 'BSS*1213', 'CTO/CFO/LW/SCM', 'Bernardo works in three areas, the first thing is he is our Chief Technology Officer and makes everything computer related. His second area, is Chief Financial Officer and he works with all the money that comes in-n-out. and the last thing, is he''s our company''s Lawyer, and he''s a Supply Chain Manager. He handles partnerships and calls with other companies to get resources or make deals'),
-  ('007411', 'Dylan Mad Hawk', 'T@llahM2N', 'PSM', 'Dylan is our latest hire, but he is very hard working, he handles everything of managing the resources and putting them into our products, with the requirements made from the other companies/MMM''s design.');
+  ('392318', 'Bernardo', 'BSS*1213', 'CTO/CFO/LW', 'Bernardo works in three areas. First, he''s our Chief Technology Officer handling all tech and development. Second, he''s our Chief Financial Officer managing all the money coming in and out. Finally, he''s the company''s Lawyer, negotiating partnerships and deals with other companies.'),
+  ('007411', 'Dylan Mad Hawk', 'T@llahM2N', 'PSM', 'Dylan is our latest hire, but he is very hard working, he handles everything of managing the resources and putting them into our products, with the requirements made from the other companies/MMM''s design.'),
+  ('674121', 'Herris', 'H@irI67', 'SCM', 'Herris is our newest hire and Supply Chain Manager. While he has some basic coding skills, his real strength is managing the supply chain and logistics. He handles all our partnerships, vendor relationships, and ensures resources flow smoothly to keep operations running.');
 
 -- Create tasks table
 CREATE TABLE tasks (
@@ -107,6 +108,7 @@ Your Yates Inc. website should now be fully functional!
 - **Michael**: ID: `39187` | Password: `MMMS`
 - **Bernardo**: ID: `392318` | Password: `BSS*1213`
 - **Dylan**: ID: `007411` | Password: `T@llahM2N`
+- **Herris**: ID: `674121` | Password: `H@irI67`
 
 ## Notes
 
@@ -115,6 +117,9 @@ Your Yates Inc. website should now be fully functional!
 - CEO can add/delete tasks and change due dates
 - Assigned employees can only increase their task progress
 - All product images are in the `/public` folder
+
+
+
 
 
 

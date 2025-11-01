@@ -111,14 +111,20 @@ export const employees = [
   {
     id: '392318',
     name: 'Bernardo',
-    role: 'CTO/CFO/LW/SCM',
-    bio: "Bernardo works in three areas, the first thing is he is our Chief Technology Officer and makes everything computer related. His second area, is Chief Financial Officer and he works with all the money that comes in-n-out. and the last thing, is he's our company's Lawyer, and he's a Supply Chain Manager. He handles partnerships and calls with other companies to get resources or make deals",
+    role: 'CTO/CFO/LW',
+    bio: "Bernardo works in three areas. First, he's our Chief Technology Officer handling all tech and development. Second, he's our Chief Financial Officer managing all the money coming in and out. Finally, he's the company's Lawyer, negotiating partnerships and deals with other companies.",
   },
   {
     id: '007411',
     name: 'Dylan Mad Hawk',
     role: 'PSM',
     bio: "Dylan is our latest hire, but he is very hard working, he handles everything of managing the resources and putting them into our products, with the requirements made from the other companies/MMM's design.",
+  },
+  {
+    id: '674121',
+    name: 'Herris',
+    role: 'SCM',
+    bio: "Herris is our newest hire and Supply Chain Manager. While he has some basic coding skills, his real strength is managing the supply chain and logistics. He handles all our partnerships, vendor relationships, and ensures resources flow smoothly to keep operations running.",
   },
 ];
 
