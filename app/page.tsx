@@ -5,6 +5,8 @@ import { useMail } from '@/contexts/MailContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Task } from '@/types';
+import CatEasterEgg from '@/components/CatEasterEgg';
+
 
 export default function Home() {
   const { employee, isLoggedIn } = useAuth();
@@ -136,6 +138,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <CatEasterEgg />
+
       {/* User Indicator - Top Right */}
       {(employee || client) && (
         <div className="fixed top-20 right-4 z-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg px-4 py-3 border-2 border-blue-500">
@@ -180,12 +184,12 @@ export default function Home() {
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
             <h2 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">About Us</h2>
             <p className="text-gray-800 dark:text-gray-300 mb-4 leading-relaxed">
-              At Yates Inc., we believe in transparency and innovation. 
-              Our products come with cutting-edge pricing models that 
+              At Yates Inc., we believe in transparency and innovation.
+              Our products come with cutting-edge pricing models that
               truly reflect their value proposition.
             </p>
             <p className="text-gray-800 dark:text-gray-300 leading-relaxed">
-              From custom photoshop services to premium household items, 
+              From custom photoshop services to premium household items,
               we've got everything you need to enhance your lifestyle.
             </p>
           </div>
@@ -355,9 +359,10 @@ export default function Home() {
                 No tasks yet. {isCEO && 'Click "Add Task" to create one!'}
               </p>
             )}
-        </div>
+          </div>
         </section>
       )}
+      <CatEasterEgg />
     </div>
   );
 }

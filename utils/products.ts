@@ -96,6 +96,13 @@ export const products: Product[] = [
 
 export const employees = [
   {
+    id: '000000',
+    name: 'Nesh',
+    role: 'Head Master',
+    bio: 'Nesh is the true Head Master of Yates Inc. This majestic dog handles all very important requests and makes the critical choices that shape the company. If you need something approved, Nesh is who you talk to. Woof.',
+    images: ['/nesh-1.jpeg', '/nesh-2.jpeg', '/nesh-3.jpeg'],
+  },
+  {
     id: '000001',
     name: 'Logan Wall Fencer',
     role: 'CEO',

@@ -1,0 +1,204 @@
+.lore-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.lore-slot {
+  position: absolute;
+  bottom: 8%;
+}
+
+.lore-slot-left {
+  left: 6%;
+}
+
+.lore-slot-right {
+  right: 6%;
+}
+
+.lore-slot-center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.lore-character {
+  image-rendering: pixelated;
+}
+
+.lore-sprite {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  filter: drop-shadow(6px 6px 0 rgba(0,0,0,0.5));
+}
+
+.lore-arm {
+  transition: transform 0.2s ease;
+}
+
+.lore-action-power .lore-torso {
+  animation: lore-pulse 1s ease-in-out infinite;
+  filter: drop-shadow(0 0 12px rgba(250, 204, 21, 0.8));
+}
+
+.lore-action-punch .arm-right,
+.lore-action-uppercut .arm-right {
+  animation: lore-punch 0.6s ease-in-out infinite;
+}
+
+.lore-action-block .arm-left,
+.lore-action-block .arm-right {
+  transform: rotate(25deg);
+}
+
+.lore-action-hit .lore-torso,
+.lore-action-hit .lore-head {
+  animation: lore-hit 0.5s ease;
+}
+
+.lore-action-dodge {
+  animation: lore-dodge 0.6s ease-in-out infinite;
+}
+
+.lore-action-shadow .lore-sprite {
+  filter: grayscale(0.6) drop-shadow(0 0 12px rgba(76, 29, 149, 0.8));
+}
+
+.lore-facing-left {
+  transform: scaleX(-1);
+}
+
+.lore-facing-left .lore-sprite {
+  transform: scaleX(-1);
+}
+
+.lore-text-box {
+  font-family: 'Courier New', Courier, monospace;
+  text-shadow: 2px 2px 0 #000;
+}
+
+.lore-fx {
+  position: absolute;
+  pointer-events: none;
+}
+
+.lore-fx-fireball {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fed7aa 0%, #fb923c 40%, #c2410c 80%);
+  animation: lore-fireball 1.2s linear infinite;
+}
+
+.lore-fx-fireball.lore-fx-left {
+  left: 30%;
+  bottom: 45%;
+}
+
+.lore-fx-fireball.lore-fx-right {
+  right: 30%;
+  bottom: 45%;
+  animation-direction: reverse;
+}
+
+.lore-fx-shield {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  border: 4px solid rgba(125, 211, 252, 0.8);
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.9);
+  animation: lore-shield 1s ease-in-out infinite;
+}
+
+.lore-fx-domain {
+  width: 80%;
+  height: 70%;
+  border: 6px dashed rgba(168, 85, 247, 0.5);
+  left: 10%;
+  bottom: 10%;
+  animation: lore-domain 2s linear infinite;
+}
+
+.lore-fx-impact {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 4px solid rgba(250, 250, 250, 0.9);
+  animation: lore-impact 0.4s ease-out forwards;
+}
+
+.lore-fx-lightning {
+  width: 4px;
+  height: 200px;
+  background: linear-gradient(to bottom, rgba(250, 204, 21, 0), #fde047, rgba(234, 179, 8, 0));
+  animation: lore-lightning 0.3s steps(2) infinite;
+}
+
+.lore-fx-shadow {
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(15,23,42,0.3) 0%, rgba(15,23,42,0) 60%);
+  animation: lore-shadow 1.5s ease-in-out infinite;
+}
+
+@keyframes lore-pulse {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(252, 211, 77, 0.8)); }
+  50% { filter: drop-shadow(0 0 18px rgba(252, 211, 77, 1)); }
+}
+
+@keyframes lore-punch {
+  0% { transform: rotate(0deg); }
+  40% { transform: rotate(-60deg) translateX(-5px); }
+  60% { transform: rotate(-60deg) translateX(-5px); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes lore-hit {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(-12px); }
+  60% { transform: translateX(10px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes lore-dodge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-30px); }
+}
+
+@keyframes lore-fireball {
+  0% { transform: translateX(0) scale(0.6); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateX(320px) scale(1.2); opacity: 0; }
+}
+
+@keyframes lore-shield {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
+@keyframes lore-domain {
+  0% { transform: scale(0.95); opacity: 0.6; }
+  50% { transform: scale(1.05); opacity: 0.3; }
+  100% { transform: scale(0.95); opacity: 0.6; }
+}
+
+@keyframes lore-impact {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+@keyframes lore-lightning {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes lore-shadow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.2; }
+}

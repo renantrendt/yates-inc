@@ -1,4 +1,5 @@
 import { employees } from '@/utils/products';
+import Image from 'next/image';
 
 export default function EmployeesPage() {
   return (
@@ -12,6 +13,23 @@ export default function EmployeesPage() {
               id={employee.anchor || undefined}
               className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 scroll-mt-20 hover:shadow-lg transition-shadow"
             >
+              {/* Scrollable image gallery for employees with images */}
+              {employee.images && employee.images.length > 0 && (
+                <div className="mb-4 overflow-x-auto employee-gallery">
+                  <div className="flex gap-3 pb-2" style={{ minWidth: 'min-content' }}>
+                    {employee.images.map((img, idx) => (
+                      <div key={idx} className="flex-shrink-0 relative w-48 h-48 rounded-lg overflow-hidden shadow-md">
+                        <Image
+                          src={img}
+                          alt={`${employee.name} - photo ${idx + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="mb-4">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                   {employee.name}

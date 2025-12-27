@@ -59,7 +59,6 @@ yates-website/
 ├── components/            # React components
 │   ├── Navbar.tsx
 │   ├── CartSidebar.tsx
-│   ├── PaymentModal.tsx
 │   └── ProductCard.tsx
 ├── contexts/              # React Context providers
 │   ├── CartContext.tsx

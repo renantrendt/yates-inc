@@ -149,7 +149,16 @@ export default function PayPage() {
                     <input
                       type="text"
                       value={cardNumber}
-                      onChange={(e) => setCardNumber(e.target.value)}
+                      onChange={(e) => {
+                        // Only allow numbers
+                        const value = e.target.value.replace(/\D/g, '');
+                        // Limit to 16 digits
+                        if (value.length <= 16) {
+                          // Format with spaces: 1234 5678 9012 3456
+                          const formatted = value.replace(/(\d{4})(?=\d)/g, '$1 ');
+                          setCardNumber(formatted);
+                        }
+                      }}
                       placeholder="1234 5678 9012 3456"
                       maxLength={19}
                       className="w-full border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-gray-900 dark:text-white dark:bg-gray-700"
@@ -163,7 +172,18 @@ export default function PayPage() {
                       <input
                         type="text"
                         value={expirationDate}
-                        onChange={(e) => setExpirationDate(e.target.value)}
+                        onChange={(e) => {
+                          // Only allow numbers
+                          const value = e.target.value.replace(/\D/g, '');
+                          // Auto-format as MM/YY
+                          if (value.length <= 4) {
+                            if (value.length >= 2) {
+                              setExpirationDate(value.slice(0, 2) + '/' + value.slice(2));
+                            } else {
+                              setExpirationDate(value);
+                            }
+                          }
+                        }}
                         placeholder="MM/YY"
                         maxLength={5}
                         className="w-full border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-gray-900 dark:text-white dark:bg-gray-700"
@@ -176,7 +196,13 @@ export default function PayPage() {
                       <input
                         type="text"
                         value={cvv}
-                        onChange={(e) => setCvv(e.target.value)}
+                        onChange={(e) => {
+                          // Only allow numbers, limit to 3-4 digits
+                          const value = e.target.value.replace(/\D/g, '');
+                          if (value.length <= 4) {
+                            setCvv(value);
+                          }
+                        }}
                         placeholder="123"
                         maxLength={4}
                         className="w-full border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-gray-900 dark:text-white dark:bg-gray-700"
@@ -190,7 +216,11 @@ export default function PayPage() {
                     <input
                       type="text"
                       value={cardName}
-                      onChange={(e) => setCardName(e.target.value)}
+                      onChange={(e) => {
+                        // Only allow letters and spaces
+                        const value = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                        setCardName(value);
+                      }}
                       placeholder="John Doe"
                       className="w-full border-2 border-gray-300 dark:border-gray-600 rounded-lg px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-gray-900 dark:text-white dark:bg-gray-700"
                     />
@@ -258,6 +288,10 @@ export default function PayPage() {
     </div>
   );
 }
+
+
+
+
 
 
 
