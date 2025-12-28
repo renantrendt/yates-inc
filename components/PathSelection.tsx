@@ -10,7 +10,7 @@ interface PathSelectionProps {
 export default function PathSelection({ onSelectPath }: PathSelectionProps) {
     const [stevePosition, setStevePosition] = useState({ x: 400, y: 300 });
     const keysPressed = useRef<Set<string>>(new Set());
-    const animationFrameRef = useRef<number>();
+    const animationFrameRef = useRef<number | null>(null);
 
     // Movement speed
     const moveSpeed = 3;

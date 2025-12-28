@@ -75,7 +75,7 @@ export function CharacterSprite({
 
         <g className="lore-torso">
           <rect x="30" y="70" width="60" height="55" rx="8" fill={colors.outfit} stroke="#000" strokeWidth="3" />
-          {character === 'kato' && <rect x="30" y="105" width="60" height="6" fill={colors.belt} />}
+          {character === 'kato' && <rect x="30" y="105" width="60" height="6" fill={palette.kato.belt} />}
           {character === 'walters' && <rect x="30" y="85" width="60" height="10" fill={palette.walters.accent} opacity={0.7} />}
         </g>
 
@@ -91,7 +91,7 @@ export function CharacterSprite({
           <rect x="45" y="42" width="8" height="6" fill="#111" />
           <rect x="67" y="42" width="8" height="6" fill="#111" />
           <rect x="50" y="58" width="20" height="4" fill="#a16207" opacity={0.8} />
-          {character === 'kato' && <rect x="35" y="20" width="50" height="8" fill={colors.hair} />}
+          {character === 'kato' && <rect x="35" y="20" width="50" height="8" fill={palette.kato.hair} />}
           {character === 'walters' && <circle cx="60" cy="20" r="18" fill="#e5e7eb" stroke="#000" strokeWidth="3" />}
           {character === 'yates' && (
             <path d="M28 25 Q60 5 92 25" stroke="#0f172a" strokeWidth="6" fill="none" strokeLinecap="round" />
