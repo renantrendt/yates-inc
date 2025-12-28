@@ -8,16 +8,17 @@ interface PathSelectionProps {
 }
 
 export default function PathSelection({ onSelectPath }: PathSelectionProps) {
-    const [stevePosition, setStevePosition] = useState({ x: 400, y: 300 });
+    const [stevePosition, setStevePosition] = useState({ x: 640, y: 360 });
     const keysPressed = useRef<Set<string>>(new Set());
     const animationFrameRef = useRef<number | null>(null);
 
     // Movement speed
-    const moveSpeed = 3;
+    const moveSpeed = 5;
 
-    // Path zones (left = LORE, right = GAMEPLAY)
-    const loreZone = { x: 0, y: 0, width: 350, height: 600 };
-    const gameplayZone = { x: 450, y: 0, width: 350, height: 600 };
+    // Path zones - LORE has TWO paths (left and center), GAMEPLAY has one (right)
+    const loreZoneLeft = { x: 0, y: 0, width: 200, height: 400 };
+    const loreZoneCenter = { x: 200, y: 100, width: 300, height: 300 }; // The intersection area
+    const gameplayZone = { x: 780, y: 0, width: 500, height: 500 }; // Right side - MUCH BIGGER
 
     // Handle keyboard input
     useEffect(() => {
@@ -65,13 +66,24 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
                 }
 
                 // Keep Steve in bounds
-                newX = Math.max(0, Math.min(750, newX));
-                newY = Math.max(0, Math.min(550, newY));
+                newX = Math.max(0, Math.min(1280, newX));
+                newY = Math.max(0, Math.min(720, newY));
 
-                // Check if Steve entered a path zone
-                if (newX < loreZone.width && newY >= loreZone.y && newY <= loreZone.height) {
+                // Check if Steve entered LORE zones (left path OR center intersection)
+                const inLoreLeft = newX >= loreZoneLeft.x && newX <= loreZoneLeft.x + loreZoneLeft.width &&
+                    newY >= loreZoneLeft.y && newY <= loreZoneLeft.y + loreZoneLeft.height;
+                const inLoreCenter = newX >= loreZoneCenter.x && newX <= loreZoneCenter.x + loreZoneCenter.width &&
+                    newY >= loreZoneCenter.y && newY <= loreZoneCenter.y + loreZoneCenter.height;
+
+                if (inLoreLeft || inLoreCenter) {
                     onSelectPath('lore');
-                } else if (newX > gameplayZone.x && newY >= gameplayZone.y && newY <= gameplayZone.height) {
+                }
+
+                // Check if Steve entered GAMEPLAY zone (right path)
+                const inGameplay = newX >= gameplayZone.x && newX <= gameplayZone.x + gameplayZone.width &&
+                    newY >= gameplayZone.y && newY <= gameplayZone.y + gameplayZone.height;
+
+                if (inGameplay) {
                     onSelectPath('gameplay');
                 }
 
@@ -92,7 +104,7 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
 
     return (
         <div className="fixed inset-0 bg-black flex items-center justify-center overflow-hidden">
-            <div className="relative w-[800px] h-[600px]">
+            <div className="relative w-[1280px] h-[720px]">
                 {/* Background */}
                 <Image
                     src="/grass-path.png"
@@ -103,10 +115,10 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
                 />
 
                 {/* Path Labels */}
-                <div className="absolute top-10 left-10 bg-purple-600 text-white px-6 py-3 rounded-lg font-bold text-xl shadow-lg">
+                <div className="absolute top-24 left-10 bg-purple-600 text-white px-6 py-3 rounded-lg font-bold text-xl shadow-lg">
                     ← LORE
                 </div>
-                <div className="absolute top-10 right-10 bg-blue-600 text-white px-6 py-3 rounded-lg font-bold text-xl shadow-lg">
+                <div className="absolute top-24 right-10 bg-blue-600 text-white px-6 py-3 rounded-lg font-bold text-xl shadow-lg">
                     GAMEPLAY →
                 </div>
 
