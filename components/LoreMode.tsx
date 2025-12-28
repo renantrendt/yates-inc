@@ -1,91 +1,40 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { loreFrames, LoreFrame } from '@/lib/loreFrames';
-import Image from 'next/image';
+import { useEffect } from 'react';
 
-export default function LoreMode() {
-    const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
-    const [displayedText, setDisplayedText] = useState('');
-    const [isTyping, setIsTyping] = useState(true);
-    const currentFrame = loreFrames[currentFrameIndex];
-    const typingSpeed = 30; // milliseconds per character
+interface LoreModeProps {
+    onNavigateToGameplay?: () => void;
+}
 
-    // Typewriter effect
+export default function LoreMode({ onNavigateToGameplay }: LoreModeProps) {
     useEffect(() => {
-        if (!currentFrame) return;
-
-        setDisplayedText('');
-        setIsTyping(true);
-        let charIndex = 0;
-
-        const typeInterval = setInterval(() => {
-            if (charIndex < currentFrame.text.length) {
-                setDisplayedText(currentFrame.text.substring(0, charIndex + 1));
-                charIndex++;
-            } else {
-                setIsTyping(false);
-                clearInterval(typeInterval);
+        // Auto-redirect to gameplay after 3 seconds
+        const timer = setTimeout(() => {
+            if (onNavigateToGameplay) {
+                onNavigateToGameplay();
             }
-        }, typingSpeed);
+        }, 3000);
 
-        return () => clearInterval(typeInterval);
-    }, [currentFrameIndex, currentFrame]);
-
-    // Handle SPACE key to advance frames
-    useEffect(() => {
-        const handleKeyPress = (e: KeyboardEvent) => {
-            if (e.code === 'Space') {
-                e.preventDefault();
-
-                if (currentFrameIndex < loreFrames.length - 1) {
-                    setCurrentFrameIndex(currentFrameIndex + 1);
-                } else {
-                    // Story finished, could redirect or show ending
-                    alert('Story complete! Thanks for watching!');
-                }
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyPress);
-        return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [currentFrameIndex]);
-
-    if (!currentFrame) return null;
+        return () => clearTimeout(timer);
+    }, [onNavigateToGameplay]);
 
     return (
-        <div className="fixed inset-0 bg-black flex items-center justify-center overflow-hidden">
-            {/* Background Image/Animation */}
-            <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative w-full h-full flex items-center justify-center">
-                    <Image
-                        src={currentFrame.image}
-                        alt="Story scene"
-                        fill
-                        className="pixelated object-contain"
-                        priority
-                    />
+        <div className="fixed inset-0 bg-gradient-to-br from-purple-900 via-gray-900 to-black flex items-center justify-center overflow-hidden">
+            <div className="text-center max-w-3xl px-8">
+                <h1 className="text-7xl font-bold text-white mb-6 animate-pulse">
+                    🚧 LORE MODE 🚧
+                </h1>
+                <p className="text-4xl text-purple-300 mb-8 font-bold">
+                    HALFWAY THERE!
+                </p>
+                <p className="text-2xl text-gray-300 mb-12">
+                    The epic story of Yates, Walters, and Kato is still being crafted...
+                    <br />
+                    <span className="text-purple-400 font-semibold">Check back next year!</span>
+                </p>
+                <div className="text-xl text-gray-400 italic">
+                    Redirecting to gameplay in 3 seconds... 😎
                 </div>
-            </div>
-
-            {/* Text Overlay at Bottom */}
-            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-80 p-6 z-10">
-                <div className="max-w-4xl mx-auto">
-                    <p className="text-white text-2xl font-bold leading-relaxed min-h-[4rem]">
-                        {displayedText}
-                        {isTyping && <span className="animate-pulse">▋</span>}
-                    </p>
-                    <div className="mt-4 text-gray-400 text-sm text-right">
-                        Press SPACE to continue ({currentFrameIndex + 1}/{loreFrames.length})
-                    </div>
-                </div>
-            </div>
-
-            {/* Section indicator */}
-            <div className="absolute top-4 left-4 bg-purple-600 text-white px-4 py-2 rounded-lg font-bold uppercase text-sm">
-                {currentFrame.section === 'intro' && 'Introduction'}
-                {currentFrame.section === 'first-war' && 'The First War'}
-                {currentFrame.section === 'second-fight' && 'The Second Fight'}
             </div>
         </div>
     );

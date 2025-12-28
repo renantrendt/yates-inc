@@ -19,7 +19,7 @@ export default function GamePage() {
                 <PathSelection onSelectPath={handlePathSelection} />
             )}
 
-            {gameState === 'lore' && <LoreMode />}
+            {gameState === 'lore' && <LoreMode onNavigateToGameplay={() => setGameState('gameplay')} />}
 
             {gameState === 'gameplay' && (
                 <div className="fixed inset-0 bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
