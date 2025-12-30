@@ -259,9 +259,9 @@ Simple text page, no forms needed.
 - **Bio:** "Dylan is our latest hire, but he is very hard working, he handles everything of managing the resources and putting them into our products, with the requirements made from the other companies/MMM's design."
 - **ID:** 007411
 
-### **Employee #5: Herris**
+### **Employee #5: Harris**
 - **Role:** SCM (Supply Chain Manager)
-- **Bio:** "Herris is our newest hire and Supply Chain Manager. While he has some basic coding skills, his real strength is managing the supply chain and logistics. He handles all our partnerships, vendor relationships, and ensures resources flow smoothly to keep operations running."
+- **Bio:** "Harris is our newest hire and Supply Chain Manager. While he has some basic coding skills, his real strength is managing the supply chain and logistics. He handles all our partnerships, vendor relationships, and ensures resources flow smoothly to keep operations running."
 - **ID:** 674121
 
 ---
@@ -287,7 +287,7 @@ ID: 39187       | Password: MMMS           | Employee: Michael
 ID: 392318      | Password: BSS*1213       | Employee: Bernardo
 ID: 000001      | Password: CEOBOSS        | Employee: Logan (CEO)
 ID: 007411      | Password: T@llahM2N      | Employee: Dylan
-ID: 674121      | Password: TUFboss        | Employee: Herris
+ID: 674121      | Password: TUFboss        | Employee: Harris
 ```
 
 ### **Error Handling:**
@@ -364,7 +364,7 @@ Data:
 | 39187   | Mr. Michael Mackenzy McKale Mackelayne  | MMMS          | CPS/HR      |
 | 392318  | Bernardo                                 | BSS*1213      | CTO/CFO/LW  |
 | 007411  | Dylan Mad Hawk                           | T@llahM2N     | PSM         |
-| 674121  | Herris                                   | TUFboss       | SCM         |
+| 674121  | Harris                                   | TUFboss       | SCM         |
 ```
 
 ### **Tasks Table:**

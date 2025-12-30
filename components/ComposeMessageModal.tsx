@@ -15,7 +15,7 @@ const EMPLOYEES = [
   { id: '39187', name: 'Mr. Michael Mackenzy McKale Mackelayne', mail: 'micelCPS.mail' },
   { id: '392318', name: 'Bernardo', mail: 'partnershiprqs.mail' },
   { id: '007411', name: 'Dylan Mad Hawk', mail: 'custumerspp.mail' },
-  { id: '674121', name: 'Herris', mail: 'supplychainH.mail' },
+  { id: '674121', name: 'Harris', mail: 'supplychainH.mail' },
 ];
 
 export default function ComposeMessageModal({ isOpen, onClose }: ComposeMessageModalProps) {

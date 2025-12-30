@@ -6,8 +6,8 @@ export const products: Product[] = [
     name: 'Customizable Photoshops (CPS)',
     price: 'Custom',
     priceFloat: 0,
-    image: '/Supper yates.png',
-    images: ['/Supper yates.png', '/msG.png', '/yatesdollars.png'],
+    image: '/misc/Supper yates.png',
+    images: ['/misc/Supper yates.png', '/misc/msG.png', '/misc/yatesdollars.png'],
     isCustom: true,
     hasAddToCart: false,
   },
@@ -17,7 +17,7 @@ export const products: Product[] = [
     price: '$50.13',
     priceFloat: 50.13,
     hoverText: 'requires assembly',
-    image: '/unnamed.jpg',
+    image: '/misc/unnamed.jpg',
     hasAddToCart: true,
   },
   {
@@ -26,7 +26,7 @@ export const products: Product[] = [
     price: '$15.10',
     priceFloat: 15.10,
     hoverText: 'per pound you weigh',
-    image: '/wateringcan.png',
+    image: '/products/wateringcan.png',
     hasAddToCart: true,
   },
   {
@@ -35,7 +35,7 @@ export const products: Product[] = [
     price: '$30.23',
     priceFloat: 30.23,
     hoverText: 'per meal you ever eaten',
-    image: '/silverware.jpg',
+    image: '/products/silverware.jpg',
     hasAddToCart: true,
   },
   {
@@ -44,7 +44,7 @@ export const products: Product[] = [
     price: '$43.76',
     priceFloat: 43.76,
     hoverText: 'per time you have baked something',
-    image: '/rp.png',
+    image: '/products/rp.png',
     hasAddToCart: true,
   },
   {
@@ -53,7 +53,7 @@ export const products: Product[] = [
     price: '$27.97',
     priceFloat: 27.97,
     hoverText: 'per time you use a key',
-    image: '/ck.png',
+    image: '/products/ck.png',
     hasAddToCart: true,
   },
   {
@@ -62,7 +62,7 @@ export const products: Product[] = [
     price: '$41.99',
     priceFloat: 41.99,
     hoverText: 'per time you touch or drink water',
-    image: '/flipper.jpg',
+    image: '/products/flipper.jpg',
     hasAddToCart: true,
   },
   {
@@ -71,7 +71,7 @@ export const products: Product[] = [
     price: '$399.99',
     priceFloat: 399.99,
     hoverText: 'per time you go to the bathroom',
-    image: '/taw.jpg',
+    image: '/products/taw.jpg',
     hasAddToCart: true,
   },
   {
@@ -80,7 +80,7 @@ export const products: Product[] = [
     price: '$12.89',
     priceFloat: 12.89,
     hoverText: 'per inch of paper you use from the time you buyed this',
-    image: '/tp.jpg',
+    image: '/products/tp.jpg',
     hasAddToCart: true,
   },
   {
@@ -89,7 +89,7 @@ export const products: Product[] = [
     price: '$89.99',
     priceFloat: 89.99,
     hoverText: 'per time you use a door',
-    image: '/door.png',
+    image: '/products/door.png',
     hasAddToCart: true,
   },
 ];
@@ -100,7 +100,7 @@ export const employees = [
     name: 'Nesh',
     role: 'Head Master',
     bio: 'Nesh is the true Head Master of Yates Inc. This majestic dog handles all very important requests and makes the critical choices that shape the company. If you need something approved, Nesh is who you talk to. Woof.',
-    images: ['/nesh-1.jpeg', '/nesh-2.jpeg', '/nesh-3.jpeg'],
+    images: ['/misc/nesh-1.jpeg', '/misc/nesh-2.jpeg', '/misc/nesh-3.jpeg'],
   },
   {
     id: '000001',
@@ -129,9 +129,9 @@ export const employees = [
   },
   {
     id: '674121',
-    name: 'Herris',
+    name: 'Harris',
     role: 'SCM',
-    bio: "Herris is our newest hire and Supply Chain Manager. While he has some basic coding skills, his real strength is managing the supply chain and logistics. He handles all our partnerships, vendor relationships, and ensures resources flow smoothly to keep operations running.",
+    bio: "Harris is our newest hire and Supply Chain Manager. While he has some basic coding skills, his real strength is managing the supply chain and logistics. He handles all our partnerships, vendor relationships, and ensures resources flow smoothly to keep operations running.",
   },
 ];
 

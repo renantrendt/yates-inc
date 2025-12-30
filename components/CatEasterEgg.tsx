@@ -37,7 +37,7 @@ export default function CatEasterEgg() {
             style={{ top: position.top, left: position.left }}
         >
             <Image
-                src="/cutcat.png"
+                src="/misc/cutcat.png"
                 alt="Secret Cat"
                 width={64}
                 height={64}

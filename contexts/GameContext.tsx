@@ -1,0 +1,376 @@
+'use client';
+
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { GameState, COUPON_DROP_RATES, COUPON_REQUIREMENTS, ShopStock, SHOP_RESTOCK_INTERVAL, SHOP_MIN_ITEMS, SHOP_MAX_ITEMS, SHOP_MIN_QUANTITY, SHOP_MAX_QUANTITY } from '@/types/game';
+import { products } from '@/utils/products';
+import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
+
+interface GameContextType {
+  gameState: GameState;
+  currentPickaxe: typeof PICKAXES[0];
+  currentRock: typeof ROCKS[0];
+  mineRock: () => { earnedMoney: number; brokeRock: boolean; couponDrop: string | null };
+  buyPickaxe: (pickaxeId: number) => boolean;
+  canAffordPickaxe: (pickaxeId: number) => boolean;
+  ownsPickaxe: (pickaxeId: number) => boolean;
+  equipPickaxe: (pickaxeId: number) => void;
+  selectRock: (rockId: number) => void;
+  getUnlockedRocks: () => typeof ROCKS;
+  resetGame: () => void;
+  markCutsceneSeen: () => void;
+  useCoupon: (type: 'discount30' | 'discount50' | 'discount100') => boolean;
+  spendMoney: (amount: number) => boolean;
+  shopStock: ShopStock;
+  buyShopProduct: (productId: number) => boolean;
+  getTimeUntilRestock: () => number;
+}
+
+const defaultGameState: GameState = {
+  yatesDollars: 0,
+  totalClicks: 0,
+  currentPickaxeId: 1,
+  currentRockId: 1,
+  currentRockHP: ROCKS[0].clicksToBreak,
+  rocksMinedCount: 0,
+  ownedPickaxeIds: [1],
+  coupons: {
+    discount30: 0,
+    discount50: 0,
+    discount100: 0,
+  },
+  hasSeenCutscene: false,
+};
+
+const STORAGE_KEY = 'yates-mining-game';
+
+// Generate random shop stock
+function generateShopStock(): ShopStock {
+  const availableProducts = products.filter(p => !p.isCustom && p.hasAddToCart);
+  const numItems = Math.floor(Math.random() * (SHOP_MAX_ITEMS - SHOP_MIN_ITEMS + 1)) + SHOP_MIN_ITEMS;
+  
+  // Shuffle and pick random products
+  const shuffled = [...availableProducts].sort(() => Math.random() - 0.5);
+  const selectedProducts = shuffled.slice(0, Math.min(numItems, shuffled.length));
+  
+  return {
+    items: selectedProducts.map(p => ({
+      productId: p.id,
+      quantity: Math.floor(Math.random() * (SHOP_MAX_QUANTITY - SHOP_MIN_QUANTITY + 1)) + SHOP_MIN_QUANTITY,
+    })),
+    lastRestockTime: Date.now(),
+  };
+}
+
+const GameContext = createContext<GameContextType | undefined>(undefined);
+
+export function GameProvider({ children }: { children: ReactNode }) {
+  const [gameState, setGameState] = useState<GameState>(defaultGameState);
+  const [shopStock, setShopStock] = useState<ShopStock>(() => generateShopStock());
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setGameState({ ...defaultGameState, ...parsed });
+        
+        // Load shop stock or generate new if expired/missing
+        if (parsed.shopStock) {
+          const timeSinceRestock = Date.now() - parsed.shopStock.lastRestockTime;
+          if (timeSinceRestock >= SHOP_RESTOCK_INTERVAL) {
+            setShopStock(generateShopStock());
+          } else {
+            setShopStock(parsed.shopStock);
+          }
+        }
+      } catch {
+        console.error('Failed to parse saved game state');
+      }
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // Auto-restock check every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const timeSinceRestock = Date.now() - shopStock.lastRestockTime;
+      if (timeSinceRestock >= SHOP_RESTOCK_INTERVAL) {
+        setShopStock(generateShopStock());
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [shopStock.lastRestockTime]);
+
+  // Save to localStorage whenever state changes
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...gameState, shopStock }));
+    }
+  }, [gameState, shopStock, isLoaded]);
+
+  // Expose reset function to window for F12 console testing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as unknown as { yatesReset: () => void }).yatesReset = () => {
+        localStorage.removeItem(STORAGE_KEY);
+        setGameState(defaultGameState);
+        console.log('🎮 Yates Mining Game: Progress reset! Refresh the page.');
+      };
+      console.log('🎮 Yates Mining Game: Type yatesReset() in console to reset progress');
+    }
+  }, []);
+
+  const currentPickaxe = getPickaxeById(gameState.currentPickaxeId) || PICKAXES[0];
+  const currentRock = getRockById(gameState.currentRockId) || ROCKS[0];
+
+  const mineRock = useCallback(() => {
+    const pickaxe = getPickaxeById(gameState.currentPickaxeId) || PICKAXES[0];
+    const rock = getRockById(gameState.currentRockId) || ROCKS[0];
+    
+    let brokeRock = false;
+    let earnedMoney = 0;
+    let couponDrop: string | null = null;
+
+    // Calculate click power (Plasma = instant break)
+    const clickPower = pickaxe.name === 'Plasma' ? rock.clicksToBreak : pickaxe.clickPower;
+    const newHP = Math.max(0, gameState.currentRockHP - clickPower);
+
+    // Check if this click breaks the rock
+    const willBreak = newHP <= 0;
+
+    // Money earned = moneyPerClick (always) + moneyPerBreak (only when breaking)
+    earnedMoney = rock.moneyPerClick;
+    
+    if (willBreak) {
+      earnedMoney += rock.moneyPerBreak;
+    }
+
+    // Apply money multipliers
+    if (pickaxe.moneyMultiplier) {
+      earnedMoney *= pickaxe.moneyMultiplier;
+    }
+
+    earnedMoney = Math.ceil(earnedMoney);
+
+    setGameState((prev) => {
+      // Click power counts towards total clicks (for rock unlocking)
+      const newTotalClicks = prev.totalClicks + clickPower;
+      let newRockHP = newHP;
+      let newRocksMinedCount = prev.rocksMinedCount;
+      let newCurrentRockId = prev.currentRockId;
+
+      // Check if rock broke
+      if (newHP <= 0) {
+        brokeRock = true;
+        newRocksMinedCount += 1;
+        
+        // Check for rock upgrade
+        const highestUnlocked = getHighestUnlockedRock(newTotalClicks);
+        if (highestUnlocked.id > prev.currentRockId) {
+          newCurrentRockId = highestUnlocked.id;
+        }
+        
+        // Reset HP for new/same rock
+        const nextRock = getRockById(newCurrentRockId) || rock;
+        newRockHP = nextRock.clicksToBreak;
+      }
+
+      // Check for coupon drop (only if requirements met)
+      const meetsRequirements = 
+        prev.currentRockId >= COUPON_REQUIREMENTS.minRockId &&
+        prev.currentPickaxeId >= COUPON_REQUIREMENTS.minPickaxeId;
+
+      let newCoupons = { ...prev.coupons };
+      if (meetsRequirements) {
+        const luckBonus = pickaxe.couponLuckBonus || 0;
+        const rand = Math.random();
+        
+        if (rand < COUPON_DROP_RATES.discount100 * (1 + luckBonus)) {
+          newCoupons.discount100 += 1;
+          couponDrop = 'discount100';
+        } else if (rand < COUPON_DROP_RATES.discount50 * (1 + luckBonus)) {
+          newCoupons.discount50 += 1;
+          couponDrop = 'discount50';
+        } else if (rand < COUPON_DROP_RATES.discount30 * (1 + luckBonus)) {
+          newCoupons.discount30 += 1;
+          couponDrop = 'discount30';
+        }
+      }
+
+      return {
+        ...prev,
+        yatesDollars: prev.yatesDollars + earnedMoney,
+        totalClicks: newTotalClicks,
+        currentRockHP: newRockHP,
+        currentRockId: newCurrentRockId,
+        rocksMinedCount: newRocksMinedCount,
+        coupons: newCoupons,
+      };
+    });
+
+    return { earnedMoney, brokeRock, couponDrop };
+  }, [gameState.currentPickaxeId, gameState.currentRockId, gameState.currentRockHP]);
+
+  const canAffordPickaxe = useCallback((pickaxeId: number) => {
+    const pickaxe = getPickaxeById(pickaxeId);
+    if (!pickaxe) return false;
+    return gameState.yatesDollars >= pickaxe.price;
+  }, [gameState.yatesDollars]);
+
+  const ownsPickaxe = useCallback((pickaxeId: number) => {
+    return gameState.ownedPickaxeIds.includes(pickaxeId);
+  }, [gameState.ownedPickaxeIds]);
+
+  const buyPickaxe = useCallback((pickaxeId: number) => {
+    const pickaxe = getPickaxeById(pickaxeId);
+    if (!pickaxe) return false;
+    if (gameState.ownedPickaxeIds.includes(pickaxeId)) return false;
+    if (gameState.yatesDollars < pickaxe.price) return false;
+
+    setGameState((prev) => ({
+      ...prev,
+      yatesDollars: prev.yatesDollars - pickaxe.price,
+      ownedPickaxeIds: [...prev.ownedPickaxeIds, pickaxeId],
+      currentPickaxeId: pickaxeId, // Auto-equip after purchase
+    }));
+
+    return true;
+  }, [gameState.ownedPickaxeIds, gameState.yatesDollars]);
+
+  const equipPickaxe = useCallback((pickaxeId: number) => {
+    if (!gameState.ownedPickaxeIds.includes(pickaxeId)) return;
+    setGameState((prev) => ({
+      ...prev,
+      currentPickaxeId: pickaxeId,
+    }));
+  }, [gameState.ownedPickaxeIds]);
+
+  const selectRock = useCallback((rockId: number) => {
+    const rock = getRockById(rockId);
+    if (!rock) return;
+    if (gameState.totalClicks < rock.unlockAtClicks) return;
+
+    setGameState((prev) => ({
+      ...prev,
+      currentRockId: rockId,
+      currentRockHP: rock.clicksToBreak,
+    }));
+  }, [gameState.totalClicks]);
+
+  const getUnlockedRocks = useCallback(() => {
+    return ROCKS.filter((rock) => gameState.totalClicks >= rock.unlockAtClicks);
+  }, [gameState.totalClicks]);
+
+  const resetGame = useCallback(() => {
+    setGameState(defaultGameState);
+    localStorage.removeItem(STORAGE_KEY);
+  }, []);
+
+  const markCutsceneSeen = useCallback(() => {
+    setGameState((prev) => ({
+      ...prev,
+      hasSeenCutscene: true,
+    }));
+  }, []);
+
+  const useCoupon = useCallback((type: 'discount30' | 'discount50' | 'discount100') => {
+    if (gameState.coupons[type] <= 0) return false;
+    
+    setGameState((prev) => ({
+      ...prev,
+      coupons: {
+        ...prev.coupons,
+        [type]: prev.coupons[type] - 1,
+      },
+    }));
+    
+    return true;
+  }, [gameState.coupons]);
+
+  const spendMoney = useCallback((amount: number) => {
+    if (gameState.yatesDollars < amount) return false;
+    
+    setGameState((prev) => ({
+      ...prev,
+      yatesDollars: prev.yatesDollars - amount,
+    }));
+    
+    return true;
+  }, [gameState.yatesDollars]);
+
+  const buyShopProduct = useCallback((productId: number) => {
+    const stockItem = shopStock.items.find(item => item.productId === productId);
+    if (!stockItem || stockItem.quantity <= 0) return false;
+    
+    const product = products.find(p => p.id === productId);
+    if (!product) return false;
+    
+    const price = Math.floor(product.priceFloat * 15); // 15x multiplier
+    if (gameState.yatesDollars < price) return false;
+    
+    // Deduct money
+    setGameState((prev) => ({
+      ...prev,
+      yatesDollars: prev.yatesDollars - price,
+    }));
+    
+    // Reduce stock quantity
+    setShopStock((prev) => ({
+      ...prev,
+      items: prev.items.map(item => 
+        item.productId === productId 
+          ? { ...item, quantity: item.quantity - 1 }
+          : item
+      ),
+    }));
+    
+    return true;
+  }, [gameState.yatesDollars, shopStock.items]);
+
+  const getTimeUntilRestock = useCallback(() => {
+    const elapsed = Date.now() - shopStock.lastRestockTime;
+    return Math.max(0, SHOP_RESTOCK_INTERVAL - elapsed);
+  }, [shopStock.lastRestockTime]);
+
+  if (!isLoaded) {
+    return null; // Or a loading spinner
+  }
+
+  return (
+    <GameContext.Provider
+      value={{
+        gameState,
+        currentPickaxe,
+        currentRock,
+        mineRock,
+        buyPickaxe,
+        canAffordPickaxe,
+        ownsPickaxe,
+        equipPickaxe,
+        selectRock,
+        getUnlockedRocks,
+        resetGame,
+        markCutsceneSeen,
+        useCoupon,
+        spendMoney,
+        shopStock,
+        buyShopProduct,
+        getTimeUntilRestock,
+      }}
+    >
+      {children}
+    </GameContext.Provider>
+  );
+}
+
+export function useGame() {
+  const context = useContext(GameContext);
+  if (context === undefined) {
+    throw new Error('useGame must be used within a GameProvider');
+  }
+  return context;
+}
+

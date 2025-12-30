@@ -3,14 +3,32 @@
 import { useState } from 'react';
 import PathSelection from '@/components/PathSelection';
 import LoreMode from '@/components/LoreMode';
+import MiningGame from '@/components/game/MiningGame';
+import GameCutscene from '@/components/game/GameCutscene';
+import { GameProvider, useGame } from '@/contexts/GameContext';
 
-type GameState = 'path-selection' | 'lore' | 'gameplay';
+type GameState = 'path-selection' | 'lore' | 'cutscene' | 'gameplay';
 
-export default function GamePage() {
+function GameContent() {
     const [gameState, setGameState] = useState<GameState>('path-selection');
+    const { gameState: savedState, markCutsceneSeen } = useGame();
 
     const handlePathSelection = (path: 'lore' | 'gameplay') => {
-        setGameState(path);
+        if (path === 'lore') {
+            setGameState('lore');
+        } else {
+            // Check if user has seen cutscene before
+            if (savedState.hasSeenCutscene) {
+                setGameState('gameplay');
+            } else {
+                setGameState('cutscene');
+            }
+        }
+    };
+
+    const handleCutsceneComplete = () => {
+        markCutsceneSeen();
+        setGameState('gameplay');
     };
 
     return (
@@ -19,22 +37,31 @@ export default function GamePage() {
                 <PathSelection onSelectPath={handlePathSelection} />
             )}
 
-            {gameState === 'lore' && <LoreMode onNavigateToGameplay={() => setGameState('gameplay')} />}
+            {gameState === 'lore' && (
+                <LoreMode onNavigateToGameplay={() => {
+                    if (savedState.hasSeenCutscene) {
+                        setGameState('gameplay');
+                    } else {
+                        setGameState('cutscene');
+                    }
+                }} />
+            )}
+
+            {gameState === 'cutscene' && (
+                <GameCutscene onComplete={handleCutsceneComplete} />
+            )}
 
             {gameState === 'gameplay' && (
-                <div className="fixed inset-0 bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
-                    <div className="text-center">
-                        <h1 className="text-6xl font-bold text-white mb-4">GAMEPLAY</h1>
-                        <p className="text-2xl text-gray-300 mb-8">Coming Soon...</p>
-                        <button
-                            onClick={() => setGameState('path-selection')}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-xl transition-colors"
-                        >
-                            ← Back to Path Selection
-                        </button>
-                    </div>
-                </div>
+                <MiningGame onExit={() => setGameState('path-selection')} />
             )}
         </div>
+    );
+}
+
+export default function GamePage() {
+    return (
+        <GameProvider>
+            <GameContent />
+        </GameProvider>
     );
 }

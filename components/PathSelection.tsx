@@ -44,6 +44,9 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
         };
     }, []);
 
+    // Track pending path selection to avoid calling during render
+    const pendingPath = useRef<'lore' | 'gameplay' | null>(null);
+
     // Game loop for smooth movement
     useEffect(() => {
         const gameLoop = () => {
@@ -76,7 +79,7 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
                     newY >= loreZoneCenter.y && newY <= loreZoneCenter.y + loreZoneCenter.height;
 
                 if (inLoreLeft || inLoreCenter) {
-                    onSelectPath('lore');
+                    pendingPath.current = 'lore';
                 }
 
                 // Check if Steve entered GAMEPLAY zone (right path)
@@ -84,11 +87,18 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
                     newY >= gameplayZone.y && newY <= gameplayZone.y + gameplayZone.height;
 
                 if (inGameplay) {
-                    onSelectPath('gameplay');
+                    pendingPath.current = 'gameplay';
                 }
 
                 return { x: newX, y: newY };
             });
+
+            // Handle path selection outside of setState
+            if (pendingPath.current) {
+                const path = pendingPath.current;
+                pendingPath.current = null;
+                setTimeout(() => onSelectPath(path), 0);
+            }
 
             animationFrameRef.current = requestAnimationFrame(gameLoop);
         };
@@ -107,7 +117,7 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
             <div className="relative w-[1280px] h-[720px]">
                 {/* Background */}
                 <Image
-                    src="/grass-path.png"
+                    src="/locations/grass-path.png"
                     alt="Path selection"
                     fill
                     className="pixelated object-cover"
@@ -138,7 +148,7 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
                     }}
                 >
                     <Image
-                        src="/steve.png"
+                        src="/characters/steve.png"
                         alt="Steve"
                         width={64}
                         height={64}

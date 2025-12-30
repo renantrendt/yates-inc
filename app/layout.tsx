@@ -6,6 +6,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ClientProvider } from "@/contexts/ClientContext";
 import { MailProvider } from "@/contexts/MailContext";
 import Navbar from "@/components/Navbar";
+import DisclaimerWarning from "@/components/DisclaimerWarning";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,6 +37,7 @@ export default function RootLayout({
           <ClientProvider>
           <CartProvider>
               <MailProvider>
+            <DisclaimerWarning />
             <Navbar />
             <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
               {children}

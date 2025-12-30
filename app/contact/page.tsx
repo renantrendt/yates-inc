@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 export default function ContactPage() {
-  const backgrounds = ['/dinosaur.png', '/100Gvs1M.png', '/thanos.png'];
+  const backgrounds = ['/misc/dinosaur.png', '/fights/100Gvs1M.png', '/characters/thanos.png'];
   const [currentBg, setCurrentBg] = useState(0);
 
   // Auto-scroll through backgrounds every 5 seconds

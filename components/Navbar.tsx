@@ -12,8 +12,8 @@ import InboxSidebar from './InboxSidebar';
 export default function Navbar() {
   const { cartCount } = useCart();
   const { unreadCount } = useMail();
-  const { isLoggedIn } = useAuth();
-  const { isClient } = useClient();
+  const { isLoggedIn, logout, employee } = useAuth();
+  const { isClient, client, setClient } = useClient();
   const [showCart, setShowCart] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
 
@@ -89,6 +89,40 @@ export default function Navbar() {
                   </span>
                 )}
               </button>
+
+              {/* Logout button - visible when logged in as employee or client */}
+              {(isLoggedIn || isClient) && (
+                <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-300 dark:border-gray-700">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {isLoggedIn && employee 
+                      ? employee.name.split(' ')[0] 
+                      : client?.username}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (isLoggedIn) logout();
+                      if (isClient) setClient(null);
+                    }}
+                    className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 font-medium text-sm flex items-center gap-1"
+                    title="Log out"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.5}
+                      stroke="currentColor"
+                      className="w-5 h-5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
