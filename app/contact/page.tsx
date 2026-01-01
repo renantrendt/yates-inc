@@ -16,7 +16,7 @@ export default function ContactPage() {
   }, []);
 
   return (
-    <div className="min-h-screen py-12 relative overflow-hidden">
+    <div className="min-h-screen py-8 sm:py-12 relative overflow-hidden">
       {/* Auto-scrolling background images */}
       {backgrounds.map((bg, index) => (
         <div
@@ -31,21 +31,21 @@ export default function ContactPage() {
       ))}
 
       {/* Dark overlay for readability */}
-      <div className="absolute inset-0 bg-black/40 z-10" />
+      <div className="absolute inset-0 bg-black/50 z-10" />
 
       {/* Content */}
       <div className="relative z-20 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-4xl font-bold mb-8 text-white drop-shadow-lg">Contact Us</h1>
-        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-xl p-8">
-          <div className="prose prose-lg max-w-none">
-            <p className="text-lg text-gray-800 dark:text-gray-300 leading-relaxed">
+        <h1 className="text-3xl sm:text-4xl font-bold mb-6 sm:mb-8 text-white drop-shadow-lg">Contact Us</h1>
+        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-lg shadow-xl p-4 sm:p-6 md:p-8">
+          <div className="prose prose-sm sm:prose-base md:prose-lg max-w-none">
+            <p className="text-base sm:text-lg text-gray-800 dark:text-gray-300 leading-relaxed">
               You are able to contact us by either:
             </p>
-            <ul className="list-disc list-inside space-y-2 text-lg text-gray-800 dark:text-gray-300 mt-4">
+            <ul className="list-disc list-inside space-y-2 text-base sm:text-lg text-gray-800 dark:text-gray-300 mt-4">
               <li>Being at our HQ at MMS</li>
               <li>OR by some way shape or form, getting our contact</li>
             </ul>
-            <p className="text-lg text-gray-800 dark:text-gray-300 leading-relaxed mt-6">
+            <p className="text-base sm:text-lg text-gray-800 dark:text-gray-300 leading-relaxed mt-6">
               If you do, we&apos;ll have a pleasure on getting your money back or simply talking to ya.
             </p>
           </div>

@@ -88,7 +88,7 @@ export default function GameShop({ onClose }: GameShopProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
@@ -96,18 +96,18 @@ export default function GameShop({ onClose }: GameShopProps) {
       />
 
       {/* Shop Modal */}
-      <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden border border-amber-600/30 shadow-2xl">
+      <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl sm:rounded-2xl w-full max-w-4xl max-h-[90vh] sm:max-h-[85vh] overflow-hidden border border-amber-600/30 shadow-2xl">
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-700 to-amber-600 px-6 py-4 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-white">🛒 SHOP</h2>
-          <div className="flex items-center gap-4">
-            <div className="bg-black/30 rounded-lg px-4 py-2 flex items-center gap-2">
-              <span className="text-xl">💰</span>
-              <span className="text-yellow-300 font-bold">${formatNumber(gameState.yatesDollars)}</span>
+        <div className="bg-gradient-to-r from-amber-700 to-amber-600 px-3 sm:px-6 py-3 sm:py-4 flex justify-between items-center">
+          <h2 className="text-lg sm:text-2xl font-bold text-white">🛒 SHOP</h2>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="bg-black/30 rounded-lg px-2 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-2">
+              <span className="text-base sm:text-xl">💰</span>
+              <span className="text-yellow-300 font-bold text-sm sm:text-base">${formatNumber(gameState.yatesDollars)}</span>
             </div>
             <button
               onClick={onClose}
-              className="text-white/80 hover:text-white text-3xl leading-none"
+              className="text-white/80 hover:text-white text-2xl sm:text-3xl leading-none touch-manipulation p-2"
             >
               ×
             </button>
@@ -118,7 +118,7 @@ export default function GameShop({ onClose }: GameShopProps) {
         <div className="flex border-b border-gray-700">
           <button
             onClick={() => setActiveTab('pickaxes')}
-            className={`flex-1 py-3 font-bold transition-colors ${
+            className={`flex-1 py-2 sm:py-3 font-bold transition-colors text-xs sm:text-base touch-manipulation ${
               activeTab === 'pickaxes'
                 ? 'bg-amber-600/20 text-amber-400 border-b-2 border-amber-400'
                 : 'text-gray-400 hover:text-gray-200'
@@ -129,7 +129,7 @@ export default function GameShop({ onClose }: GameShopProps) {
           <button
             onClick={() => setActiveTab('products')}
             disabled={!canAccessProducts}
-            className={`flex-1 py-3 font-bold transition-colors ${
+            className={`flex-1 py-2 sm:py-3 font-bold transition-colors text-xs sm:text-base touch-manipulation ${
               activeTab === 'products'
                 ? 'bg-purple-600/20 text-purple-400 border-b-2 border-purple-400'
                 : canAccessProducts
@@ -138,20 +138,20 @@ export default function GameShop({ onClose }: GameShopProps) {
             }`}
           >
             {canAccessProducts ? (
-              <span className="flex items-center justify-center gap-2">
-                🏪 Products
-                <span className="text-xs bg-purple-600/30 px-2 py-0.5 rounded">
+              <span className="flex items-center justify-center gap-1 sm:gap-2">
+                <span className="hidden xs:inline">🏪</span> Products
+                <span className="text-[10px] xs:text-xs bg-purple-600/30 px-1 sm:px-2 py-0.5 rounded">
                   🔄 {formatTime(restockTimer)}
                 </span>
               </span>
-            ) : '🔒 Products (Unlock at Rock 12 + Pickaxe 12)'}
+            ) : <span className="text-[10px] xs:text-xs">🔒 Unlock at R12 + P12</span>}
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
+        <div className="p-3 sm:p-6 overflow-y-auto max-h-[70vh] sm:max-h-[60vh]">
           {activeTab === 'pickaxes' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {PICKAXES.map((pickaxe) => {
                 const owned = ownsPickaxe(pickaxe.id);
                 const equipped = currentPickaxe.id === pickaxe.id;
@@ -166,7 +166,7 @@ export default function GameShop({ onClose }: GameShopProps) {
                 return (
                   <div
                     key={pickaxe.id}
-                    className={`relative rounded-xl p-4 border transition-all ${
+                    className={`relative rounded-lg sm:rounded-xl p-3 sm:p-4 border transition-all ${
                       equipped
                         ? 'bg-amber-600/20 border-amber-400'
                         : owned
@@ -180,14 +180,14 @@ export default function GameShop({ onClose }: GameShopProps) {
                   >
                     {/* Equipped Badge */}
                     {equipped && (
-                      <div className="absolute -top-2 -right-2 bg-amber-500 text-black text-xs font-bold px-2 py-1 rounded-full">
+                      <div className="absolute -top-2 -right-2 bg-amber-500 text-black text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
                         EQUIPPED
                       </div>
                     )}
                     
                     {/* Next Up Badge */}
                     {isNextInSequence && !owned && (
-                      <div className="absolute -top-2 -left-2 bg-green-500 text-black text-xs font-bold px-2 py-1 rounded-full">
+                      <div className="absolute -top-2 -left-2 bg-green-500 text-black text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
                         NEXT
                       </div>
                     )}
@@ -195,12 +195,12 @@ export default function GameShop({ onClose }: GameShopProps) {
                     {/* Locked Badge */}
                     {isLocked && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl">
-                        <span className="text-2xl">🔒</span>
+                        <span className="text-xl sm:text-2xl">🔒</span>
                       </div>
                     )}
 
                     {/* Pickaxe Image */}
-                    <div className={`relative w-20 h-20 mx-auto mb-3 ${isLocked ? 'grayscale' : ''}`}>
+                    <div className={`relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-2 sm:mb-3 ${isLocked ? 'grayscale' : ''}`}>
                       <Image
                         src={pickaxe.image}
                         alt={pickaxe.name}
@@ -210,13 +210,13 @@ export default function GameShop({ onClose }: GameShopProps) {
                     </div>
 
                     {/* Info */}
-                    <h3 className="text-white font-bold text-center mb-1">{pickaxe.name}</h3>
-                    <p className="text-gray-400 text-sm text-center mb-2">
+                    <h3 className="text-white font-bold text-center mb-1 text-sm sm:text-base">{pickaxe.name}</h3>
+                    <p className="text-gray-400 text-xs sm:text-sm text-center mb-2">
                       +{formatNumber(pickaxe.clickPower)} power
                     </p>
 
                     {pickaxe.specialAbility && (
-                      <p className="text-purple-400 text-xs text-center mb-2 italic">
+                      <p className="text-purple-400 text-[10px] sm:text-xs text-center mb-2 italic">
                         ✨ {pickaxe.specialAbility}
                       </p>
                     )}
@@ -225,28 +225,28 @@ export default function GameShop({ onClose }: GameShopProps) {
                     <div className="mt-auto">
                       {owned ? (
                         equipped ? (
-                          <div className="text-amber-400 text-center text-sm font-medium">
+                          <div className="text-amber-400 text-center text-xs sm:text-sm font-medium">
                             Currently Using
                           </div>
                         ) : (
                           <button
                             onClick={() => equipPickaxe(pickaxe.id)}
-                            className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2 rounded-lg transition-colors"
+                            className="w-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white font-bold py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm touch-manipulation"
                           >
                             Equip
                           </button>
                         )
                       ) : isLocked ? (
-                        <div className="text-gray-500 text-center text-sm">
+                        <div className="text-gray-500 text-center text-xs sm:text-sm">
                           Buy previous first
                         </div>
                       ) : (
                         <button
                           onClick={() => buyPickaxe(pickaxe.id)}
                           disabled={!canPurchase}
-                          className={`w-full font-bold py-2 rounded-lg transition-colors ${
+                          className={`w-full font-bold py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm touch-manipulation ${
                             canPurchase
-                              ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                              ? 'bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white'
                               : !canAfford
                                 ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
                                 : 'bg-gray-700 text-gray-500 cursor-not-allowed'
@@ -263,24 +263,24 @@ export default function GameShop({ onClose }: GameShopProps) {
           )}
 
           {activeTab === 'products' && canAccessProducts && (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {/* Restock Timer Banner */}
-              <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 rounded-xl p-3 border border-purple-500/30 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">🔄</span>
+              <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 rounded-lg sm:rounded-xl p-2 sm:p-3 border border-purple-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className="text-lg sm:text-2xl">🔄</span>
                   <div>
-                    <p className="text-purple-300 font-bold text-sm">RESTOCK IN</p>
-                    <p className="text-white font-mono text-xl">{formatTime(restockTimer)}</p>
+                    <p className="text-purple-300 font-bold text-xs sm:text-sm">RESTOCK IN</p>
+                    <p className="text-white font-mono text-base sm:text-xl">{formatTime(restockTimer)}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-gray-400 text-xs">Items available</p>
-                  <p className="text-purple-300 font-bold">{shopStock.items.filter(i => i.quantity > 0).length} / {shopStock.items.length}</p>
+                  <p className="text-gray-400 text-[10px] sm:text-xs">Items available</p>
+                  <p className="text-purple-300 font-bold text-sm sm:text-base">{shopStock.items.filter(i => i.quantity > 0).length} / {shopStock.items.length}</p>
                 </div>
               </div>
 
               {/* Products Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {shopStock.items.map((stockItem) => {
                   const product = products.find(p => p.id === stockItem.productId);
                   if (!product) return null;
@@ -361,11 +361,11 @@ export default function GameShop({ onClose }: GameShopProps) {
       </div>
 
       {/* Toast Notifications */}
-      <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] flex flex-col gap-2 pointer-events-none">
+      <div className="fixed bottom-20 sm:bottom-24 left-1/2 -translate-x-1/2 z-[60] flex flex-col gap-2 pointer-events-none px-4 max-w-[90vw]">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`px-6 py-3 rounded-xl shadow-2xl font-bold text-center animate-toast-in ${
+            className={`px-3 sm:px-6 py-2 sm:py-3 rounded-lg sm:rounded-xl shadow-2xl font-bold text-center animate-toast-in text-xs sm:text-base ${
               toast.type === 'success'
                 ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white border border-green-400/30'
                 : 'bg-gradient-to-r from-red-600 to-rose-600 text-white border border-red-400/30'

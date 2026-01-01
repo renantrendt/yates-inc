@@ -66,7 +66,13 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const rockRef = useRef<HTMLDivElement>(null);
   const popupIdRef = useRef(0);
 
-  const handleMine = useCallback(() => {
+  const handleMine = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
+    // Prevent default touch behavior
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
     // Trigger pickaxe swing animation
     setIsSwinging(true);
     setTimeout(() => setIsSwinging(false), 150);
@@ -149,7 +155,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
         setCouponPopups((prev) => prev.filter((c) => c.id !== couponId));
       }, 2000);
     }
-  }, [mineRock]);
+  }, [mineRock, gameState.currentRockHP, currentRock.clicksToBreak]);
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -216,47 +222,47 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       </div>
 
       {/* Top HUD - Fixed position with safe margins */}
-      <div className="fixed top-4 left-4 right-4 z-40 flex justify-between items-start">
+      <div className="fixed top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 z-40 flex justify-between items-start gap-2">
         {/* Currency Display + Exit */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1 sm:gap-2">
           {/* Exit Button */}
           {onExit && (
             <button
               onClick={onExit}
-              className="bg-black/80 backdrop-blur-sm hover:bg-red-900/80 rounded-xl px-4 py-2 flex items-center gap-2 border border-gray-600/30 hover:border-red-500/50 shadow-lg transition-colors group"
+              className="bg-black/80 backdrop-blur-sm hover:bg-red-900/80 rounded-lg sm:rounded-xl px-2 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-2 border border-gray-600/30 hover:border-red-500/50 shadow-lg transition-colors group touch-manipulation"
               title="Press ESC to exit"
             >
-              <span className="text-gray-400 group-hover:text-red-400 transition-colors">✕</span>
-              <span className="text-gray-400 group-hover:text-red-300 font-medium text-sm transition-colors">EXIT</span>
-              <span className="text-gray-600 text-xs">(ESC)</span>
+              <span className="text-gray-400 group-hover:text-red-400 transition-colors text-sm sm:text-base">✕</span>
+              <span className="text-gray-400 group-hover:text-red-300 font-medium text-xs sm:text-sm transition-colors">EXIT</span>
+              <span className="hidden sm:inline text-gray-600 text-xs">(ESC)</span>
             </button>
           )}
           
-          <div className="bg-black/80 backdrop-blur-sm rounded-xl px-4 py-2 flex items-center gap-2 border border-yellow-600/30 shadow-lg">
-            <span className="text-2xl">💰</span>
-            <span className="text-yellow-400 font-bold text-xl">${formatNumber(gameState.yatesDollars)}</span>
+          <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-2 border border-yellow-600/30 shadow-lg">
+            <span className="text-lg sm:text-2xl">💰</span>
+            <span className="text-yellow-400 font-bold text-base sm:text-xl">${formatNumber(gameState.yatesDollars)}</span>
           </div>
           
             {/* Coupon Display - Individual bars */}
             {totalCoupons > 0 && (
-              <div className="bg-black/80 backdrop-blur-sm rounded-xl px-3 py-2 border border-purple-600/30 shadow-lg">
-                <div className="flex items-center gap-3">
+              <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border border-purple-600/30 shadow-lg">
+                <div className="flex items-center gap-1.5 sm:gap-3">
                   {gameState.coupons.discount30 > 0 && (
-                    <div className="flex items-center gap-1 bg-green-600/20 px-2 py-1 rounded">
-                      <span className="text-xs text-green-400 font-bold">30%</span>
-                      <span className="text-green-300 font-bold">×{gameState.coupons.discount30}</span>
+                    <div className="flex items-center gap-0.5 sm:gap-1 bg-green-600/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
+                      <span className="text-[10px] sm:text-xs text-green-400 font-bold">30%</span>
+                      <span className="text-green-300 font-bold text-[10px] sm:text-xs">×{gameState.coupons.discount30}</span>
                     </div>
                   )}
                   {gameState.coupons.discount50 > 0 && (
-                    <div className="flex items-center gap-1 bg-blue-600/20 px-2 py-1 rounded">
-                      <span className="text-xs text-blue-400 font-bold">50%</span>
-                      <span className="text-blue-300 font-bold">×{gameState.coupons.discount50}</span>
+                    <div className="flex items-center gap-0.5 sm:gap-1 bg-blue-600/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
+                      <span className="text-[10px] sm:text-xs text-blue-400 font-bold">50%</span>
+                      <span className="text-blue-300 font-bold text-[10px] sm:text-xs">×{gameState.coupons.discount50}</span>
                     </div>
                   )}
                   {gameState.coupons.discount100 > 0 && (
-                    <div className="flex items-center gap-1 bg-yellow-600/20 px-2 py-1 rounded">
-                      <span className="text-xs text-yellow-400 font-bold">FREE</span>
-                      <span className="text-yellow-300 font-bold">×{gameState.coupons.discount100}</span>
+                    <div className="flex items-center gap-0.5 sm:gap-1 bg-yellow-600/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
+                      <span className="text-[10px] sm:text-xs text-yellow-400 font-bold">FREE</span>
+                      <span className="text-yellow-300 font-bold text-[10px] sm:text-xs">×{gameState.coupons.discount100}</span>
                     </div>
                   )}
                 </div>
@@ -265,32 +271,32 @@ export default function MiningGame({ onExit }: MiningGameProps) {
         </div>
 
         {/* Shop Button + Notification */}
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-end gap-1 sm:gap-2">
           <button
             onClick={() => setShowShop(true)}
-            className="bg-gradient-to-br from-amber-600 to-amber-800 hover:from-amber-500 hover:to-amber-700 text-white font-bold py-3 px-6 rounded-xl text-lg transition-all shadow-lg hover:scale-105 border border-amber-400/30"
+            className="bg-gradient-to-br from-amber-600 to-amber-800 hover:from-amber-500 hover:to-amber-700 active:from-amber-700 active:to-amber-900 text-white font-bold py-2 sm:py-3 px-3 sm:px-6 rounded-lg sm:rounded-xl text-sm sm:text-lg transition-all shadow-lg hover:scale-105 active:scale-95 border border-amber-400/30 touch-manipulation"
           >
-            🛒 SHOP
+            🛒 <span className="hidden xs:inline">SHOP</span>
           </button>
           
           {/* New Pickaxe Available Notification */}
           {canBuyNextPickaxe && !showShop && (
             <div 
-              className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg animate-pulse cursor-pointer border border-green-400/30"
+              className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-2 sm:px-4 py-1 sm:py-2 rounded-lg shadow-lg animate-pulse cursor-pointer border border-green-400/30 touch-manipulation"
               onClick={() => setShowShop(true)}
             >
-              <span className="text-sm font-bold">⛏️ New pickaxe available!</span>
+              <span className="text-xs sm:text-sm font-bold">⛏️ <span className="hidden xs:inline">New pickaxe!</span></span>
             </div>
           )}
         </div>
       </div>
 
       {/* Main Mining Area */}
-      <div className="absolute inset-0 flex items-center justify-center pt-16 pb-32">
-        <div className="relative flex items-center">
+      <div className="absolute inset-0 flex items-center justify-center pt-20 sm:pt-16 pb-40 sm:pb-32 px-2">
+        <div className="relative flex items-center scale-75 sm:scale-90 md:scale-100">
           {/* Pickaxe */}
           <div 
-            className={`relative w-32 h-32 transition-transform origin-bottom-right -mr-8 z-10 ${
+            className={`relative w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 transition-transform origin-bottom-right -mr-6 sm:-mr-8 z-10 ${
               isSwinging ? 'rotate-[30deg]' : 'rotate-0'
             }`}
             style={{ transitionDuration: '0.15s' }}
@@ -301,18 +307,20 @@ export default function MiningGame({ onExit }: MiningGameProps) {
               alt={currentPickaxe.name}
               fill
               unoptimized
-              className="object-contain drop-shadow-2xl"
+              className="object-contain drop-shadow-2xl pointer-events-none"
               style={{ transform: 'rotate(-30deg)' }}
             />
           </div>
 
-          {/* Rock (Clickable) */}
+          {/* Rock (Clickable/Touchable) */}
           <div 
             ref={rockRef}
             onClick={handleMine}
-            className={`relative w-64 h-64 cursor-pointer transition-transform hover:scale-105 active:scale-95 ${
+            onTouchEnd={handleMine}
+            className={`relative w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 cursor-pointer transition-transform hover:scale-105 active:scale-95 touch-manipulation ${
               rockShake ? 'animate-shake' : ''
             } ${rockBroken ? 'animate-rock-break' : ''}`}
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             <Image
               key={`rock-${currentRock.id}-${currentRock.image}`}
@@ -320,12 +328,12 @@ export default function MiningGame({ onExit }: MiningGameProps) {
               alt={currentRock.name}
               fill
               unoptimized
-              className={`object-contain drop-shadow-2xl transition-all ${rockBroken ? 'scale-110 brightness-150' : ''}`}
+              className={`object-contain drop-shadow-2xl transition-all pointer-events-none ${rockBroken ? 'scale-110 brightness-150' : ''}`}
             />
             
             {/* Rock break flash */}
             {rockBroken && (
-              <div className="absolute inset-0 bg-white/50 rounded-full animate-flash-out" />
+              <div className="absolute inset-0 bg-white/50 rounded-full animate-flash-out pointer-events-none" />
             )}
 
             {/* Money Popups */}
@@ -373,17 +381,17 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       </div>
 
       {/* Bottom Stats */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 z-30">
-        <div className="max-w-2xl mx-auto space-y-3">
+      <div className="fixed bottom-0 left-0 right-0 p-2 sm:p-4 z-30">
+        <div className="max-w-2xl mx-auto space-y-2 sm:space-y-3">
           {/* Current Rock HP Bar */}
-          <div className="bg-black/80 backdrop-blur-sm rounded-xl p-3 border border-gray-700/50">
+          <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-2 sm:p-3 border border-gray-700/50">
             <div className="flex justify-between items-center mb-1">
-              <span className="text-gray-300 font-medium text-sm">⛏️ Mining: {currentRock.name}</span>
-              <span className="text-gray-400 text-xs">
+              <span className="text-gray-300 font-medium text-xs sm:text-sm">⛏️ Mining: {currentRock.name}</span>
+              <span className="text-gray-400 text-[10px] sm:text-xs">
                 {gameState.currentRockHP} / {currentRock.clicksToBreak} HP
               </span>
             </div>
-            <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
+            <div className="w-full h-2 sm:h-3 bg-gray-800 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-150"
                 style={{ width: `${progressPercent}%` }}
@@ -393,14 +401,14 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
           {/* Next Rock Unlock Bar */}
           {nextRockInfo.nextRock && (
-            <div className="bg-black/80 backdrop-blur-sm rounded-xl p-3 border border-blue-700/50">
+            <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-2 sm:p-3 border border-blue-700/50">
               <div className="flex justify-between items-center mb-1">
-                <span className="text-blue-300 font-medium text-sm">🔓 Next: {nextRockInfo.nextRock.name}</span>
-                <span className="text-blue-400 text-xs">
+                <span className="text-blue-300 font-medium text-xs sm:text-sm">🔓 Next: {nextRockInfo.nextRock.name}</span>
+                <span className="text-blue-400 text-[10px] sm:text-xs">
                   {formatNumber(nextRockInfo.clicksNeeded)} clicks left
                 </span>
               </div>
-              <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden">
+              <div className="w-full h-2 sm:h-3 bg-gray-800 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-150"
                   style={{ width: `${nextRockInfo.progress}%` }}
@@ -411,29 +419,29 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
           {/* Max Rock Reached */}
           {!nextRockInfo.nextRock && (
-            <div className="bg-black/80 backdrop-blur-sm rounded-xl p-3 border border-yellow-700/50 text-center">
-              <span className="text-yellow-400 font-bold text-sm">🏆 MAX ROCK UNLOCKED!</span>
+            <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-2 sm:p-3 border border-yellow-700/50 text-center">
+              <span className="text-yellow-400 font-bold text-xs sm:text-sm">🏆 MAX ROCK UNLOCKED!</span>
             </div>
           )}
 
           {/* Stats Row */}
-          <div className="flex justify-center gap-3">
+          <div className="flex justify-center gap-2 sm:gap-3">
             <button
               onClick={() => setShowRockSelector(true)}
-              className="bg-black/80 backdrop-blur-sm rounded-xl px-3 py-2 border border-gray-700/50 hover:border-gray-500/50 transition-colors"
+              className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-700/50 hover:border-gray-500/50 active:border-gray-400/50 transition-colors touch-manipulation"
             >
-              <span className="text-gray-400 text-xs">Rock</span>
-              <span className="text-white font-bold block text-sm">{currentRock.id}/19</span>
+              <span className="text-gray-400 text-[10px] sm:text-xs">Rock</span>
+              <span className="text-white font-bold block text-xs sm:text-sm">{currentRock.id}/19</span>
             </button>
             
-            <div className="bg-black/80 backdrop-blur-sm rounded-xl px-3 py-2 border border-gray-700/50">
-              <span className="text-gray-400 text-xs">Power</span>
-              <span className="text-white font-bold block text-sm">{formatNumber(currentPickaxe.clickPower)}</span>
+            <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-700/50">
+              <span className="text-gray-400 text-[10px] sm:text-xs">Power</span>
+              <span className="text-white font-bold block text-xs sm:text-sm">{formatNumber(currentPickaxe.clickPower)}</span>
             </div>
             
-            <div className="bg-black/80 backdrop-blur-sm rounded-xl px-3 py-2 border border-gray-700/50">
-              <span className="text-gray-400 text-xs">Pickaxe</span>
-              <span className="text-white font-bold block text-sm">{currentPickaxe.name}</span>
+            <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-700/50 max-w-[120px]">
+              <span className="text-gray-400 text-[10px] sm:text-xs">Pickaxe</span>
+              <span className="text-white font-bold block text-xs sm:text-sm truncate">{currentPickaxe.name}</span>
             </div>
           </div>
         </div>

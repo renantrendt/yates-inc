@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { GameState, COUPON_DROP_RATES, COUPON_REQUIREMENTS, ShopStock, SHOP_RESTOCK_INTERVAL, SHOP_MIN_ITEMS, SHOP_MAX_ITEMS, SHOP_MIN_QUANTITY, SHOP_MAX_QUANTITY } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
@@ -67,6 +67,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
   const [shopStock, setShopStock] = useState<ShopStock>(() => generateShopStock());
   const [isLoaded, setIsLoaded] = useState(false);
+  
+  // Ref for cheat commands to access latest setGameState
+  const setGameStateRef = useRef(setGameState);
+  setGameStateRef.current = setGameState;
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -111,15 +115,59 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, [gameState, shopStock, isLoaded]);
 
-  // Expose reset function to window for F12 console testing
+  // Expose cheat functions to window for F12 console testing
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      (window as unknown as { yatesReset: () => void }).yatesReset = () => {
+      (window as Record<string, unknown>).yatesReset = () => {
         localStorage.removeItem(STORAGE_KEY);
-        setGameState(defaultGameState);
-        console.log('🎮 Yates Mining Game: Progress reset! Refresh the page.');
+        setGameStateRef.current(defaultGameState);
+        console.log('🎮 Progress reset! Refresh the page.');
       };
-      console.log('🎮 Yates Mining Game: Type yatesReset() in console to reset progress');
+      
+      (window as Record<string, unknown>).yatesGivePcx = (id: number) => {
+        if (id < 1 || id > PICKAXES.length) {
+          console.log(`❌ Invalid pickaxe ID. Use 1-${PICKAXES.length}`);
+          return;
+        }
+        setGameStateRef.current(prev => ({
+          ...prev,
+          ownedPickaxeIds: [...new Set([...prev.ownedPickaxeIds, id])],
+          currentPickaxeId: id,
+        }));
+        const pcx = PICKAXES.find(p => p.id === id);
+        console.log(`⛏️ Gave pickaxe: ${pcx?.name} (ID: ${id})`);
+      };
+      
+      (window as Record<string, unknown>).yatesGiveAllPcx = () => {
+        setGameStateRef.current(prev => ({
+          ...prev,
+          ownedPickaxeIds: PICKAXES.map(p => p.id),
+          currentPickaxeId: PICKAXES[PICKAXES.length - 1].id,
+        }));
+        console.log('⛏️ Unlocked ALL pickaxes!');
+      };
+      
+      (window as Record<string, unknown>).yatesGiveMoney = (amount: number) => {
+        setGameStateRef.current(prev => ({
+          ...prev,
+          yatesDollars: prev.yatesDollars + amount,
+        }));
+        console.log(`💰 Added $${amount.toLocaleString()} Yates Dollars!`);
+      };
+      
+      (window as Record<string, unknown>).yatesHelp = () => {
+        console.log(`
+🎮 YATES MINING GAME CHEATS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+yatesReset()         - Reset all progress
+yatesGivePcx(id)     - Give pickaxe by ID (1-${PICKAXES.length})
+yatesGiveAllPcx()    - Unlock all pickaxes
+yatesGiveMoney(amt)  - Add Yates Dollars
+yatesHelp()          - Show this help
+        `);
+      };
+      
+      console.log('🎮 Yates Mining Game: Type yatesHelp() for cheat commands');
     }
   }, []);
 

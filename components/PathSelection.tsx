@@ -114,7 +114,7 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
 
     return (
         <div className="fixed inset-0 bg-black flex items-center justify-center overflow-hidden">
-            <div className="relative w-[1280px] h-[720px]">
+            <div className="relative w-full h-full max-w-[1280px] max-h-[720px]">
                 {/* Background */}
                 <Image
                     src="/locations/grass-path.png"
@@ -124,23 +124,44 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
                     priority
                 />
 
-                {/* Path Labels */}
-                <div className="absolute top-24 left-10 bg-purple-600 text-white px-6 py-3 rounded-lg font-bold text-xl shadow-lg">
+                {/* Path Labels - Responsive */}
+                <div className="absolute top-4 sm:top-12 md:top-24 left-2 sm:left-6 md:left-10 bg-purple-600 text-white px-3 sm:px-4 md:px-6 py-1.5 sm:py-2 md:py-3 rounded-lg font-bold text-sm sm:text-base md:text-xl shadow-lg">
                     ← LORE
                 </div>
-                <div className="absolute top-24 right-10 bg-blue-600 text-white px-6 py-3 rounded-lg font-bold text-xl shadow-lg">
+                <div className="absolute top-4 sm:top-12 md:top-24 right-2 sm:right-6 md:right-10 bg-blue-600 text-white px-3 sm:px-4 md:px-6 py-1.5 sm:py-2 md:py-3 rounded-lg font-bold text-sm sm:text-base md:text-xl shadow-lg">
                     GAMEPLAY →
                 </div>
 
-                {/* Instructions */}
-                <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-80 text-white px-6 py-3 rounded-lg text-center">
-                    <p className="font-bold mb-1">Use WASD or Arrow Keys to move</p>
-                    <p className="text-sm text-gray-300">Walk to either side to choose your path</p>
+                {/* Direct Buttons for Mobile - Visible on small screens */}
+                <div className="md:hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-4 w-full max-w-xs px-4">
+                    <button
+                        onClick={() => onSelectPath('lore')}
+                        className="bg-gradient-to-r from-purple-600 to-purple-500 text-white px-6 py-4 rounded-xl font-bold text-lg shadow-xl hover:from-purple-500 hover:to-purple-400 active:scale-95 transition-all touch-manipulation flex items-center justify-center gap-2"
+                    >
+                        ← LORE
+                    </button>
+                    <button
+                        onClick={() => onSelectPath('gameplay')}
+                        className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-4 rounded-xl font-bold text-lg shadow-xl hover:from-blue-500 hover:to-blue-400 active:scale-95 transition-all touch-manipulation flex items-center justify-center gap-2"
+                    >
+                        GAMEPLAY →
+                    </button>
                 </div>
 
-                {/* Steve Character */}
+                {/* Instructions - Desktop only (keyboard controls) */}
+                <div className="hidden md:block absolute bottom-6 sm:bottom-10 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-80 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-center">
+                    <p className="font-bold mb-1 text-sm sm:text-base">Use WASD or Arrow Keys to move</p>
+                    <p className="text-xs sm:text-sm text-gray-300">Walk to either side to choose your path</p>
+                </div>
+
+                {/* Mobile Instructions */}
+                <div className="md:hidden absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-80 text-white px-4 py-2 rounded-lg text-center">
+                    <p className="text-xs text-gray-300">Tap a button above to start</p>
+                </div>
+
+                {/* Steve Character - Desktop only */}
                 <div
-                    className="absolute transition-none"
+                    className="hidden md:block absolute transition-none"
                     style={{
                         left: `${stevePosition.x}px`,
                         top: `${stevePosition.y}px`,
@@ -153,6 +174,17 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
                         width={64}
                         height={64}
                         className="pixelated"
+                    />
+                </div>
+
+                {/* Mobile character indicator */}
+                <div className="md:hidden absolute bottom-20 left-1/2 -translate-x-1/2">
+                    <Image
+                        src="/characters/steve.png"
+                        alt="Steve"
+                        width={48}
+                        height={48}
+                        className="pixelated opacity-50"
                     />
                 </div>
             </div>

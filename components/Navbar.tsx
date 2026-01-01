@@ -16,16 +16,19 @@ export default function Navbar() {
   const { isClient, client, setClient } = useClient();
   const [showCart, setShowCart] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <>
       <nav className="bg-white dark:bg-gray-900 shadow-md fixed top-0 left-0 right-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-2xl font-bold text-gray-900 dark:text-white">
+            <Link href="/" className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
               YATES INC.
             </Link>
-            <div className="flex space-x-6 items-center">
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex space-x-6 items-center">
               <Link
                 href="/products"
                 className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium"
@@ -51,7 +54,7 @@ export default function Navbar() {
                 EL
               </Link>
               
-              {/* Inbox button - visible for EVERYONE */}
+              {/* Inbox button */}
               <button
                 onClick={() => setShowInbox(true)}
                 className="relative text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium"
@@ -90,7 +93,7 @@ export default function Navbar() {
                 )}
               </button>
 
-              {/* Logout button - visible when logged in as employee or client */}
+              {/* Logout button */}
               {(isLoggedIn || isClient) && (
                 <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-300 dark:border-gray-700">
                   <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -124,7 +127,138 @@ export default function Navbar() {
                 </div>
               )}
             </div>
+
+            {/* Mobile menu button + quick actions */}
+            <div className="flex md:hidden items-center gap-3">
+              {/* Mobile Inbox */}
+              <button
+                onClick={() => setShowInbox(true)}
+                className="relative text-gray-700 dark:text-gray-300 p-2"
+                title="Inbox"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-6 h-6"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
+                  />
+                </svg>
+                {unreadCount > 0 && (isLoggedIn || isClient) && (
+                  <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Mobile Cart */}
+              <button
+                onClick={() => setShowCart(true)}
+                className="relative text-gray-700 dark:text-gray-300 p-2"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-6 h-6"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
+                  />
+                </svg>
+                {cartCount > 0 && (
+                  <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Hamburger */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="text-gray-700 dark:text-gray-300 p-2"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-6 h-6"
+                >
+                  {mobileMenuOpen ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                  )}
+                </svg>
+              </button>
+            </div>
           </div>
+
+          {/* Mobile Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-gray-200 dark:border-gray-700 py-4">
+              <div className="flex flex-col space-y-4">
+                <Link
+                  href="/products"
+                  className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Products
+                </Link>
+                <Link
+                  href="/contact"
+                  className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Contact
+                </Link>
+                <Link
+                  href="/employees"
+                  className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Employees
+                </Link>
+                <Link
+                  href="/el"
+                  className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  EL
+                </Link>
+
+                {(isLoggedIn || isClient) && (
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                      Logged in as: {isLoggedIn && employee ? employee.name : client?.username}
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (isLoggedIn) logout();
+                        if (isClient) setClient(null);
+                        setMobileMenuOpen(false);
+                      }}
+                      className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 font-medium"
+                    >
+                      Log out
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </nav>
       <CartSidebar isOpen={showCart} onClose={() => setShowCart(false)} />

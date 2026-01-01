@@ -38,6 +38,16 @@ html, body {
   min-height: 100vh;
 }
 
+/* Better mobile touch support */
+button, a, input[type="button"], input[type="submit"] {
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Prevent white gaps on overscroll */
 body::before {
   content: '';
