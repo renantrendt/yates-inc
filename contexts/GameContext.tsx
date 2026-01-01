@@ -118,13 +118,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Expose cheat functions to window for F12 console testing
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      (window as Record<string, unknown>).yatesReset = () => {
+      ((window as unknown) as Record<string, unknown>).yatesReset = () => {
         localStorage.removeItem(STORAGE_KEY);
         setGameStateRef.current(defaultGameState);
         console.log('🎮 Progress reset! Refresh the page.');
       };
       
-      (window as Record<string, unknown>).yatesGivePcx = (id: number) => {
+      ((window as unknown) as Record<string, unknown>).yatesGivePcx = (id: number) => {
         if (id < 1 || id > PICKAXES.length) {
           console.log(`❌ Invalid pickaxe ID. Use 1-${PICKAXES.length}`);
           return;
@@ -138,7 +138,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         console.log(`⛏️ Gave pickaxe: ${pcx?.name} (ID: ${id})`);
       };
       
-      (window as Record<string, unknown>).yatesGiveAllPcx = () => {
+      ((window as unknown) as Record<string, unknown>).yatesGiveAllPcx = () => {
         setGameStateRef.current(prev => ({
           ...prev,
           ownedPickaxeIds: PICKAXES.map(p => p.id),
@@ -147,7 +147,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         console.log('⛏️ Unlocked ALL pickaxes!');
       };
       
-      (window as Record<string, unknown>).yatesGiveMoney = (amount: number) => {
+      ((window as unknown) as Record<string, unknown>).yatesGiveMoney = (amount: number) => {
         setGameStateRef.current(prev => ({
           ...prev,
           yatesDollars: prev.yatesDollars + amount,
@@ -155,7 +155,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         console.log(`💰 Added $${amount.toLocaleString()} Yates Dollars!`);
       };
       
-      (window as Record<string, unknown>).yatesHelp = () => {
+      ((window as unknown) as Record<string, unknown>).yatesHelp = () => {
         console.log(`
 🎮 YATES MINING GAME CHEATS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
