@@ -4,6 +4,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { GameState, COUPON_DROP_RATES, COUPON_REQUIREMENTS, ShopStock, SHOP_RESTOCK_INTERVAL, SHOP_MIN_ITEMS, SHOP_MAX_ITEMS, SHOP_MIN_QUANTITY, SHOP_MAX_QUANTITY } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
+import { useAuth } from './AuthContext';
+import { useClient } from './ClientContext';
+import { fetchUserGameData, debouncedSaveUserGameData } from '@/lib/userDataSync';
 
 interface GameContextType {
   gameState: GameState;
@@ -67,34 +70,68 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
   const [shopStock, setShopStock] = useState<ShopStock>(() => generateShopStock());
   const [isLoaded, setIsLoaded] = useState(false);
+  const { employee } = useAuth();
+  const { client } = useClient();
+  
+  // Get current user ID and type
+  const userId = employee?.id || client?.id || null;
+  const userType: 'employee' | 'client' | null = employee ? 'employee' : client ? 'client' : null;
   
   // Ref for cheat commands to access latest setGameState
   const setGameStateRef = useRef(setGameState);
   setGameStateRef.current = setGameState;
 
-  // Load from localStorage on mount
+  // Load from localStorage first, then try Supabase if logged in
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setGameState({ ...defaultGameState, ...parsed });
-        
-        // Load shop stock or generate new if expired/missing
-        if (parsed.shopStock) {
-          const timeSinceRestock = Date.now() - parsed.shopStock.lastRestockTime;
-          if (timeSinceRestock >= SHOP_RESTOCK_INTERVAL) {
-            setShopStock(generateShopStock());
-          } else {
-            setShopStock(parsed.shopStock);
+    const loadData = async () => {
+      // First load from localStorage as fallback
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setGameState({ ...defaultGameState, ...parsed });
+          
+          if (parsed.shopStock) {
+            const timeSinceRestock = Date.now() - parsed.shopStock.lastRestockTime;
+            if (timeSinceRestock >= SHOP_RESTOCK_INTERVAL) {
+              setShopStock(generateShopStock());
+            } else {
+              setShopStock(parsed.shopStock);
+            }
           }
+        } catch {
+          console.error('Failed to parse saved game state');
         }
-      } catch {
-        console.error('Failed to parse saved game state');
       }
-    }
-    setIsLoaded(true);
-  }, []);
+
+      // If logged in, try to load from Supabase
+      if (userId && userType) {
+        const supabaseData = await fetchUserGameData(userId);
+        if (supabaseData) {
+          setGameState({
+            yatesDollars: supabaseData.yates_dollars || 0,
+            totalClicks: supabaseData.total_clicks || 0,
+            currentPickaxeId: supabaseData.current_pickaxe_id || 1,
+            currentRockId: supabaseData.current_rock_id || 1,
+            currentRockHP: supabaseData.current_rock_hp || ROCKS[0].clicksToBreak,
+            rocksMinedCount: supabaseData.rocks_mined_count || 0,
+            ownedPickaxeIds: supabaseData.owned_pickaxe_ids || [1],
+            coupons: {
+              discount30: supabaseData.coupons_30 || 0,
+              discount50: supabaseData.coupons_50 || 0,
+              discount100: supabaseData.coupons_100 || 0,
+            },
+            hasSeenCutscene: supabaseData.has_seen_cutscene || false,
+          });
+          console.log('📦 Loaded game data from Supabase');
+        }
+      }
+
+      setIsLoaded(true);
+    };
+
+    loadData();
+  }, [userId, userType]);
 
   // Auto-restock check every second
   useEffect(() => {
@@ -108,12 +145,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [shopStock.lastRestockTime]);
 
-  // Save to localStorage whenever state changes
+  // Save to localStorage and Supabase whenever state changes
   useEffect(() => {
     if (isLoaded) {
+      // Always save to localStorage
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...gameState, shopStock }));
+
+      // If logged in, also sync to Supabase (debounced)
+      if (userId && userType) {
+        debouncedSaveUserGameData({
+          user_id: userId,
+          user_type: userType,
+          yates_dollars: gameState.yatesDollars,
+          total_clicks: gameState.totalClicks,
+          current_pickaxe_id: gameState.currentPickaxeId,
+          current_rock_id: gameState.currentRockId,
+          current_rock_hp: gameState.currentRockHP,
+          rocks_mined_count: gameState.rocksMinedCount,
+          owned_pickaxe_ids: gameState.ownedPickaxeIds,
+          coupons_30: gameState.coupons.discount30,
+          coupons_50: gameState.coupons.discount50,
+          coupons_100: gameState.coupons.discount100,
+          has_seen_cutscene: gameState.hasSeenCutscene,
+        });
+      }
     }
-  }, [gameState, shopStock, isLoaded]);
+  }, [gameState, shopStock, isLoaded, userId, userType]);
 
   // Expose cheat functions to window for F12 console testing
   useEffect(() => {

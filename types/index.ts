@@ -134,5 +134,31 @@ export interface PaycheckContextType {
   getPaycheckTaxInfo: (salaryAmount: number) => PaycheckTaxInfo;
 }
 
+// Stock Market Types
+export interface StockPricePoint {
+  timestamp: number;
+  price: number;
+}
+
+export interface StockState {
+  priceHistory: StockPricePoint[];
+  currentPrice: number;
+  ownedStocks: number;
+  stockProfits: number; // Money earned from selling stocks (for premium purchases)
+  lastPriceUpdate: number;
+}
+
+export interface StockContextType {
+  stockState: StockState;
+  currentPrice: number;
+  priceHistory: StockPricePoint[];
+  ownedStocks: number;
+  stockProfits: number;
+  buyStock: (quantity: number, gameSpendMoney: (amount: number) => boolean) => boolean;
+  sellStock: (quantity: number) => boolean;
+  spendStocks: (quantity: number) => boolean;
+  canBuyStocks: (currentRockId: number, ownedPickaxeIds: number[]) => boolean;
+}
+
 
 

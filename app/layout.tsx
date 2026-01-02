@@ -6,6 +6,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ClientProvider } from "@/contexts/ClientContext";
 import { MailProvider } from "@/contexts/MailContext";
 import { PaycheckProvider } from "@/contexts/PaycheckContext";
+import { GameProvider } from "@/contexts/GameContext";
+import { StockProvider } from "@/contexts/StockContext";
 import Navbar from "@/components/Navbar";
 import DisclaimerWarning from "@/components/DisclaimerWarning";
 import PaycheckPopup from "@/components/PaycheckPopup";
@@ -37,18 +39,22 @@ export default function RootLayout({
       >
         <AuthProvider>
           <ClientProvider>
-            <PaycheckProvider>
-              <CartProvider>
-                <MailProvider>
-                  <DisclaimerWarning />
-                  <Navbar />
-                  <PaycheckPopup />
-                  <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
-                    {children}
-                  </main>
-                </MailProvider>
-              </CartProvider>
-            </PaycheckProvider>
+            <GameProvider>
+              <StockProvider>
+                <PaycheckProvider>
+                  <CartProvider>
+                    <MailProvider>
+                      <DisclaimerWarning />
+                      <Navbar />
+                      <PaycheckPopup />
+                      <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
+                        {children}
+                      </main>
+                    </MailProvider>
+                  </CartProvider>
+                </PaycheckProvider>
+              </StockProvider>
+            </GameProvider>
           </ClientProvider>
         </AuthProvider>
       </body>

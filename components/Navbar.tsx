@@ -10,6 +10,7 @@ import { useState } from 'react';
 import CartSidebar from './CartSidebar';
 import InboxSidebar from './InboxSidebar';
 import PaycheckSidebar from './PaycheckSidebar';
+import StockMarket from './StockMarket';
 
 export default function Navbar() {
   const { cartCount } = useCart();
@@ -20,6 +21,7 @@ export default function Navbar() {
   const [showCart, setShowCart] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
   const [showPaychecks, setShowPaychecks] = useState(false);
+  const [showStockMarket, setShowStockMarket] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Check if current user is Logan (CEO)
@@ -60,6 +62,15 @@ export default function Navbar() {
               >
                 EL
               </Link>
+
+              {/* Stock Market button */}
+              <button
+                onClick={() => setShowStockMarket(true)}
+                className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium flex items-center gap-1"
+                title="Stock Market"
+              >
+                📈
+              </button>
 
               {/* Paychecks button - CEO only */}
               {isCEO && (
@@ -282,6 +293,17 @@ export default function Navbar() {
                   EL
                 </Link>
 
+                {/* Stock Market - mobile */}
+                <button
+                  onClick={() => {
+                    setShowStockMarket(true);
+                    setMobileMenuOpen(false);
+                  }}
+                  className="text-left text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium flex items-center gap-2"
+                >
+                  📈 Stock Market
+                </button>
+
                 {(isLoggedIn || isClient) && (
                   <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                     <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 mb-3">
@@ -337,6 +359,7 @@ export default function Navbar() {
       <CartSidebar isOpen={showCart} onClose={() => setShowCart(false)} />
       <InboxSidebar isOpen={showInbox} onClose={() => setShowInbox(false)} />
       {isCEO && <PaycheckSidebar isOpen={showPaychecks} onClose={() => setShowPaychecks(false)} />}
+      <StockMarket isOpen={showStockMarket} onClose={() => setShowStockMarket(false)} />
     </>
   );
 }
