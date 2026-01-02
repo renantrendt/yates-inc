@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { CartItem, Product, CartContextType } from '@/types';
+import { calculateTax, getTaxRate, getTaxRateLabel } from '@/utils/taxes';
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
@@ -58,10 +59,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
-  const cartTotal = cart.reduce(
+  const cartSubtotal = cart.reduce(
     (total, item) => total + item.product.priceFloat * item.quantity,
     0
   );
+  
+  // Calculate tax based on subtotal
+  const cartTax = calculateTax(cartSubtotal, 'product');
+  const cartTaxRate = getTaxRate(cartSubtotal, 'product');
+  const cartTaxRateLabel = getTaxRateLabel(cartSubtotal, 'product');
+  const cartTotal = cartSubtotal + cartTax;
 
   return (
     <CartContext.Provider
@@ -72,6 +79,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         updateQuantity,
         clearCart,
         cartCount,
+        cartSubtotal,
+        cartTax,
+        cartTaxRate,
+        cartTaxRateLabel,
         cartTotal,
       }}
     >

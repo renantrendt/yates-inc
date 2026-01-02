@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { EmployeePaycheck, PaycheckContextType } from '@/types';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/lib/supabase';
+import { calculateFinalAmount, getTaxBreakdown } from '@/utils/taxes';
 
 const PaycheckContext = createContext<PaycheckContextType | undefined>(undefined);
 
@@ -67,15 +68,18 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Process paycheck - add salary to balance
+  // Process paycheck - add salary to balance (after tax deduction)
   const processPaycheck = async (employeeId: string) => {
     const paycheck = paychecks.find((p) => p.employee_id === employeeId);
     if (!paycheck) return;
 
+    // Calculate net salary after tax deduction
+    const netSalary = calculateFinalAmount(paycheck.salary_amount, 'paycheck');
+
     const newBalance =
       paycheck.salary_currency === 'yates'
-        ? { yates_balance: paycheck.yates_balance + paycheck.salary_amount }
-        : { walters_balance: paycheck.walters_balance + paycheck.salary_amount };
+        ? { yates_balance: paycheck.yates_balance + netSalary }
+        : { walters_balance: paycheck.walters_balance + netSalary };
 
     try {
       const { error } = await supabase
@@ -103,11 +107,15 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
   const checkAndProcessPaychecks = useCallback(async () => {
     for (const paycheck of paychecks) {
       if (paycheck.days_until_paycheck <= 0 && paycheck.salary_amount > 0) {
-        // Time to pay!
+        // Time to pay! Calculate net salary after tax deduction
+        const taxRate = 0.15; // 15% tax
+        const taxes = paycheck.salary_amount * taxRate;
+        const netSalary = paycheck.salary_amount - taxes;
+        
         const newBalance =
           paycheck.salary_currency === 'yates'
-            ? { yates_balance: paycheck.yates_balance + paycheck.salary_amount }
-            : { walters_balance: paycheck.walters_balance + paycheck.salary_amount };
+            ? { yates_balance: paycheck.yates_balance + netSalary }
+            : { walters_balance: paycheck.walters_balance + netSalary };
 
         try {
           await supabase
@@ -119,6 +127,18 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
               updated_at: new Date().toISOString(),
             })
             .eq('employee_id', paycheck.employee_id);
+
+          // Save pending notification for the popup
+          const pendingData = {
+            amount: paycheck.salary_amount,
+            currency: paycheck.salary_currency,
+            taxes: taxes,
+            total: netSalary,
+          };
+          localStorage.setItem(
+            `yates-paycheck-pending-${paycheck.employee_id}`,
+            JSON.stringify(pendingData)
+          );
         } catch (err) {
           console.error('Error auto-processing paycheck:', err);
         }
@@ -204,6 +224,11 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchPaychecks]);
 
+  // Get tax breakdown for a salary amount
+  const getPaycheckTaxInfo = (salaryAmount: number) => {
+    return getTaxBreakdown(salaryAmount, 'paycheck');
+  };
+
   return (
     <PaycheckContext.Provider
       value={{
@@ -213,6 +238,7 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
         fetchPaychecks,
         updateSalary,
         processPaycheck,
+        getPaycheckTaxInfo,
       }}
     >
       {children}
@@ -227,4 +253,5 @@ export function usePaycheck() {
   }
   return context;
 }
+
 

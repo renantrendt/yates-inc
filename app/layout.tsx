@@ -8,6 +8,7 @@ import { MailProvider } from "@/contexts/MailContext";
 import { PaycheckProvider } from "@/contexts/PaycheckContext";
 import Navbar from "@/components/Navbar";
 import DisclaimerWarning from "@/components/DisclaimerWarning";
+import PaycheckPopup from "@/components/PaycheckPopup";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,6 +42,7 @@ export default function RootLayout({
                 <MailProvider>
                   <DisclaimerWarning />
                   <Navbar />
+                  <PaycheckPopup />
                   <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
                     {children}
                   </main>

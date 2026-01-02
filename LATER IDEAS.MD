@@ -4,9 +4,6 @@
 
 
 ### LAter ->
-- A paycheck 
-- Add stripe and shit
-- TAXES
 - Finish lore image
 - Stock market
 ### RIGHT MEW
@@ -48,7 +45,6 @@ once clicked a task is created on MMMM's dashboard
  - A paycheck. 1.
 
 ### LAST Add stripe and shit.
-- TAXES. 3.
 1. When a task is at 100% it auto removes it self. And sends an Inbox to Logan(000001). 4.
 2. In the "Assigned to:xx" make it have like a list of the people to choose from. 5.
 

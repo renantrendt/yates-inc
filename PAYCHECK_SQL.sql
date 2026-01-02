@@ -37,3 +37,4 @@ ON CONFLICT (employee_id) DO UPDATE SET
   salary_currency = EXCLUDED.salary_currency,
   days_until_paycheck = EXCLUDED.days_until_paycheck;
 
+

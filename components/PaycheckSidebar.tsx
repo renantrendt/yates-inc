@@ -10,7 +10,7 @@ interface PaycheckSidebarProps {
 }
 
 export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProps) {
-  const { paychecks, updateSalary, loading } = usePaycheck();
+  const { paychecks, updateSalary, loading, getPaycheckTaxInfo } = usePaycheck();
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState<string>('');
   const [editCurrency, setEditCurrency] = useState<'yates' | 'walters'>('yates');
@@ -179,27 +179,42 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
                     </div>
                   </div>
                 ) : (
-                  <div className="flex justify-between items-center">
-                    <div className="text-sm">
-                      <span className="text-gray-500 dark:text-gray-400">Salary: </span>
-                      <span className={`font-semibold ${
-                        paycheck.salary_currency === 'yates' 
-                          ? 'text-yellow-700 dark:text-yellow-400' 
-                          : 'text-purple-700 dark:text-purple-400'
-                      }`}>
-                        ${paycheck.salary_amount.toFixed(2)} {paycheck.salary_currency === 'yates' ? 'Yates' : 'Walters'}
-                      </span>
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm">
+                        <span className="text-gray-500 dark:text-gray-400">Gross Salary: </span>
+                        <span className={`font-semibold ${
+                          paycheck.salary_currency === 'yates' 
+                            ? 'text-yellow-700 dark:text-yellow-400' 
+                            : 'text-purple-700 dark:text-purple-400'
+                        }`}>
+                          ${paycheck.salary_amount.toFixed(2)} {paycheck.salary_currency === 'yates' ? 'Yates' : 'Walters'}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleEdit(
+                          paycheck.employee_id, 
+                          paycheck.salary_amount, 
+                          paycheck.salary_currency
+                        )}
+                        className="text-blue-600 dark:text-blue-400 text-sm hover:underline"
+                      >
+                        Edit
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleEdit(
-                        paycheck.employee_id, 
-                        paycheck.salary_amount, 
-                        paycheck.salary_currency
-                      )}
-                      className="text-blue-600 dark:text-blue-400 text-sm hover:underline"
-                    >
-                      Edit
-                    </button>
+                    {/* Tax breakdown */}
+                    {paycheck.salary_amount > 0 && (
+                      <div className="text-xs bg-red-50 dark:bg-red-900/20 rounded px-2 py-1 border border-red-200 dark:border-red-800">
+                        <div className="flex justify-between text-red-600 dark:text-red-400">
+                          <span>Tax ({getPaycheckTaxInfo(paycheck.salary_amount).taxRateLabel}):</span>
+                          <span>-${getPaycheckTaxInfo(paycheck.salary_amount).taxAmount.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-green-700 dark:text-green-400 font-semibold mt-0.5">
+                          <span>Net Pay:</span>
+                          <span>${getPaycheckTaxInfo(paycheck.salary_amount).finalAmount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -217,4 +232,5 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
     </>
   );
 }
+
 

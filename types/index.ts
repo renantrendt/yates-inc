@@ -56,6 +56,10 @@ export interface CartContextType {
   updateQuantity: (productId: number, quantity: number) => void;
   clearCart: () => void;
   cartCount: number;
+  cartSubtotal: number;
+  cartTax: number;
+  cartTaxRate: number;
+  cartTaxRateLabel: string;
   cartTotal: number;
 }
 
@@ -110,6 +114,16 @@ export interface EmployeePaycheck {
   last_paycheck_date: string;
 }
 
+export interface PaycheckTaxInfo {
+  originalAmount: number;
+  taxRate: number;
+  taxRateLabel: string;
+  taxAmount: number;
+  finalAmount: number;
+  isAdded: boolean;
+  isSubtracted: boolean;
+}
+
 export interface PaycheckContextType {
   paychecks: EmployeePaycheck[];
   currentUserPaycheck: EmployeePaycheck | null;
@@ -117,6 +131,7 @@ export interface PaycheckContextType {
   fetchPaychecks: () => Promise<void>;
   updateSalary: (employeeId: string, amount: number, currency: 'yates' | 'walters') => Promise<void>;
   processPaycheck: (employeeId: string) => Promise<void>;
+  getPaycheckTaxInfo: (salaryAmount: number) => PaycheckTaxInfo;
 }
 
 

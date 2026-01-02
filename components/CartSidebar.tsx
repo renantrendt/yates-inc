@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { useRouter } from 'next/navigation';
+import { calculateTax, getTaxRateLabel } from '@/utils/taxes';
 
 interface CartSidebarProps {
   isOpen: boolean;
@@ -18,7 +19,7 @@ interface GameCoupons {
 type CouponType = 'discount30' | 'discount50' | 'discount100' | null;
 
 export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
-  const { cart, removeFromCart, updateQuantity, cartTotal } = useCart();
+  const { cart, removeFromCart, updateQuantity, cartSubtotal, cartTax, cartTaxRateLabel, cartTotal } = useCart();
   const router = useRouter();
   
   const [coupons, setCoupons] = useState<GameCoupons>({ discount30: 0, discount50: 0, discount100: 0 });
@@ -86,8 +87,13 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
     }
   };
 
-  const discountAmount = cartTotal * getDiscountPercent(appliedCoupon);
-  const finalTotal = cartTotal - discountAmount;
+  // Apply discount to subtotal, then calculate tax on discounted amount
+  const discountAmount = cartSubtotal * getDiscountPercent(appliedCoupon);
+  const discountedSubtotal = cartSubtotal - discountAmount;
+  // Recalculate tax on discounted amount
+  const effectiveTax = appliedCoupon ? calculateTax(discountedSubtotal, 'product') : cartTax;
+  const effectiveTaxRateLabel = appliedCoupon ? getTaxRateLabel(discountedSubtotal, 'product') : cartTaxRateLabel;
+  const finalTotal = discountedSubtotal + effectiveTax;
   const totalCoupons = coupons.discount30 + coupons.discount50 + coupons.discount100;
 
   const handlePayment = () => {
@@ -246,7 +252,7 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
               <div className="space-y-2">
                 <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
                   <span>Subtotal:</span>
-                  <span>${cartTotal.toFixed(2)}</span>
+                  <span>${cartSubtotal.toFixed(2)}</span>
                 </div>
                 {appliedCoupon && (
                   <div className="flex justify-between items-center text-green-600 dark:text-green-400">
@@ -254,6 +260,10 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                     <span>-${discountAmount.toFixed(2)}</span>
                   </div>
                 )}
+                <div className="flex justify-between items-center text-orange-600 dark:text-orange-400">
+                  <span>Tax ({effectiveTaxRateLabel}):</span>
+                  <span>+${effectiveTax.toFixed(2)}</span>
+                </div>
                 <div className="flex justify-between items-center text-lg font-bold text-gray-900 dark:text-white pt-2 border-t dark:border-gray-700">
                   <span>Total:</span>
                   <span>${finalTotal.toFixed(2)}</span>
