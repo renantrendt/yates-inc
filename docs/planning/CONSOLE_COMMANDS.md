@@ -1,3 +1,4 @@
+
 # Console Commands (F12 Developer Tools)
 
 Open your browser's developer console (F12) and type these commands:
