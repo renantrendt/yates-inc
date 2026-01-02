@@ -95,6 +95,7 @@ export default function PremiumProductsPage() {
   // Premium cash is half of game money
   const premiumCash = Math.floor(gameState.yatesDollars / 2);
 
+
   // Load purchased items from Supabase on mount
   useEffect(() => {
     const loadPurchases = async () => {
@@ -105,6 +106,7 @@ export default function PremiumProductsPage() {
     };
     loadPurchases();
   }, [userId]);
+
 
   // Buy with cash (spends 2x from game because premium cash is half)
   const handleBuyCash = async (product: PremiumProduct) => {
@@ -166,9 +168,11 @@ export default function PremiumProductsPage() {
   const isPurchased = (productId: number) => purchasedItems.includes(productId);
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* Balance Display - Top Left */}
-      <div className="fixed top-20 left-4 z-40 bg-gradient-to-br from-gray-900/95 to-black/95 border border-yellow-500/30 rounded-xl p-4 backdrop-blur-sm shadow-[0_0_20px_rgba(234,179,8,0.1)]">
+    <div className="min-h-screen bg-black relative">
+      {/* Wallet Display - Absolute positioned in page content */}
+      <div 
+        className="absolute top-4 left-4 bg-gradient-to-br from-gray-900 to-black border border-yellow-500/30 rounded-xl p-4 shadow-[0_0_20px_rgba(234,179,8,0.2)] z-10"
+      >
         <div className="text-xs text-yellow-500/60 uppercase tracking-wider mb-2 flex items-center gap-1">
           <span>💎</span> Your Wallet
         </div>
@@ -210,7 +214,7 @@ export default function PremiumProductsPage() {
       )}
 
       {/* Animated gold particles background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         {[...Array(50)].map((_, i) => (
           <div
             key={i}
