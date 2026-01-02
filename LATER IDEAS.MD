@@ -7,17 +7,15 @@
 - A paycheck 
 - Add stripe and shit
 - TAXES
-- Log out
 - Finish lore image
+- Stock market
 ### RIGHT MEW
-Start minigame
 
 
 
 
-#### Cul ideas
-So after we've done the minigae, add a credit system insteado of an credit card thing, then in the minegame you can choose to go to the YB(yates bank), and in it you'll be able to create a Yates card, and then you get your number and stuff, and you
-put those numebrs in the paywall so you can pay with it.
+
+#### Cul idees
 
 
 

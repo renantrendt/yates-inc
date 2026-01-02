@@ -97,5 +97,27 @@ export interface MailContextType {
   markAsRead: (conversationId: string, employeeId: string) => Promise<void>;
 }
 
+// Paycheck Types
+export interface EmployeePaycheck {
+  id: string;
+  employee_id: string;
+  yates_balance: number;
+  walters_balance: number;
+  salary_amount: number;
+  salary_currency: 'yates' | 'walters';
+  days_until_paycheck: number;
+  pay_interval: number;
+  last_paycheck_date: string;
+}
+
+export interface PaycheckContextType {
+  paychecks: EmployeePaycheck[];
+  currentUserPaycheck: EmployeePaycheck | null;
+  loading: boolean;
+  fetchPaychecks: () => Promise<void>;
+  updateSalary: (employeeId: string, amount: number, currency: 'yates' | 'walters') => Promise<void>;
+  processPaycheck: (employeeId: string) => Promise<void>;
+}
+
 
 

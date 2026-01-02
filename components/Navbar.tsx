@@ -5,18 +5,25 @@ import { useCart } from '@/contexts/CartContext';
 import { useMail } from '@/contexts/MailContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClient } from '@/contexts/ClientContext';
+import { usePaycheck } from '@/contexts/PaycheckContext';
 import { useState } from 'react';
 import CartSidebar from './CartSidebar';
 import InboxSidebar from './InboxSidebar';
+import PaycheckSidebar from './PaycheckSidebar';
 
 export default function Navbar() {
   const { cartCount } = useCart();
   const { unreadCount } = useMail();
   const { isLoggedIn, logout, employee } = useAuth();
   const { isClient, client, setClient } = useClient();
+  const { currentUserPaycheck } = usePaycheck();
   const [showCart, setShowCart] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
+  const [showPaychecks, setShowPaychecks] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Check if current user is Logan (CEO)
+  const isCEO = employee?.id === '000001';
 
   return (
     <>
@@ -53,6 +60,17 @@ export default function Navbar() {
               >
                 EL
               </Link>
+
+              {/* Paychecks button - CEO only */}
+              {isCEO && (
+                <button
+                  onClick={() => setShowPaychecks(true)}
+                  className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 font-medium flex items-center gap-1"
+                  title="Manage Paychecks"
+                >
+                  💰 Paychecks
+                </button>
+              )}
               
               {/* Inbox button */}
               <button
@@ -93,14 +111,39 @@ export default function Navbar() {
                 )}
               </button>
 
-              {/* Logout button */}
+              {/* Logout button & Balance */}
               {(isLoggedIn || isClient) && (
                 <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-300 dark:border-gray-700">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {isLoggedIn && employee 
-                      ? employee.name.split(' ')[0] 
-                      : client?.username}
-                  </span>
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {isLoggedIn && employee 
+                        ? employee.name.split(' ')[0] 
+                        : client?.username}
+                    </span>
+                    {isLoggedIn && employee && (
+                      <span className="text-xs text-blue-600 dark:text-blue-400">
+                        {employee.role}
+                      </span>
+                    )}
+                    {/* Show balance for logged-in employees */}
+                    {isLoggedIn && currentUserPaycheck && (
+                      <div className="flex gap-2 text-xs mt-0.5">
+                        {currentUserPaycheck.yates_balance > 0 && (
+                          <span className="text-yellow-600 dark:text-yellow-400 font-medium">
+                            ${currentUserPaycheck.yates_balance.toFixed(0)} Y$
+                          </span>
+                        )}
+                        {currentUserPaycheck.walters_balance > 0 && (
+                          <span className="text-purple-600 dark:text-purple-400 font-medium">
+                            ${currentUserPaycheck.walters_balance.toFixed(0)} W$
+                          </span>
+                        )}
+                        {currentUserPaycheck.yates_balance === 0 && currentUserPaycheck.walters_balance === 0 && (
+                          <span className="text-gray-400">$0</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={() => {
                       if (isLoggedIn) logout();
@@ -241,9 +284,39 @@ export default function Navbar() {
 
                 {(isLoggedIn || isClient) && (
                   <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                      Logged in as: {isLoggedIn && employee ? employee.name : client?.username}
+                    <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 mb-3">
+                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {isLoggedIn && employee ? employee.name : client?.username}
+                      </div>
+                      {isLoggedIn && employee && (
+                        <div className="text-xs text-blue-600 dark:text-blue-400">
+                          {employee.role}
+                        </div>
+                      )}
+                      {/* Mobile balance display */}
+                      {isLoggedIn && currentUserPaycheck && (
+                        <div className="flex gap-3 text-sm mt-2">
+                          <span className="text-yellow-600 dark:text-yellow-400 font-medium">
+                            ${currentUserPaycheck.yates_balance.toFixed(0)} Yates$
+                          </span>
+                          <span className="text-purple-600 dark:text-purple-400 font-medium">
+                            ${currentUserPaycheck.walters_balance.toFixed(0)} Walters$
+                          </span>
+                        </div>
+                      )}
                     </div>
+                    {/* CEO Paychecks button - mobile */}
+                    {isCEO && (
+                      <button
+                        onClick={() => {
+                          setShowPaychecks(true);
+                          setMobileMenuOpen(false);
+                        }}
+                        className="w-full text-left text-green-600 dark:text-green-400 font-medium mb-3"
+                      >
+                        💰 Manage Paychecks
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         if (isLoggedIn) logout();
@@ -263,6 +336,7 @@ export default function Navbar() {
       </nav>
       <CartSidebar isOpen={showCart} onClose={() => setShowCart(false)} />
       <InboxSidebar isOpen={showInbox} onClose={() => setShowInbox(false)} />
+      {isCEO && <PaycheckSidebar isOpen={showPaychecks} onClose={() => setShowPaychecks(false)} />}
     </>
   );
 }

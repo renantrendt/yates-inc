@@ -5,6 +5,7 @@ import { CartProvider } from "@/contexts/CartContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ClientProvider } from "@/contexts/ClientContext";
 import { MailProvider } from "@/contexts/MailContext";
+import { PaycheckProvider } from "@/contexts/PaycheckContext";
 import Navbar from "@/components/Navbar";
 import DisclaimerWarning from "@/components/DisclaimerWarning";
 
@@ -35,15 +36,17 @@ export default function RootLayout({
       >
         <AuthProvider>
           <ClientProvider>
-          <CartProvider>
-              <MailProvider>
-            <DisclaimerWarning />
-            <Navbar />
-            <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
-              {children}
-            </main>
-              </MailProvider>
-          </CartProvider>
+            <PaycheckProvider>
+              <CartProvider>
+                <MailProvider>
+                  <DisclaimerWarning />
+                  <Navbar />
+                  <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
+                    {children}
+                  </main>
+                </MailProvider>
+              </CartProvider>
+            </PaycheckProvider>
           </ClientProvider>
         </AuthProvider>
       </body>
