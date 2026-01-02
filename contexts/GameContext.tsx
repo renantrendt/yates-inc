@@ -1,12 +1,12 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
-import { GameState, COUPON_DROP_RATES, COUPON_REQUIREMENTS, ShopStock, SHOP_RESTOCK_INTERVAL, SHOP_MIN_ITEMS, SHOP_MAX_ITEMS, SHOP_MIN_QUANTITY, SHOP_MAX_QUANTITY } from '@/types/game';
+import { GameState, COUPON_DROP_RATES, COUPON_REQUIREMENTS, ShopStock, SHOP_RESTOCK_INTERVAL, SHOP_MIN_ITEMS, SHOP_MAX_ITEMS, SHOP_MIN_QUANTITY, SHOP_MAX_QUANTITY, AUTOCLICKER_COST } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
 import { useAuth } from './AuthContext';
 import { useClient } from './ClientContext';
-import { fetchUserGameData, debouncedSaveUserGameData } from '@/lib/userDataSync';
+import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData } from '@/lib/userDataSync';
 
 interface GameContextType {
   gameState: GameState;
@@ -26,6 +26,8 @@ interface GameContextType {
   shopStock: ShopStock;
   buyShopProduct: (productId: number) => boolean;
   getTimeUntilRestock: () => number;
+  buyAutoclicker: () => boolean;
+  toggleAutoclicker: () => void;
 }
 
 const defaultGameState: GameState = {
@@ -42,6 +44,8 @@ const defaultGameState: GameState = {
     discount100: 0,
   },
   hasSeenCutscene: false,
+  hasAutoclicker: false,
+  autoclickerEnabled: false,
 };
 
 const STORAGE_KEY = 'yates-mining-game';
@@ -122,6 +126,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
               discount100: supabaseData.coupons_100 || 0,
             },
             hasSeenCutscene: supabaseData.has_seen_cutscene || false,
+            hasAutoclicker: supabaseData.has_autoclicker || false,
+            autoclickerEnabled: supabaseData.autoclicker_enabled || false,
           });
           console.log('📦 Loaded game data from Supabase');
         }
@@ -167,10 +173,37 @@ export function GameProvider({ children }: { children: ReactNode }) {
           coupons_50: gameState.coupons.discount50,
           coupons_100: gameState.coupons.discount100,
           has_seen_cutscene: gameState.hasSeenCutscene,
+          has_autoclicker: gameState.hasAutoclicker,
+          autoclicker_enabled: gameState.autoclickerEnabled,
         });
       }
     }
   }, [gameState, shopStock, isLoaded, userId, userType]);
+
+  // Save immediately when page is about to unload or tab is hidden
+  useEffect(() => {
+    if (!userId || !userType) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingData();
+      }
+    };
+
+    const handleBeforeUnload = () => {
+      flushPendingData();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+    };
+  }, [userId, userType]);
 
   // Expose cheat functions to window for F12 console testing
   useEffect(() => {
@@ -440,6 +473,29 @@ yatesHelp()          - Show this help
     return Math.max(0, SHOP_RESTOCK_INTERVAL - elapsed);
   }, [shopStock.lastRestockTime]);
 
+  const buyAutoclicker = useCallback(() => {
+    if (gameState.hasAutoclicker) return false;
+    if (gameState.yatesDollars < AUTOCLICKER_COST) return false;
+    
+    setGameState((prev) => ({
+      ...prev,
+      yatesDollars: prev.yatesDollars - AUTOCLICKER_COST,
+      hasAutoclicker: true,
+      autoclickerEnabled: true,
+    }));
+    
+    return true;
+  }, [gameState.hasAutoclicker, gameState.yatesDollars]);
+
+  const toggleAutoclicker = useCallback(() => {
+    if (!gameState.hasAutoclicker) return;
+    
+    setGameState((prev) => ({
+      ...prev,
+      autoclickerEnabled: !prev.autoclickerEnabled,
+    }));
+  }, [gameState.hasAutoclicker]);
+
   if (!isLoaded) {
     return null; // Or a loading spinner
   }
@@ -464,6 +520,8 @@ yatesHelp()          - Show this help
         shopStock,
         buyShopProduct,
         getTimeUntilRestock,
+        buyAutoclicker,
+        toggleAutoclicker,
       }}
     >
       {children}

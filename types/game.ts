@@ -45,8 +45,13 @@ export interface GameState {
     discount100: number;
   };
   hasSeenCutscene: boolean;
+  hasAutoclicker: boolean;
+  autoclickerEnabled: boolean;
   shopStock?: ShopStock; // Optional for backwards compatibility
 }
+
+export const AUTOCLICKER_COST = 7000000; // $7M
+export const AUTOCLICKER_CPS = 20; // 20 clicks per second
 
 export interface CouponDrop {
   type: 'discount30' | 'discount50' | 'discount100';

@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { PICKAXES, getNextRockUnlockInfo } from '@/lib/gameData';
+import { AUTOCLICKER_COST, AUTOCLICKER_CPS } from '@/types/game';
 import GameShop from './GameShop';
 import RockSelector from './RockSelector';
 
@@ -39,6 +40,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     currentPickaxe, 
     currentRock, 
     mineRock,
+    buyAutoclicker,
+    toggleAutoclicker,
   } = useGame();
 
   const [moneyPopups, setMoneyPopups] = useState<MoneyPopup[]>([]);
@@ -65,6 +68,27 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   
   const rockRef = useRef<HTMLDivElement>(null);
   const popupIdRef = useRef(0);
+  const autoclickerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Autoclicker effect - 20 clicks per second when enabled
+  useEffect(() => {
+    if (gameState.hasAutoclicker && gameState.autoclickerEnabled) {
+      autoclickerIntervalRef.current = setInterval(() => {
+        mineRock();
+      }, 1000 / AUTOCLICKER_CPS);
+    } else {
+      if (autoclickerIntervalRef.current) {
+        clearInterval(autoclickerIntervalRef.current);
+        autoclickerIntervalRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (autoclickerIntervalRef.current) {
+        clearInterval(autoclickerIntervalRef.current);
+      }
+    };
+  }, [gameState.hasAutoclicker, gameState.autoclickerEnabled, mineRock]);
 
   const handleMine = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
     // Prevent default touch behavior
@@ -267,6 +291,46 @@ export default function MiningGame({ onExit }: MiningGameProps) {
                   )}
                 </div>
               </div>
+            )}
+
+            {/* Autoclicker - Buy or Toggle on/off */}
+            {gameState.hasAutoclicker ? (
+              <button
+                onClick={toggleAutoclicker}
+                className={`bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border shadow-lg transition-all touch-manipulation cursor-pointer ${
+                  gameState.autoclickerEnabled
+                    ? 'border-cyan-500/50 shadow-cyan-500/20 hover:border-cyan-400'
+                    : 'border-gray-600/50 hover:border-gray-500'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className={gameState.autoclickerEnabled ? 'text-cyan-400 animate-pulse' : 'text-gray-500'}>🤖</span>
+                  <span className={`text-[10px] sm:text-xs font-bold ${gameState.autoclickerEnabled ? 'text-cyan-300' : 'text-gray-400'}`}>
+                    {gameState.autoclickerEnabled ? 'ON' : 'OFF'}
+                  </span>
+                  <span className={`text-[10px] sm:text-xs ${gameState.autoclickerEnabled ? 'text-cyan-400' : 'text-gray-500'}`}>
+                    {AUTOCLICKER_CPS}/s
+                  </span>
+                </div>
+              </button>
+            ) : (
+              <button
+                onClick={buyAutoclicker}
+                disabled={gameState.yatesDollars < AUTOCLICKER_COST}
+                className={`bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border shadow-lg transition-all touch-manipulation ${
+                  gameState.yatesDollars >= AUTOCLICKER_COST
+                    ? 'border-cyan-500/50 hover:border-cyan-400 hover:bg-cyan-900/30 cursor-pointer'
+                    : 'border-gray-600/30 opacity-60 cursor-not-allowed'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className="text-gray-400">🤖</span>
+                  <span className="text-[10px] sm:text-xs text-gray-300 font-bold">AUTOCLICKER</span>
+                  <span className={`text-[10px] sm:text-xs font-bold ${gameState.yatesDollars >= AUTOCLICKER_COST ? 'text-cyan-400' : 'text-gray-500'}`}>
+                    $7M
+                  </span>
+                </div>
+              </button>
             )}
         </div>
 

@@ -5,7 +5,6 @@
 
 ### LAter ->
 - Finish lore image
-- Stock market
 ### RIGHT MEW
 
 
