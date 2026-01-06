@@ -252,7 +252,7 @@ Simple text page, no forms needed.
 ### **Employee #3: Bernardo**
 - **Role:** CTO/CFO/LW (Chief Technology Officer, Chief Financial Officer, Lawyer)
 - **Bio:** "Bernardo works in three areas, the first thing is he is our Chief Technology Officer and makes everything computer related. His second area, is Chief Financial Officer and he works with all the money that comes in-n-out. and the last thing, is he's our company's Lawyer. He handles partnerships and calls with other companies to get resources or make deals"
-- **ID:** 392318
+- **ID:** 123456
 
 ### **Employee #4: Dylan Mad Hawk**
 - **Role:** PSM (Product/Supply Manager)
@@ -284,7 +284,7 @@ Log-in:
 ### **Valid Credentials (ONLY these work):**
 ```
 ID: 39187       | Password: MMMS           | Employee: Michael
-ID: 392318      | Password: BSS*1213       | Employee: Bernardo
+ID: 123456      | Password: PSSW            | Employee: Bernardo
 ID: 000001      | Password: CEOBOSS        | Employee: Logan (CEO)
 ID: 007411      | Password: T@llahM2N      | Employee: Dylan
 ID: 674121      | Password: TUFboss        | Employee: Harris
@@ -334,7 +334,7 @@ Each task shows:
 - Can CHANGE due date on any task
 - Can do everything regular employees can do
 
-#### **As Bernardo (ID: 392318):**
+#### **As Bernardo (ID: 123456):**
 - Can ADD new tasks via Supabase directly (not through UI)
 - Can do everything regular employees can do
 
@@ -362,7 +362,7 @@ Data:
 |---------|------------------------------------------|---------------|-------------|
 | 000001  | Logan Wall Fencer                        | CEOBOSS       | CEO         |
 | 39187   | Mr. Michael Mackenzy McKale Mackelayne  | MMMS          | CPS/HR      |
-| 392318  | Bernardo                                 | BSS*1213      | CTO/CFO/LW  |
+| 123456  | Bernardo                                 | PSSW          | CTO/CFO/LW  |
 | 007411  | Dylan Mad Hawk                           | T@llahM2N     | PSM         |
 | 674121  | Harris                                   | TUFboss       | SCM         |
 ```

@@ -10,10 +10,11 @@ interface PaycheckSidebarProps {
 }
 
 export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProps) {
-  const { paychecks, updateSalary, loading, getPaycheckTaxInfo } = usePaycheck();
+  const { paychecks, updateSalary, updatePayInterval, loading, getPaycheckTaxInfo } = usePaycheck();
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState<string>('');
   const [editCurrency, setEditCurrency] = useState<'yates' | 'walters'>('yates');
+  const [editInterval, setEditInterval] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
   if (!isOpen) return null;
@@ -30,15 +31,20 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
     return emp?.role || '';
   };
 
-  const handleEdit = (employeeId: string, currentAmount: number, currentCurrency: 'yates' | 'walters') => {
+  const handleEdit = (employeeId: string, currentAmount: number, currentCurrency: 'yates' | 'walters', currentInterval: number) => {
     setEditingEmployee(employeeId);
     setEditAmount(currentAmount.toString());
     setEditCurrency(currentCurrency);
+    setEditInterval(currentInterval.toString());
   };
 
   const handleSave = async (employeeId: string) => {
     setSaving(true);
     await updateSalary(employeeId, parseFloat(editAmount) || 0, editCurrency);
+    const newInterval = parseInt(editInterval) || 5;
+    if (newInterval > 0) {
+      await updatePayInterval(employeeId, newInterval);
+    }
     setEditingEmployee(null);
     setSaving(false);
   };
@@ -46,6 +52,16 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
   const handleCancel = () => {
     setEditingEmployee(null);
     setEditAmount('');
+    setEditInterval('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, employeeId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSave(employeeId);
+    } else if (e.key === 'Escape') {
+      handleCancel();
+    }
   };
 
   // Sort paychecks: Logan first, then by days until paycheck
@@ -140,83 +156,111 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
                   </div>
                 </div>
 
-                {/* Salary Section */}
-                {editingEmployee === paycheck.employee_id ? (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        value={editAmount}
-                        onChange={(e) => setEditAmount(e.target.value)}
-                        className="flex-1 px-3 py-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white text-sm"
-                        placeholder="Amount"
-                        min="0"
-                        step="0.01"
-                      />
-                      <select
-                        value={editCurrency}
-                        onChange={(e) => setEditCurrency(e.target.value as 'yates' | 'walters')}
-                        className="px-3 py-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white text-sm"
-                      >
-                        <option value="yates">Yates $</option>
-                        <option value="walters">Walters $</option>
-                      </select>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleSave(paycheck.employee_id)}
-                        disabled={saving}
-                        className="flex-1 bg-green-600 text-white py-1.5 rounded text-sm font-medium hover:bg-green-700 disabled:bg-gray-400"
-                      >
-                        {saving ? 'Saving...' : 'Save'}
-                      </button>
-                      <button
-                        onClick={handleCancel}
-                        className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 py-1.5 rounded text-sm font-medium hover:bg-gray-400"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <div className="text-sm">
-                        <span className="text-gray-500 dark:text-gray-400">Gross Salary: </span>
-                        <span className={`font-semibold ${
-                          paycheck.salary_currency === 'yates' 
-                            ? 'text-yellow-700 dark:text-yellow-400' 
-                            : 'text-purple-700 dark:text-purple-400'
-                        }`}>
-                          ${paycheck.salary_amount.toFixed(2)} {paycheck.salary_currency === 'yates' ? 'Yates' : 'Walters'}
-                        </span>
+                {/* Salary Section - Fixed height container to prevent layout jumping */}
+                <div className="min-h-[100px]">
+                  {editingEmployee === paycheck.employee_id ? (
+                    <div className="space-y-2">
+                      {/* Salary Amount & Currency */}
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          value={editAmount}
+                          onChange={(e) => setEditAmount(e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, paycheck.employee_id)}
+                          className="flex-1 px-3 py-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white text-sm"
+                          placeholder="Amount"
+                          min="0"
+                          step="0.01"
+                          autoFocus
+                        />
+                        <select
+                          value={editCurrency}
+                          onChange={(e) => setEditCurrency(e.target.value as 'yates' | 'walters')}
+                          onKeyDown={(e) => handleKeyDown(e, paycheck.employee_id)}
+                          className="px-3 py-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white text-sm"
+                        >
+                          <option value="yates">Yates $</option>
+                          <option value="walters">Walters $</option>
+                        </select>
                       </div>
-                      <button
-                        onClick={() => handleEdit(
-                          paycheck.employee_id, 
-                          paycheck.salary_amount, 
-                          paycheck.salary_currency
-                        )}
-                        className="text-blue-600 dark:text-blue-400 text-sm hover:underline"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                    {/* Tax breakdown */}
-                    {paycheck.salary_amount > 0 && (
-                      <div className="text-xs bg-red-50 dark:bg-red-900/20 rounded px-2 py-1 border border-red-200 dark:border-red-800">
-                        <div className="flex justify-between text-red-600 dark:text-red-400">
-                          <span>Tax ({getPaycheckTaxInfo(paycheck.salary_amount).taxRateLabel}):</span>
-                          <span>-${getPaycheckTaxInfo(paycheck.salary_amount).taxAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-green-700 dark:text-green-400 font-semibold mt-0.5">
-                          <span>Net Pay:</span>
-                          <span>${getPaycheckTaxInfo(paycheck.salary_amount).finalAmount.toFixed(2)}</span>
-                        </div>
+                      {/* Pay Interval */}
+                      <div className="flex gap-2 items-center">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Pay every</span>
+                        <input
+                          type="number"
+                          value={editInterval}
+                          onChange={(e) => setEditInterval(e.target.value)}
+                          onKeyDown={(e) => handleKeyDown(e, paycheck.employee_id)}
+                          className="w-16 px-2 py-1.5 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white text-sm text-center"
+                          placeholder="5"
+                          min="1"
+                          max="365"
+                        />
+                        <span className="text-xs text-gray-500 dark:text-gray-400">days</span>
                       </div>
-                    )}
-                  </div>
-                )}
+                      {/* Buttons */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleSave(paycheck.employee_id)}
+                          disabled={saving}
+                          className="flex-1 bg-green-600 text-white py-1.5 rounded text-sm font-medium hover:bg-green-700 disabled:bg-gray-400"
+                        >
+                          {saving ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          onClick={handleCancel}
+                          className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 py-1.5 rounded text-sm font-medium hover:bg-gray-400"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-gray-400 text-center">Press Enter to save, Escape to cancel</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <div className="text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">Gross Salary: </span>
+                          <span className={`font-semibold ${
+                            paycheck.salary_currency === 'yates' 
+                              ? 'text-yellow-700 dark:text-yellow-400' 
+                              : 'text-purple-700 dark:text-purple-400'
+                          }`}>
+                            ${paycheck.salary_amount.toFixed(2)} {paycheck.salary_currency === 'yates' ? 'Yates' : 'Walters'}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleEdit(
+                            paycheck.employee_id, 
+                            paycheck.salary_amount, 
+                            paycheck.salary_currency,
+                            paycheck.pay_interval
+                          )}
+                          className="text-blue-600 dark:text-blue-400 text-sm hover:underline"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                      {/* Pay Interval Display */}
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        Pays every {paycheck.pay_interval} day{paycheck.pay_interval !== 1 ? 's' : ''}
+                      </div>
+                      {/* Tax breakdown */}
+                      {paycheck.salary_amount > 0 && (
+                        <div className="text-xs bg-red-50 dark:bg-red-900/20 rounded px-2 py-1 border border-red-200 dark:border-red-800">
+                          <div className="flex justify-between text-red-600 dark:text-red-400">
+                            <span>Tax ({getPaycheckTaxInfo(paycheck.salary_amount).taxRateLabel}):</span>
+                            <span>-${getPaycheckTaxInfo(paycheck.salary_amount).taxAmount.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-green-700 dark:text-green-400 font-semibold mt-0.5">
+                            <span>Net Pay:</span>
+                            <span>${getPaycheckTaxInfo(paycheck.salary_amount).finalAmount.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             ))
           )}
@@ -225,12 +269,10 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
         {/* Footer */}
         <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
           <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-            Paychecks are automatically processed every 5 days
+            Paychecks are automatically processed based on each employee&apos;s interval
           </p>
         </div>
       </div>
     </>
   );
 }
-
-

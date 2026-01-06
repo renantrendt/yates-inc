@@ -12,7 +12,7 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS mail_handle TEXT;
 -- Update existing employees with their mail handles
 UPDATE employees SET mail_handle = 'ceorequest.mail' WHERE id = '000001';
 UPDATE employees SET mail_handle = 'micelCPS.mail' WHERE id = '39187';
-UPDATE employees SET mail_handle = 'partnershiprqs.mail' WHERE id = '392318';
+UPDATE employees SET mail_handle = 'partnershiprqs.mail' WHERE id = '123456';
 UPDATE employees SET mail_handle = 'custumerspp.mail' WHERE id = '007411';
 UPDATE employees SET mail_handle = 'supplychainH.mail' WHERE id = '674121';
 

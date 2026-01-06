@@ -130,6 +130,7 @@ export interface PaycheckContextType {
   loading: boolean;
   fetchPaychecks: () => Promise<void>;
   updateSalary: (employeeId: string, amount: number, currency: 'yates' | 'walters') => Promise<void>;
+  updatePayInterval: (employeeId: string, interval: number) => Promise<void>;
   processPaycheck: (employeeId: string) => Promise<void>;
   getPaycheckTaxInfo: (salaryAmount: number) => PaycheckTaxInfo;
 }

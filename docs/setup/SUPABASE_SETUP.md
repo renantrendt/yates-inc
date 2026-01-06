@@ -30,7 +30,7 @@ CREATE TABLE employees (
 INSERT INTO employees (id, name, password, role, bio) VALUES
   ('000001', 'Logan Wall Fencer', 'CEOBOSS', 'CEO', 'Logan, is the CEO and founder of Yates Inc. He has spend a lot of time and effort, making this the greatest company he could every think of.'),
   ('39187', 'Mr. Michael Mackenzy McKale Mackelayne', 'MMMS', 'CPS/HR', 'Michael, is who does everything of our designs, and how things will work, he also is our Human Rights manager. Michael also is one of our 2 first hires, together with Bernardo. Michael is very hard working and is able to accomplish multiple Ps, a day, he one made 60% of our daily revenue, doing 21 Ps, and 2 30minute long videos to 5M+ subs channels.'),
-  ('392318', 'Bernardo', 'BSS*1213', 'CTO/CFO/LW', 'Bernardo works in three areas. First, he''s our Chief Technology Officer handling all tech and development. Second, he''s our Chief Financial Officer managing all the money coming in and out. Finally, he''s the company''s Lawyer, negotiating partnerships and deals with other companies.'),
+  ('123456', 'Bernardo', 'PSSW', 'CTO/CFO/LW', 'Bernardo works in three areas. First, he''s our Chief Technology Officer handling all tech and development. Second, he''s our Chief Financial Officer managing all the money coming in and out. Finally, he''s the company''s Lawyer, negotiating partnerships and deals with other companies.'),
   ('007411', 'Dylan Mad Hawk', 'T@llahM2N', 'PSM', 'Dylan is our latest hire, but he is very hard working, he handles everything of managing the resources and putting them into our products, with the requirements made from the other companies/MMM''s design.'),
   ('674121', 'Harris', 'TUFboss', 'SCM', 'Harris is our newest hire and Supply Chain Manager. While he has some basic coding skills, his real strength is managing the supply chain and logistics. He handles all our partnerships, vendor relationships, and ensures resources flow smoothly to keep operations running.');
 
@@ -90,7 +90,7 @@ ALTER TABLE tasks DISABLE ROW LEVEL SECURITY;
 -- Insert sample tasks for testing
 INSERT INTO tasks (task_name, description, assigned_to_id, assigned_to_name, progress_percentage, due_date, created_by_id) VALUES
   ('Update product images', 'Replace placeholder images with high-quality photos', '39187', 'Mr. Michael Mackenzy McKale Mackelayne', 25, '2025-11-01', '000001'),
-  ('Review financial reports', 'Analyze Q4 revenue and prepare presentation', '392318', 'Bernardo', 60, '2025-10-28', '000001'),
+  ('Review financial reports', 'Analyze Q4 revenue and prepare presentation', '123456', 'Bernardo', 60, '2025-10-28', '000001'),
   ('Inventory check', 'Complete monthly inventory audit for all products', '007411', 'Dylan Mad Hawk', 10, '2025-10-30', '000001');
 ```
 
@@ -106,9 +106,21 @@ Your Yates Inc. website should now be fully functional!
 
 - **Logan (CEO)**: ID: `000001` | Password: `CEOBOSS`
 - **Michael**: ID: `39187` | Password: `MMMS`
-- **Bernardo**: ID: `392318` | Password: `BSS*1213`
+- **Bernardo**: ID: `123456` | Password: `PSSW`
 - **Dylan**: ID: `007411` | Password: `T@llahM2N`
 - **Harris**: ID: `674121` | Password: `H@irI67`
+- **Yates (HIDDEN ADMIN)**: ID: `000000` | Password: `DaGoat2026` *(Not shown in UI)*
+
+## Step 6: Add Yates (Hidden Admin)
+
+Yates is the owner/founder. He can login but is NOT shown anywhere on the website UI.
+
+```sql
+-- HIDDEN ADMIN - DO NOT add to frontend employee lists (products.ts, ComposeMessageModal, etc.)
+INSERT INTO employees (id, name, password, role, bio) VALUES
+  ('000000', 'Yates', 'DaGoat2026', 'OWNER', 'The founder and owner of Yates Inc.')
+ON CONFLICT (id) DO NOTHING;
+```
 
 ## Notes
 

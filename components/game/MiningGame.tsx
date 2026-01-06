@@ -7,6 +7,8 @@ import { PICKAXES, getNextRockUnlockInfo } from '@/lib/gameData';
 import { AUTOCLICKER_COST, AUTOCLICKER_CPS } from '@/types/game';
 import GameShop from './GameShop';
 import RockSelector from './RockSelector';
+import GameTerminal from './GameTerminal';
+import PrestigeButton from './PrestigeButton';
 
 interface MiningGameProps {
   onExit?: () => void;
@@ -45,24 +47,13 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   } = useGame();
 
   const [moneyPopups, setMoneyPopups] = useState<MoneyPopup[]>([]);
-
-  // Escape key handler
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && onExit) {
-        onExit();
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onExit]);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [couponPopups, setCouponPopups] = useState<CouponPopup[]>([]);
   const [isSwinging, setIsSwinging] = useState(false);
   const [rockShake, setRockShake] = useState(false);
   const [showShop, setShowShop] = useState(false);
   const [showRockSelector, setShowRockSelector] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(false);
   const [displayProgress, setDisplayProgress] = useState(0);
   const [rockBroken, setRockBroken] = useState(false);
   
@@ -180,6 +171,34 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       }, 2000);
     }
   }, [mineRock, gameState.currentRockHP, currentRock.clicksToBreak]);
+
+  // Keyboard handler - ESC to exit, I for terminal, + to mine
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle shortcuts if typing in terminal input
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      if (e.key === 'Escape' && onExit) {
+        onExit();
+      }
+      
+      // 'I' key toggles terminal
+      if (e.key === 'i' || e.key === 'I') {
+        setShowTerminal(prev => !prev);
+      }
+      
+      // '+' key to mine (sneaky mode)
+      if (e.key === '+' || e.key === '=') {
+        handleMine();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onExit, handleMine]);
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -332,6 +351,9 @@ export default function MiningGame({ onExit }: MiningGameProps) {
                 </div>
               </button>
             )}
+
+            {/* Prestige Button - appears when eligible */}
+            <PrestigeButton />
         </div>
 
         {/* Shop Button + Notification */}
@@ -516,6 +538,13 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
       {/* Rock Selector Modal */}
       {showRockSelector && <RockSelector onClose={() => setShowRockSelector(false)} />}
+
+      {/* Game Terminal */}
+      <GameTerminal 
+        isOpen={showTerminal} 
+        onClose={() => setShowTerminal(false)}
+        onMine={handleMine}
+      />
 
       {/* CSS Animations */}
       <style jsx global>{`

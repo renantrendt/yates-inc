@@ -70,7 +70,7 @@ Open http://localhost:3000 in your browser 🎉
 |------|-----|----------|
 | Logan (CEO) | 000001 | CEOBOSS |
 | Michael | 39187 | MMMS |
-| Bernardo | 392318 | BSS*1213 |
+| Bernardo | 123456 | PSSW |
 | Dylan | 007411 | T@llahM2N |
 
 ## Common Issues

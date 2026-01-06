@@ -47,8 +47,19 @@ export interface GameState {
   hasSeenCutscene: boolean;
   hasAutoclicker: boolean;
   autoclickerEnabled: boolean;
+  prestigeCount: number;
+  prestigeMultiplier: number;
   shopStock?: ShopStock; // Optional for backwards compatibility
 }
+
+// Prestige requirements
+export const PRESTIGE_REQUIREMENTS = {
+  minRockId: 17,
+  minPickaxeId: 13,
+};
+
+// Yates special account (hidden admin - keeps money on prestige)
+export const YATES_ACCOUNT_ID = '000000';
 
 export const AUTOCLICKER_COST = 7000000; // $7M
 export const AUTOCLICKER_CPS = 20; // 20 clicks per second

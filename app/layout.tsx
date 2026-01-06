@@ -8,6 +8,7 @@ import { MailProvider } from "@/contexts/MailContext";
 import { PaycheckProvider } from "@/contexts/PaycheckContext";
 import { GameProvider } from "@/contexts/GameContext";
 import { StockProvider } from "@/contexts/StockContext";
+import { BudgetProvider } from "@/contexts/BudgetContext";
 import Navbar from "@/components/Navbar";
 import DisclaimerWarning from "@/components/DisclaimerWarning";
 import PaycheckPopup from "@/components/PaycheckPopup";
@@ -41,9 +42,10 @@ export default function RootLayout({
           <ClientProvider>
             <GameProvider>
               <StockProvider>
-                <PaycheckProvider>
-                  <CartProvider>
-                    <MailProvider>
+                <BudgetProvider>
+                  <PaycheckProvider>
+                    <CartProvider>
+                      <MailProvider>
                       <DisclaimerWarning />
                       <Navbar />
                       <PaycheckPopup />
@@ -51,8 +53,9 @@ export default function RootLayout({
                         {children}
                       </main>
                     </MailProvider>
-                  </CartProvider>
-                </PaycheckProvider>
+                    </CartProvider>
+                  </PaycheckProvider>
+                </BudgetProvider>
               </StockProvider>
             </GameProvider>
           </ClientProvider>

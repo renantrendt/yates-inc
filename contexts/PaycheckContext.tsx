@@ -6,6 +6,52 @@ import { useAuth } from './AuthContext';
 import { supabase } from '@/lib/supabase';
 import { calculateFinalAmount, getTaxBreakdown } from '@/utils/taxes';
 
+// Helper to drain from company budget when paycheck is processed
+async function drainBudgetForPaycheck(amount: number, employeeName: string): Promise<void> {
+  try {
+    // Get current budget
+    const { data: budgetData, error: fetchError } = await supabase
+      .from('company_budget')
+      .select('*')
+      .limit(1)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching budget for paycheck drain:', fetchError);
+      return;
+    }
+
+    if (budgetData) {
+      // Update active budget
+      const { error: updateError } = await supabase
+        .from('company_budget')
+        .update({
+          active_budget: parseFloat(budgetData.active_budget) - amount,
+          last_updated: new Date().toISOString(),
+        })
+        .eq('id', budgetData.id);
+
+      if (updateError) {
+        console.error('Error updating budget for paycheck:', updateError);
+        return;
+      }
+
+      // Record transaction
+      await supabase.from('budget_transactions').insert({
+        amount: -amount,
+        transaction_type: 'paycheck',
+        description: `Paycheck for ${employeeName}`,
+        affects: 'active_budget',
+        created_by: 'system',
+      });
+
+      console.log(`💸 Budget drained by $${amount} for ${employeeName}'s paycheck`);
+    }
+  } catch (err) {
+    console.error('Error draining budget for paycheck:', err);
+  }
+}
+
 const PaycheckContext = createContext<PaycheckContextType | undefined>(undefined);
 
 export function PaycheckProvider({ children }: { children: React.ReactNode }) {
@@ -68,6 +114,29 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Update pay interval for an employee (CEO only)
+  const updatePayInterval = async (employeeId: string, interval: number) => {
+    try {
+      const { error } = await supabase
+        .from('employee_paychecks')
+        .update({
+          pay_interval: interval,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('employee_id', employeeId);
+
+      if (error) {
+        console.error('Error updating pay interval:', error);
+        return;
+      }
+
+      // Refresh paychecks
+      await fetchPaychecks();
+    } catch (err) {
+      console.error('Error updating pay interval:', err);
+    }
+  };
+
   // Process paycheck - add salary to balance (after tax deduction)
   const processPaycheck = async (employeeId: string) => {
     const paycheck = paychecks.find((p) => p.employee_id === employeeId);
@@ -96,6 +165,9 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
         console.error('Error processing paycheck:', error);
         return;
       }
+
+      // Drain from company budget (full salary amount)
+      await drainBudgetForPaycheck(paycheck.salary_amount, paycheck.employee_name);
 
       await fetchPaychecks();
     } catch (err) {
@@ -127,6 +199,9 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
               updated_at: new Date().toISOString(),
             })
             .eq('employee_id', paycheck.employee_id);
+
+          // Drain from company budget (full salary amount)
+          await drainBudgetForPaycheck(paycheck.salary_amount, paycheck.employee_name);
 
           // Save pending notification for the popup
           const pendingData = {
@@ -237,6 +312,7 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
         loading,
         fetchPaychecks,
         updateSalary,
+        updatePayInterval,
         processPaycheck,
         getPaycheckTaxInfo,
       }}

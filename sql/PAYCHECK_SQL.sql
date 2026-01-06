@@ -26,7 +26,7 @@ CREATE POLICY "Allow all operations on employee_paychecks" ON employee_paychecks
 INSERT INTO employee_paychecks (employee_id, yates_balance, walters_balance, salary_amount, salary_currency, days_until_paycheck)
 VALUES 
   ('674121', 0, 67, 67, 'walters', 10),      -- Harris: 10 days, 67 walters dollars
-  ('392318', 500, 0, 500, 'yates', 2),       -- Bernardo: 2 days, 500 yates dollars
+  ('123456', 500, 0, 500, 'yates', 2),       -- Bernardo: 2 days, 500 yates dollars
   ('007411', 0, 45, 45, 'walters', 20),      -- Dylan: 20 days, 45 walters dollars
   ('39187', 230, 0, 230, 'yates', 2),        -- Michael: 2 days, 230 yates dollars
   ('000001', 780, 0, 780, 'yates', 1)        -- Logan: 1 day, 780 yates dollars

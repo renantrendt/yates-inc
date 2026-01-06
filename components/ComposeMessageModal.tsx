@@ -13,7 +13,7 @@ interface ComposeMessageModalProps {
 const EMPLOYEES = [
   { id: '000001', name: 'Logan Wall Fencer', mail: 'ceorequest.mail' },
   { id: '39187', name: 'Mr. Michael Mackenzy McKale Mackelayne', mail: 'micelCPS.mail' },
-  { id: '392318', name: 'Bernardo', mail: 'partnershiprqs.mail' },
+  { id: '123456', name: 'Bernardo', mail: 'partnershiprqs.mail' },
   { id: '007411', name: 'Dylan Mad Hawk', mail: 'custumerspp.mail' },
   { id: '674121', name: 'Harris', mail: 'supplychainH.mail' },
 ];

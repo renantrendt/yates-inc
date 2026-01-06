@@ -16,6 +16,8 @@ export interface UserGameData {
   has_seen_cutscene: boolean;
   has_autoclicker?: boolean; // Optional - may not exist in DB yet
   autoclicker_enabled?: boolean; // Optional - may not exist in DB yet
+  prestige_count?: number; // Optional - may not exist in DB yet
+  prestige_multiplier?: number; // Optional - may not exist in DB yet
   stocks_owned?: number;
   stock_profits?: number;
 }
@@ -79,11 +81,13 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       updated_at: new Date().toISOString(),
     };
 
-    // Try to save with new autoclicker fields first
+    // Try to save with all optional fields
     const fullData = {
       ...safeData,
       has_autoclicker: data.has_autoclicker,
       autoclicker_enabled: data.autoclicker_enabled,
+      prestige_count: data.prestige_count,
+      prestige_multiplier: data.prestige_multiplier,
     };
 
     const { error } = await supabase

@@ -78,7 +78,7 @@ yates-website/
 |------|-----|----------|------|
 | Logan Wall Fencer | 000001 | CEOBOSS | CEO |
 | Michael | 39187 | MMMS | CPS/HR |
-| Bernardo | 392318 | BSS*1213 | CTO/CFO/LW/SCM |
+| Bernardo | 123456 | PSSW | CTO/CFO/LW/SCM |
 | Dylan | 007411 | T@llahM2N | PSM |
 
 ## Features Breakdown

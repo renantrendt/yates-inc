@@ -116,7 +116,7 @@ export const employees = [
     anchor: 'MMMM',
   },
   {
-    id: '392318',
+    id: '123456',
     name: 'Bernardo',
     role: 'CTO/CFO/LW',
     bio: "Bernardo works in three areas. First, he's our Chief Technology Officer handling all tech and development. Second, he's our Chief Financial Officer managing all the money coming in and out. Finally, he's the company's Lawyer, negotiating partnerships and deals with other companies.",

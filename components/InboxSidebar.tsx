@@ -20,7 +20,7 @@ export default function InboxSidebar({ isOpen, onClose }: InboxSidebarProps) {
   const router = useRouter();
   const { conversations, markAsRead } = useMail();
   const { employee } = useAuth();
-  const { client } = useClient();
+  const { client, setClient } = useClient();
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>('latest');
   const [showCompose, setShowCompose] = useState(false);
@@ -40,11 +40,19 @@ export default function InboxSidebar({ isOpen, onClose }: InboxSidebarProps) {
   };
 
   const handleNewMessageClick = () => {
+    // Check localStorage directly as a fallback (in case context hasn't hydrated yet)
+    const savedClient = typeof window !== 'undefined' ? localStorage.getItem('yates-client') : null;
+    const hasClient = client || savedClient;
+    
     // If not registered as client and not an employee, redirect to signup page
-    if (!employee && !client) {
+    if (!employee && !hasClient) {
       onClose(); // Close inbox sidebar first
       router.push('/client-signup');
     } else {
+      // If client is in localStorage but not in state, refresh it
+      if (!client && savedClient) {
+        setClient(JSON.parse(savedClient));
+      }
       setShowCompose(true);
     }
   };

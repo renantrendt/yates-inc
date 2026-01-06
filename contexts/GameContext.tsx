@@ -1,12 +1,61 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
-import { GameState, COUPON_DROP_RATES, COUPON_REQUIREMENTS, ShopStock, SHOP_RESTOCK_INTERVAL, SHOP_MIN_ITEMS, SHOP_MAX_ITEMS, SHOP_MIN_QUANTITY, SHOP_MAX_QUANTITY, AUTOCLICKER_COST } from '@/types/game';
+import { GameState, COUPON_DROP_RATES, COUPON_REQUIREMENTS, ShopStock, SHOP_RESTOCK_INTERVAL, SHOP_MIN_ITEMS, SHOP_MAX_ITEMS, SHOP_MIN_QUANTITY, SHOP_MAX_QUANTITY, AUTOCLICKER_COST, PRESTIGE_REQUIREMENTS, YATES_ACCOUNT_ID } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
 import { useAuth } from './AuthContext';
 import { useClient } from './ClientContext';
 import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData } from '@/lib/userDataSync';
+import { supabase } from '@/lib/supabase';
+
+// Helper to add product sale contribution to company budget (50% of sale)
+async function addProductSaleToBudget(amount: number, productName: string): Promise<void> {
+  try {
+    const contribution = Math.floor(amount * 0.5); // 50% goes to company budget
+    
+    // Get current budget
+    const { data: budgetData, error: fetchError } = await supabase
+      .from('company_budget')
+      .select('*')
+      .limit(1)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching budget for product sale:', fetchError);
+      return;
+    }
+
+    if (budgetData) {
+      // Update total funds
+      const { error: updateError } = await supabase
+        .from('company_budget')
+        .update({
+          total_funds: parseFloat(budgetData.total_funds) + contribution,
+          last_updated: new Date().toISOString(),
+        })
+        .eq('id', budgetData.id);
+
+      if (updateError) {
+        console.error('Error updating budget for product sale:', updateError);
+        return;
+      }
+
+      // Record transaction
+      await supabase.from('budget_transactions').insert({
+        amount: contribution,
+        transaction_type: 'product_sale',
+        description: `50% of ${productName} sale`,
+        affects: 'total_funds',
+        created_by: 'system',
+      });
+
+      console.log(`📈 Budget increased by $${contribution} from ${productName} sale`);
+    }
+  } catch (err) {
+    console.error('Error adding product sale to budget:', err);
+  }
+}
 
 interface GameContextType {
   gameState: GameState;
@@ -28,6 +77,8 @@ interface GameContextType {
   getTimeUntilRestock: () => number;
   buyAutoclicker: () => boolean;
   toggleAutoclicker: () => void;
+  canPrestige: () => boolean;
+  prestige: () => { amountToCompany: number; newMultiplier: number } | null;
 }
 
 const defaultGameState: GameState = {
@@ -46,6 +97,8 @@ const defaultGameState: GameState = {
   hasSeenCutscene: false,
   hasAutoclicker: false,
   autoclickerEnabled: false,
+  prestigeCount: 0,
+  prestigeMultiplier: 1.0,
 };
 
 const STORAGE_KEY = 'yates-mining-game';
@@ -128,6 +181,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
             hasSeenCutscene: supabaseData.has_seen_cutscene || false,
             hasAutoclicker: supabaseData.has_autoclicker || false,
             autoclickerEnabled: supabaseData.autoclicker_enabled || false,
+            prestigeCount: supabaseData.prestige_count || 0,
+            prestigeMultiplier: supabaseData.prestige_multiplier || 1.0,
           });
           console.log('📦 Loaded game data from Supabase');
         }
@@ -175,6 +230,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           has_seen_cutscene: gameState.hasSeenCutscene,
           has_autoclicker: gameState.hasAutoclicker,
           autoclicker_enabled: gameState.autoclickerEnabled,
+          prestige_count: gameState.prestigeCount,
+          prestige_multiplier: gameState.prestigeMultiplier,
         });
       }
     }
@@ -290,6 +347,9 @@ yatesHelp()          - Show this help
     if (pickaxe.moneyMultiplier) {
       earnedMoney *= pickaxe.moneyMultiplier;
     }
+
+    // Apply prestige multiplier
+    earnedMoney *= gameState.prestigeMultiplier;
 
     earnedMoney = Math.ceil(earnedMoney);
 
@@ -464,6 +524,9 @@ yatesHelp()          - Show this help
           : item
       ),
     }));
+
+    // Add 50% of sale to company budget
+    addProductSaleToBudget(price, product.name);
     
     return true;
   }, [gameState.yatesDollars, shopStock.items]);
@@ -496,6 +559,49 @@ yatesHelp()          - Show this help
     }));
   }, [gameState.hasAutoclicker]);
 
+  // Check if user can prestige (requires rock 17 + pickaxe 13)
+  const canPrestige = useCallback(() => {
+    return (
+      gameState.currentRockId >= PRESTIGE_REQUIREMENTS.minRockId &&
+      gameState.ownedPickaxeIds.includes(PRESTIGE_REQUIREMENTS.minPickaxeId)
+    );
+  }, [gameState.currentRockId, gameState.ownedPickaxeIds]);
+
+  // Perform prestige - reset progress, gain multiplier
+  // Yates (000000) keeps all money, others get 1/32 sent to company budget
+  const prestige = useCallback(() => {
+    if (!canPrestige()) return null;
+
+    const isYates = userId === YATES_ACCOUNT_ID;
+    const currentMoney = gameState.yatesDollars;
+    const amountToCompany = isYates ? 0 : Math.floor(currentMoney / 32);
+    
+    // Calculate new multiplier: starts at 1.1, +0.1 per prestige
+    const newPrestigeCount = gameState.prestigeCount + 1;
+    const newMultiplier = 1.0 + (newPrestigeCount * 0.1);
+
+    setGameState((prev) => ({
+      ...prev,
+      // Reset rocks and pickaxes
+      currentRockId: 1,
+      currentRockHP: ROCKS[0].clicksToBreak,
+      currentPickaxeId: 1,
+      ownedPickaxeIds: [1],
+      totalClicks: 0,
+      rocksMinedCount: 0,
+      // Yates keeps money, others lose it
+      yatesDollars: isYates ? prev.yatesDollars : 0,
+      // Keep coupons, autoclicker, cutscene seen
+      // Update prestige stats
+      prestigeCount: newPrestigeCount,
+      prestigeMultiplier: newMultiplier,
+    }));
+
+    console.log(`🌟 PRESTIGE ${newPrestigeCount}! Multiplier: ${newMultiplier}x${isYates ? ' (Yates: kept all money!)' : ''}`);
+
+    return { amountToCompany, newMultiplier };
+  }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, userId]);
+
   if (!isLoaded) {
     return null; // Or a loading spinner
   }
@@ -522,6 +628,8 @@ yatesHelp()          - Show this help
         getTimeUntilRestock,
         buyAutoclicker,
         toggleAutoclicker,
+        canPrestige,
+        prestige,
       }}
     >
       {children}

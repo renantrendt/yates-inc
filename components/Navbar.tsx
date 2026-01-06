@@ -11,6 +11,7 @@ import CartSidebar from './CartSidebar';
 import InboxSidebar from './InboxSidebar';
 import PaycheckSidebar from './PaycheckSidebar';
 import StockMarket from './StockMarket';
+import BudgetSidebar from './BudgetSidebar';
 
 export default function Navbar() {
   const { cartCount } = useCart();
@@ -22,6 +23,7 @@ export default function Navbar() {
   const [showInbox, setShowInbox] = useState(false);
   const [showPaychecks, setShowPaychecks] = useState(false);
   const [showStockMarket, setShowStockMarket] = useState(false);
+  const [showBudget, setShowBudget] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Check if current user is Logan (CEO)
@@ -71,6 +73,17 @@ export default function Navbar() {
               >
                 📈
               </button>
+
+              {/* Company Budget button - all employees */}
+              {isLoggedIn && (
+                <button
+                  onClick={() => setShowBudget(true)}
+                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium flex items-center gap-1"
+                  title="Company Budget"
+                >
+                  🏦
+                </button>
+              )}
 
               {/* Paychecks button - CEO only */}
               {isCEO && (
@@ -327,6 +340,18 @@ export default function Navbar() {
                         </div>
                       )}
                     </div>
+                    {/* Company Budget - mobile (employees only) */}
+                    {isLoggedIn && (
+                      <button
+                        onClick={() => {
+                          setShowBudget(true);
+                          setMobileMenuOpen(false);
+                        }}
+                        className="w-full text-left text-emerald-600 dark:text-emerald-400 font-medium mb-3"
+                      >
+                        🏦 Company Budget
+                      </button>
+                    )}
                     {/* CEO Paychecks button - mobile */}
                     {isCEO && (
                       <button
@@ -360,6 +385,7 @@ export default function Navbar() {
       <InboxSidebar isOpen={showInbox} onClose={() => setShowInbox(false)} />
       {isCEO && <PaycheckSidebar isOpen={showPaychecks} onClose={() => setShowPaychecks(false)} />}
       <StockMarket isOpen={showStockMarket} onClose={() => setShowStockMarket(false)} />
+      {isLoggedIn && <BudgetSidebar isOpen={showBudget} onClose={() => setShowBudget(false)} />}
     </>
   );
 }

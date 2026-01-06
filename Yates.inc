@@ -108,7 +108,7 @@ Employee ID(with that gray text that when is clicked it dissappear)
 Password(with that gray text that when is clicked it dissappear):
 
 **Passwords that works for login-> [ID:39187, password:MMMS],
- [ID:392318, password:BSS*1213], 
+ [ID:123456, password:PSSW], 
  [ID:000001, password:CEOBOSS],
 [ID:007411, password:T@llahM2N]
 [ID:674121, password:TUFboss]
@@ -122,7 +122,7 @@ the CEO can change the due date. But all this Due date, %, ID, Pssw, name, taks,
 ========
 
 ID:39187-> is Michael
-Id:392318-> Is Bernardo
+Id:123456-> Is Bernardo
 ID:000001-> IS Logan
 ID:007411-> Dylan
 ID:674121-> Harris
