@@ -9,10 +9,10 @@ import { useClient } from './ClientContext';
 import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData } from '@/lib/userDataSync';
 import { supabase } from '@/lib/supabase';
 
-// Helper to add product sale contribution to company budget (50% of sale)
+// Helper to add product sale contribution to active budget (50% of sale)
 async function addProductSaleToBudget(amount: number, productName: string): Promise<void> {
   try {
-    const contribution = Math.floor(amount * 0.5); // 50% goes to company budget
+    const contribution = Math.floor(amount * 0.5); // 50% goes to active budget
     
     // Get current budget
     const { data: budgetData, error: fetchError } = await supabase
@@ -27,11 +27,11 @@ async function addProductSaleToBudget(amount: number, productName: string): Prom
     }
 
     if (budgetData) {
-      // Update total funds
+      // Update active budget (money in circulation)
       const { error: updateError } = await supabase
         .from('company_budget')
         .update({
-          total_funds: parseFloat(budgetData.total_funds) + contribution,
+          active_budget: parseFloat(budgetData.active_budget) + contribution,
           last_updated: new Date().toISOString(),
         })
         .eq('id', budgetData.id);
@@ -46,11 +46,11 @@ async function addProductSaleToBudget(amount: number, productName: string): Prom
         amount: contribution,
         transaction_type: 'product_sale',
         description: `50% of ${productName} sale`,
-        affects: 'total_funds',
+        affects: 'active_budget',
         created_by: 'system',
       });
 
-      console.log(`📈 Budget increased by $${contribution} from ${productName} sale`);
+      console.log(`📈 Active budget increased by $${contribution} from ${productName} sale`);
     }
   } catch (err) {
     console.error('Error adding product sale to budget:', err);

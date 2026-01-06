@@ -38,6 +38,7 @@ interface BudgetContextType {
   loading: boolean;
   canEdit: boolean;
   addToTotalFunds: (amount: number, description: string, type: BudgetTransaction['transaction_type']) => Promise<void>;
+  addToActiveBudget: (amount: number, description: string, type: BudgetTransaction['transaction_type']) => Promise<void>;
   subtractFromActiveBudget: (amount: number, description: string, type: BudgetTransaction['transaction_type']) => Promise<void>;
   manualAdjust: (totalChange: number, activeChange: number, description: string) => Promise<void>;
   fetchBudget: () => Promise<void>;
@@ -236,7 +237,43 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchBudget, fetchTransactions]);
 
-  // Add to total funds (product sales, prestige)
+  // Add to active budget (game money contributions)
+  const addToActiveBudget = useCallback(async (
+    amount: number,
+    description: string,
+    type: BudgetTransaction['transaction_type']
+  ) => {
+    try {
+      // Update budget
+      const { error: budgetError } = await supabase
+        .from('company_budget')
+        .update({
+          active_budget: budget.activeBudget + amount,
+          last_updated: new Date().toISOString(),
+        })
+        .eq('id', (await supabase.from('company_budget').select('id').single()).data?.id);
+
+      if (budgetError) {
+        console.error('Error updating budget:', budgetError);
+        return;
+      }
+
+      // Record transaction
+      await supabase.from('budget_transactions').insert({
+        amount,
+        transaction_type: type,
+        description,
+        affects: 'active_budget',
+        created_by: employee?.id || 'system',
+      });
+
+      await fetchBudget();
+    } catch (err) {
+      console.error('Error adding to active budget:', err);
+    }
+  }, [budget.activeBudget, employee?.id, fetchBudget]);
+
+  // Add to total funds (large investments, etc.)
   const addToTotalFunds = useCallback(async (
     amount: number,
     description: string,
@@ -356,6 +393,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
         loading,
         canEdit,
         addToTotalFunds,
+        addToActiveBudget,
         subtractFromActiveBudget,
         manualAdjust,
         fetchBudget,

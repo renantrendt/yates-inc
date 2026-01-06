@@ -17,6 +17,8 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     'Type yatesHelp() to see commands',
     '',
   ]);
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const [cmActive, setCmActive] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
@@ -166,8 +168,40 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim()) {
+      // Add to command history
+      setCommandHistory(prev => [...prev, input.trim()]);
+      setHistoryIndex(-1);
       executeCommand(input);
       setInput('');
+    }
+  };
+
+  // Handle arrow key navigation through command history
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (commandHistory.length === 0) return;
+      
+      const newIndex = historyIndex === -1 
+        ? commandHistory.length - 1 
+        : Math.max(0, historyIndex - 1);
+      
+      setHistoryIndex(newIndex);
+      setInput(commandHistory[newIndex]);
+    } 
+    else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIndex === -1) return;
+      
+      const newIndex = historyIndex + 1;
+      
+      if (newIndex >= commandHistory.length) {
+        setHistoryIndex(-1);
+        setInput('');
+      } else {
+        setHistoryIndex(newIndex);
+        setInput(commandHistory[newIndex]);
+      }
     }
   };
 
@@ -216,6 +250,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="flex-1 bg-transparent text-green-300 outline-none placeholder-green-700"
             placeholder="type a command..."
             autoComplete="off"

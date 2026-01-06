@@ -38,21 +38,26 @@ export default function BudgetSidebar({ isOpen, onClose }: BudgetSidebarProps) {
     setIsSaving(false);
   };
 
-  // Calculate graph dimensions
+  // Calculate graph dimensions with padding
   const graphHeight = 120;
   const graphWidth = 350;
+  const padding = 8; // Padding so line doesn't get cut off
 
   // Generate SVG path for the graph
   const generatePath = (data: { timestamp: number; value: number }[], color: string) => {
     if (data.length < 2) return null;
 
-    const minValue = Math.min(...data.map(d => d.value)) * 0.995;
-    const maxValue = Math.max(...data.map(d => d.value)) * 1.005;
+    const minValue = Math.min(...data.map(d => d.value));
+    const maxValue = Math.max(...data.map(d => d.value));
     const range = maxValue - minValue || 1;
 
+    // Add padding to prevent line from touching edges
+    const drawableHeight = graphHeight - (padding * 2);
+    const drawableWidth = graphWidth - (padding * 2);
+
     const points = data.map((point, i) => {
-      const x = (i / (data.length - 1)) * graphWidth;
-      const y = graphHeight - ((point.value - minValue) / range) * graphHeight;
+      const x = padding + (i / (data.length - 1)) * drawableWidth;
+      const y = padding + drawableHeight - ((point.value - minValue) / range) * drawableHeight;
       return `${x},${y}`;
     });
 

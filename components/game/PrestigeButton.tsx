@@ -7,7 +7,7 @@ import { PRESTIGE_REQUIREMENTS } from '@/types/game';
 
 export default function PrestigeButton() {
   const { gameState, canPrestige, prestige } = useGame();
-  const { addToTotalFunds } = useBudget();
+  const { addToActiveBudget } = useBudget();
   const [showConfirm, setShowConfirm] = useState(false);
   const [isPrestiging, setIsPrestiging] = useState(false);
 
