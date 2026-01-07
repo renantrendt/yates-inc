@@ -79,6 +79,9 @@ interface GameContextType {
   toggleAutoclicker: () => void;
   canPrestige: () => boolean;
   prestige: () => { amountToCompany: number; newMultiplier: number } | null;
+  // Anti-cheat functions
+  dismissWarning: () => void;
+  submitAppeal: (reason: string) => Promise<boolean>;
 }
 
 const defaultGameState: GameState = {
@@ -99,6 +102,11 @@ const defaultGameState: GameState = {
   autoclickerEnabled: false,
   prestigeCount: 0,
   prestigeMultiplier: 1.0,
+  // Anti-cheat defaults
+  antiCheatWarnings: 0,
+  isOnWatchlist: false,
+  isBlocked: false,
+  appealPending: false,
 };
 
 const STORAGE_KEY = 'yates-mining-game';
@@ -137,6 +145,56 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Ref for cheat commands to access latest setGameState
   const setGameStateRef = useRef(setGameState);
   setGameStateRef.current = setGameState;
+
+  // Anti-cheat: Track click timestamps for rate detection
+  const clickTimestampsRef = useRef<number[]>([]);
+  const CLICK_WINDOW_MS = 1000; // 1 second rolling window
+  const NORMAL_CLICK_THRESHOLD = 13; // Max 13 clicks/sec for normal users
+  const WATCHLIST_CLICK_THRESHOLD = 10; // Max 10 clicks/sec for watchlist users
+
+  // Check if click rate exceeds threshold and trigger warning if needed
+  const checkClickRate = useCallback((): boolean => {
+    const now = Date.now();
+    // Add current click timestamp
+    clickTimestampsRef.current.push(now);
+    
+    // Remove clicks older than 1 second
+    clickTimestampsRef.current = clickTimestampsRef.current.filter(
+      (timestamp) => now - timestamp <= CLICK_WINDOW_MS
+    );
+    
+    // Get the appropriate threshold
+    const threshold = gameState.isOnWatchlist ? WATCHLIST_CLICK_THRESHOLD : NORMAL_CLICK_THRESHOLD;
+    
+    // Check if over threshold
+    if (clickTimestampsRef.current.length > threshold) {
+      return true; // Violation detected
+    }
+    return false;
+  }, [gameState.isOnWatchlist]);
+
+  // Trigger anti-cheat warning
+  const triggerAntiCheatWarning = useCallback(() => {
+    setGameState((prev) => {
+      const newWarnings = prev.antiCheatWarnings + 1;
+      console.log(`⚠️ Anti-cheat warning ${newWarnings}/3 triggered!`);
+      return {
+        ...prev,
+        antiCheatWarnings: newWarnings,
+        isBlocked: true, // Block earning until modal is dismissed
+      };
+    });
+    // Clear click history after violation
+    clickTimestampsRef.current = [];
+  }, []);
+
+  // Dismiss warning (called from UI after user acknowledges)
+  const dismissWarning = useCallback(() => {
+    setGameState((prev) => ({
+      ...prev,
+      isBlocked: false,
+    }));
+  }, []);
 
   // Load from localStorage first, then try Supabase if logged in
   useEffect(() => {
@@ -183,6 +241,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
             autoclickerEnabled: supabaseData.autoclicker_enabled || false,
             prestigeCount: supabaseData.prestige_count || 0,
             prestigeMultiplier: supabaseData.prestige_multiplier || 1.0,
+            // Anti-cheat fields
+            antiCheatWarnings: supabaseData.anti_cheat_warnings || 0,
+            isOnWatchlist: supabaseData.is_on_watchlist || false,
+            isBlocked: supabaseData.is_blocked || false,
+            appealPending: supabaseData.appeal_pending || false,
           });
           console.log('📦 Loaded game data from Supabase');
         }
@@ -232,6 +295,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
           autoclicker_enabled: gameState.autoclickerEnabled,
           prestige_count: gameState.prestigeCount,
           prestige_multiplier: gameState.prestigeMultiplier,
+          // Anti-cheat fields
+          anti_cheat_warnings: gameState.antiCheatWarnings,
+          is_on_watchlist: gameState.isOnWatchlist,
+          is_blocked: gameState.isBlocked,
+          appeal_pending: gameState.appealPending,
         });
       }
     }
@@ -322,6 +390,19 @@ yatesHelp()          - Show this help
   const currentRock = getRockById(gameState.currentRockId) || ROCKS[0];
 
   const mineRock = useCallback(() => {
+    // Anti-cheat: If blocked, don't process clicks
+    if (gameState.isBlocked || gameState.appealPending) {
+      return { brokeRock: false, earnedMoney: 0, couponDrop: null };
+    }
+
+    // Anti-cheat: Check click rate (skip for admins using internal autoclicker)
+    const isViolation = checkClickRate();
+    if (isViolation && !gameState.hasAutoclicker) {
+      // Only trigger if not using internal autoclicker
+      triggerAntiCheatWarning();
+      return { brokeRock: false, earnedMoney: 0, couponDrop: null };
+    }
+
     const pickaxe = getPickaxeById(gameState.currentPickaxeId) || PICKAXES[0];
     const rock = getRockById(gameState.currentRockId) || ROCKS[0];
     
@@ -614,6 +695,65 @@ yatesHelp()          - Show this help
     return { amountToCompany, newMultiplier };
   }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, userId]);
 
+  // Submit appeal for anti-cheat violation
+  const submitAppeal = useCallback(async (reason: string): Promise<boolean> => {
+    if (!userId || !userType) return false;
+    
+    try {
+      const username = employee?.name || client?.username || 'Unknown';
+      
+      // Create appeal record
+      const { error: appealError } = await supabase.from('cheat_appeals').insert({
+        user_id: userId,
+        user_type: userType,
+        username: username,
+        appeal_reason: reason,
+        status: 'pending',
+      });
+
+      if (appealError) {
+        console.error('Error creating appeal:', appealError);
+        return false;
+      }
+
+      // Send inbox messages to Logan (000001) and Bernardo (123456)
+      const appealMessage = `🚨 CHEAT APPEAL from ${username}\n\nUser ID: ${userId}\nType: ${userType}\n\nReason: "${reason}"\n\nPlease review and approve/deny this appeal.`;
+      
+      // Message to Logan
+      await supabase.from('employee_messages').insert({
+        recipient_id: '000001',
+        sender_name: 'Anti-Cheat System',
+        sender_handle: 'anticheat.system',
+        subject: `⚠️ Cheat Appeal: ${username}`,
+        content: appealMessage,
+        is_read: false,
+      });
+
+      // Message to Bernardo
+      await supabase.from('employee_messages').insert({
+        recipient_id: '123456',
+        sender_name: 'Anti-Cheat System',
+        sender_handle: 'anticheat.system',
+        subject: `⚠️ Cheat Appeal: ${username}`,
+        content: appealMessage,
+        is_read: false,
+      });
+
+      // Update game state to pending appeal
+      setGameState((prev) => ({
+        ...prev,
+        appealPending: true,
+        isBlocked: true,
+      }));
+
+      console.log('📨 Appeal submitted and sent to admins');
+      return true;
+    } catch (err) {
+      console.error('Error submitting appeal:', err);
+      return false;
+    }
+  }, [userId, userType, employee?.name, client?.username]);
+
   if (!isLoaded) {
     return null; // Or a loading spinner
   }
@@ -642,6 +782,8 @@ yatesHelp()          - Show this help
         toggleAutoclicker,
         canPrestige,
         prestige,
+        dismissWarning,
+        submitAppeal,
       }}
     >
       {children}

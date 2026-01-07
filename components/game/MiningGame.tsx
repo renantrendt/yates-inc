@@ -44,6 +44,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     mineRock,
     buyAutoclicker,
     toggleAutoclicker,
+    dismissWarning,
+    submitAppeal,
   } = useGame();
 
   const [moneyPopups, setMoneyPopups] = useState<MoneyPopup[]>([]);
@@ -56,6 +58,18 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const [showTerminal, setShowTerminal] = useState(false);
   const [displayProgress, setDisplayProgress] = useState(0);
   const [rockBroken, setRockBroken] = useState(false);
+  
+  // Anti-cheat warning modal state
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [appealText, setAppealText] = useState('');
+  const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
+
+  // Show warning modal when warnings change
+  useEffect(() => {
+    if (gameState.isBlocked && gameState.antiCheatWarnings > 0 && !gameState.appealPending) {
+      setShowWarningModal(true);
+    }
+  }, [gameState.isBlocked, gameState.antiCheatWarnings, gameState.appealPending]);
   
   const rockRef = useRef<HTMLDivElement>(null);
   const popupIdRef = useRef(0);
@@ -346,7 +360,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
                   <span className="text-gray-400">🤖</span>
                   <span className="text-[10px] sm:text-xs text-gray-300 font-bold">AUTOCLICKER</span>
                   <span className={`text-[10px] sm:text-xs font-bold ${gameState.yatesDollars >= AUTOCLICKER_COST ? 'text-cyan-400' : 'text-gray-500'}`}>
-                    $7M
+                    ${(AUTOCLICKER_COST / 1000000).toFixed(0)}M
                   </span>
                 </div>
               </button>
@@ -409,12 +423,12 @@ export default function MiningGame({ onExit }: MiningGameProps) {
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             <Image
-              key={`rock-${currentRock.id}-${currentRock.image}`}
-              src={currentRock.image}
-              alt={currentRock.name}
+              key={`rock-${currentRock.id}-${gameState.isBlocked ? 'bedrock' : currentRock.image}`}
+              src={gameState.isBlocked ? '/bedrock.png' : currentRock.image}
+              alt={gameState.isBlocked ? 'Bedrock (Blocked)' : currentRock.name}
               fill
               unoptimized
-              className={`object-contain drop-shadow-2xl transition-all pointer-events-none ${rockBroken ? 'scale-110 brightness-150' : ''}`}
+              className={`object-contain drop-shadow-2xl transition-all pointer-events-none ${rockBroken ? 'scale-110 brightness-150' : ''} ${gameState.isBlocked ? 'grayscale brightness-50' : ''}`}
             />
             
             {/* Rock break flash */}
@@ -625,6 +639,110 @@ export default function MiningGame({ onExit }: MiningGameProps) {
           animation: flash-out 0.3s ease-out forwards;
         }
       `}</style>
+
+      {/* Anti-Cheat Warning Modals */}
+      {showWarningModal && (
+        <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4">
+          <div className="bg-gray-900 border-2 border-red-500 rounded-xl max-w-md w-full p-6 text-center shadow-2xl">
+            {/* Warning 1 */}
+            {gameState.antiCheatWarnings === 1 && (
+              <>
+                <div className="text-6xl mb-4">⚠️</div>
+                <h2 className="text-2xl font-bold text-red-400 mb-4">WARNING 1 of 3</h2>
+                <p className="text-white text-lg mb-6">
+                  This is your first warning out of 3! Stop auto clicking!!
+                </p>
+                <button
+                  onClick={() => {
+                    setShowWarningModal(false);
+                    dismissWarning();
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold text-lg transition-colors"
+                >
+                  I Understand
+                </button>
+              </>
+            )}
+
+            {/* Warning 2 */}
+            {gameState.antiCheatWarnings === 2 && (
+              <>
+                <div className="text-6xl mb-4">🔥</div>
+                <h2 className="text-2xl font-bold text-orange-400 mb-4">WARNING 2 of 3</h2>
+                <p className="text-white text-lg mb-6">
+                  If you do this one more time you&apos;re cooked!
+                </p>
+                <button
+                  onClick={() => {
+                    setShowWarningModal(false);
+                    dismissWarning();
+                  }}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-bold text-lg transition-colors"
+                >
+                  Last Chance...
+                </button>
+              </>
+            )}
+
+            {/* Warning 3 - Appeal Option */}
+            {gameState.antiCheatWarnings >= 3 && !gameState.appealPending && (
+              <>
+                <div className="text-6xl mb-4">💀</div>
+                <h2 className="text-2xl font-bold text-red-500 mb-4">FINAL WARNING</h2>
+                <p className="text-white text-lg mb-6">
+                  Just get out.
+                </p>
+                <div className="space-y-4">
+                  <textarea
+                    value={appealText}
+                    onChange={(e) => setAppealText(e.target.value)}
+                    placeholder="Wait! I can explain... (write your appeal)"
+                    className="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-white placeholder-gray-500 resize-none"
+                    rows={3}
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      onClick={async () => {
+                        if (!appealText.trim()) return;
+                        setIsSubmittingAppeal(true);
+                        const success = await submitAppeal(appealText);
+                        setIsSubmittingAppeal(false);
+                        if (success) {
+                          setShowWarningModal(false);
+                          setAppealText('');
+                        }
+                      }}
+                      disabled={!appealText.trim() || isSubmittingAppeal}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-4 py-3 rounded-lg font-bold transition-colors"
+                    >
+                      {isSubmittingAppeal ? 'Submitting...' : 'Submit Appeal'}
+                    </button>
+                  </div>
+                  <p className="text-gray-400 text-sm">
+                    Check your email in a lil to see if you got approved or not.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Appeal Pending Overlay */}
+      {gameState.appealPending && (
+        <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4">
+          <div className="bg-gray-900 border-2 border-yellow-500 rounded-xl max-w-md w-full p-6 text-center shadow-2xl">
+            <div className="text-6xl mb-4">⏳</div>
+            <h2 className="text-2xl font-bold text-yellow-400 mb-4">Appeal Pending</h2>
+            <p className="text-white text-lg mb-4">
+              Your appeal has been sent to the admins.
+            </p>
+            <p className="text-gray-400">
+              Check your email for updates. You cannot play until your appeal is reviewed.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

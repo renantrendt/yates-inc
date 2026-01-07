@@ -3,11 +3,18 @@
 import { useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { useBudget } from '@/contexts/BudgetContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useClient } from '@/contexts/ClientContext';
 import { PRESTIGE_REQUIREMENTS } from '@/types/game';
 
 export default function PrestigeButton() {
   const { gameState, canPrestige, prestige } = useGame();
   const { addToActiveBudget } = useBudget();
+  const { employee } = useAuth();
+  const { client } = useClient();
+  
+  // Get player name
+  const playerName = employee?.name || client?.username || 'Unknown Player';
   const [showConfirm, setShowConfirm] = useState(false);
   const [isPrestiging, setIsPrestiging] = useState(false);
 
@@ -32,7 +39,7 @@ export default function PrestigeButton() {
       // Add contribution to active budget (money in circulation)
       await addToActiveBudget(
         result.amountToCompany,
-        `Prestige contribution from player`,
+        `Prestige contribution from ${playerName}`,
         'prestige'
       );
     }

@@ -50,6 +50,11 @@ export interface GameState {
   prestigeCount: number;
   prestigeMultiplier: number;
   shopStock?: ShopStock; // Optional for backwards compatibility
+  // Anti-cheat system
+  antiCheatWarnings: number;       // 0-3
+  isOnWatchlist: boolean;          // stricter detection after appeal approved
+  isBlocked: boolean;              // currently blocked from earning
+  appealPending: boolean;          // waiting for admin decision
 }
 
 // Prestige requirements
@@ -61,8 +66,8 @@ export const PRESTIGE_REQUIREMENTS = {
 // Yates special account (hidden admin - keeps money on prestige)
 export const YATES_ACCOUNT_ID = '000000';
 
-export const AUTOCLICKER_COST = 7000000; // $7M
-export const AUTOCLICKER_CPS = 20; // 20 clicks per second
+export const AUTOCLICKER_COST = 13000000; // $13M
+export const AUTOCLICKER_CPS = 13; // 13 clicks per second
 
 export interface CouponDrop {
   type: 'discount30' | 'discount50' | 'discount100';

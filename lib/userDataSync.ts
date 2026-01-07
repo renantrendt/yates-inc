@@ -20,6 +20,11 @@ export interface UserGameData {
   prestige_multiplier?: number; // Optional - may not exist in DB yet
   stocks_owned?: number;
   stock_profits?: number;
+  // Anti-cheat fields
+  anti_cheat_warnings?: number;
+  is_on_watchlist?: boolean;
+  is_blocked?: boolean;
+  appeal_pending?: boolean;
 }
 
 export interface UserPurchase {
@@ -88,6 +93,11 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       autoclicker_enabled: data.autoclicker_enabled,
       prestige_count: data.prestige_count,
       prestige_multiplier: data.prestige_multiplier,
+      // Anti-cheat fields
+      anti_cheat_warnings: data.anti_cheat_warnings,
+      is_on_watchlist: data.is_on_watchlist,
+      is_blocked: data.is_blocked,
+      appeal_pending: data.appeal_pending,
     };
 
     const { error } = await supabase
