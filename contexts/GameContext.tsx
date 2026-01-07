@@ -6,7 +6,7 @@ import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
 import { useAuth } from './AuthContext';
 import { useClient } from './ClientContext';
-import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData } from '@/lib/userDataSync';
+import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData, savePurchase } from '@/lib/userDataSync';
 import { supabase } from '@/lib/supabase';
 
 // Helper to add product sale contribution to active budget (50% of sale)
@@ -527,9 +527,21 @@ yatesHelp()          - Show this help
 
     // Add 50% of sale to company budget
     addProductSaleToBudget(price, product.name);
+
+    // Save purchase to Supabase for both employees and clients
+    if (userId && userType) {
+      savePurchase({
+        user_id: userId,
+        user_type: userType,
+        product_id: productId,
+        product_name: product.name,
+        purchase_type: 'cash',
+        amount_paid: price,
+      });
+    }
     
     return true;
-  }, [gameState.yatesDollars, shopStock.items]);
+  }, [gameState.yatesDollars, shopStock.items, userId, userType]);
 
   const getTimeUntilRestock = useCallback(() => {
     const elapsed = Date.now() - shopStock.lastRestockTime;
