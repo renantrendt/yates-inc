@@ -82,7 +82,7 @@ export function StockProvider({ children }: { children: React.ReactNode }) {
       // Try loading from Supabase first if logged in
       if (userId && userType) {
         const supabaseData = await fetchUserGameData(userId);
-        if (supabaseData && (supabaseData.stocks_owned > 0 || supabaseData.stock_profits > 0)) {
+        if (supabaseData && ((supabaseData.stocks_owned ?? 0) > 0 || (supabaseData.stock_profits ?? 0) > 0)) {
           // Generate fresh price history but use Supabase stock data
           const history = generateInitialHistory();
           setStockState({

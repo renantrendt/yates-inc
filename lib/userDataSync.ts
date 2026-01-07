@@ -211,7 +211,7 @@ async function executeSave(): Promise<void> {
   } catch (err) {
     console.error('Failed to save game data:', err);
     // Put the data back if save failed
-    pendingData = { ...dataToSave, ...pendingData };
+    pendingData = { ...(dataToSave || {}), ...(pendingData || {}) } as UserGameData;
   } finally {
     isSaving = false;
   }

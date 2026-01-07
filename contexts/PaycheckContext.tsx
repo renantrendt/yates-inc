@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { calculateFinalAmount, getTaxBreakdown } from '@/utils/taxes';
 
 // Helper to drain from company budget when paycheck is processed
-async function drainBudgetForPaycheck(amount: number, employeeName: string): Promise<void> {
+async function drainBudgetForPaycheck(amount: number, employeeId: string): Promise<void> {
   try {
     // Get current budget
     const { data: budgetData, error: fetchError } = await supabase
@@ -40,12 +40,12 @@ async function drainBudgetForPaycheck(amount: number, employeeName: string): Pro
       await supabase.from('budget_transactions').insert({
         amount: -amount,
         transaction_type: 'paycheck',
-        description: `Paycheck for ${employeeName}`,
+        description: `Paycheck for employee #${employeeId}`,
         affects: 'active_budget',
         created_by: 'system',
       });
 
-      console.log(`💸 Budget drained by $${amount} for ${employeeName}'s paycheck`);
+      console.log(`💸 Budget drained by $${amount} for employee #${employeeId}'s paycheck`);
     }
   } catch (err) {
     console.error('Error draining budget for paycheck:', err);
@@ -167,7 +167,7 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Drain from company budget (full salary amount)
-      await drainBudgetForPaycheck(paycheck.salary_amount, paycheck.employee_name);
+      await drainBudgetForPaycheck(paycheck.salary_amount, paycheck.employee_id);
 
       await fetchPaychecks();
     } catch (err) {
@@ -201,7 +201,7 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
             .eq('employee_id', paycheck.employee_id);
 
           // Drain from company budget (full salary amount)
-          await drainBudgetForPaycheck(paycheck.salary_amount, paycheck.employee_name);
+          await drainBudgetForPaycheck(paycheck.salary_amount, paycheck.employee_id);
 
           // Save pending notification for the popup
           const pendingData = {
