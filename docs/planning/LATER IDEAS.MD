@@ -7,7 +7,8 @@
 - Finish lore image
 ### RIGHT MEW
 
-
+Add miners, like the Dodge clicker game. 10 new pcxs, 10 rocks, and Trinkets.
+Trinkets: They give different buffs like, +Money%, Coupon luck, Miner click speed, Miner money per click, Pcx money per click
 
 
 
