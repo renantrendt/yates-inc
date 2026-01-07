@@ -142,7 +142,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         // We need to use spendMoney with negative... or access gameState directly
         // For now, let's emit to window
         if (typeof window !== 'undefined') {
-          ((window as unknown) as Record<string, unknown>).yatesGiveMoney?.(amt);
+          const win = window as unknown as Record<string, unknown>;
+          if (typeof win.yatesGiveMoney === 'function') {
+            win.yatesGiveMoney(amt);
+          }
         }
         addToHistory(`💰 Added $${amt.toLocaleString()} Yates Dollars!`);
       }
