@@ -379,7 +379,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 // Trinkets
                 ownedTrinketIds: supabaseData.owned_trinket_ids?.length ? supabaseData.owned_trinket_ids : prev.ownedTrinketIds,
                 equippedTrinketIds: supabaseData.equipped_trinket_ids?.length ? supabaseData.equipped_trinket_ids : prev.equippedTrinketIds,
-                trinketShopItems: supabaseData.trinket_shop_items?.length ? supabaseData.trinket_shop_items : prev.trinketShopItems,
+                trinketShopItems: supabaseData.trinket_shop_items?.length 
+                  ? (supabaseData.trinket_shop_items as string[]) 
+                  : prev.trinketShopItems,
                 trinketShopLastRefresh: supabaseData.trinket_shop_last_refresh ?? prev.trinketShopLastRefresh,
                 hasTotemProtection: supabaseData.has_totem_protection ?? prev.hasTotemProtection,
                 // Miners
