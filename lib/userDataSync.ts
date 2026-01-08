@@ -14,10 +14,10 @@ export interface UserGameData {
   coupons_50: number;
   coupons_100: number;
   has_seen_cutscene: boolean;
-  has_autoclicker?: boolean; // Optional - may not exist in DB yet
-  autoclicker_enabled?: boolean; // Optional - may not exist in DB yet
-  prestige_count?: number; // Optional - may not exist in DB yet
-  prestige_multiplier?: number; // Optional - may not exist in DB yet
+  has_autoclicker?: boolean;
+  autoclicker_enabled?: boolean;
+  prestige_count?: number;
+  prestige_multiplier?: number;
   stocks_owned?: number;
   stock_profits?: number;
   // Anti-cheat fields
@@ -25,6 +25,19 @@ export interface UserGameData {
   is_on_watchlist?: boolean;
   is_blocked?: boolean;
   appeal_pending?: boolean;
+  // Trinkets
+  owned_trinket_ids?: string[];
+  equipped_trinket_ids?: string[];
+  trinket_shop_items?: unknown[];
+  trinket_shop_last_refresh?: number;
+  has_totem_protection?: boolean;
+  // Miners
+  miner_count?: number;
+  miner_last_tick?: number;
+  // Prestige upgrades
+  prestige_tokens?: number;
+  owned_prestige_upgrade_ids?: string[];
+  auto_prestige_enabled?: boolean;
 }
 
 export interface UserPurchase {
@@ -41,26 +54,39 @@ export async function fetchUserGameData(userId: string): Promise<UserGameData | 
   try {
     console.log('📡 Fetching game data for user:', userId);
     
+    // Use maybeSingle() instead of single() to avoid errors when no row exists
+    // This is more forgiving and won't throw on 406 errors
     const { data, error } = await supabase
       .from('user_game_data')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
-      console.error('Error fetching user game data:', error.message, error);
+    // Handle errors - but don't block game loading if Supabase fails
+    if (error) {
+      // Log the error but don't throw - allow game to load from localStorage
+      console.warn('⚠️ Supabase fetch error (game will use localStorage):', error.message, error);
+      
+      // Check for specific error codes
+      if (error.code === 'PGRST116' || error.message?.includes('No rows')) {
+        console.log('ℹ️ No existing game data found for user');
+        return null;
+      }
+      
+      // For 406 or other errors, return null and let localStorage handle it
       return null;
     }
 
     if (data) {
       console.log('✅ Fetched game data:', { yates_dollars: data.yates_dollars, total_clicks: data.total_clicks });
+      return data as UserGameData;
     } else {
       console.log('ℹ️ No existing game data found for user');
+      return null;
     }
-
-    return data as UserGameData | null;
   } catch (err) {
-    console.error('Error fetching user game data:', err);
+    // Catch any unexpected errors and log them, but don't block game loading
+    console.warn('⚠️ Unexpected error fetching game data (game will use localStorage):', err);
     return null;
   }
 }
@@ -68,8 +94,8 @@ export async function fetchUserGameData(userId: string): Promise<UserGameData | 
 // Save/update user game data to Supabase
 export async function saveUserGameData(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }): Promise<boolean> {
   try {
-    // Only include fields that definitely exist in the DB to avoid column errors
-    const safeData = {
+    // Include all fields - Supabase will ignore unknown columns
+    const fullData = {
       user_id: data.user_id,
       user_type: data.user_type,
       yates_dollars: data.yates_dollars,
@@ -84,13 +110,10 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       coupons_100: data.coupons_100,
       has_seen_cutscene: data.has_seen_cutscene,
       updated_at: new Date().toISOString(),
-    };
-
-    // Try to save with all optional fields
-    const fullData = {
-      ...safeData,
+      // Autoclicker
       has_autoclicker: data.has_autoclicker,
       autoclicker_enabled: data.autoclicker_enabled,
+      // Prestige
       prestige_count: data.prestige_count,
       prestige_multiplier: data.prestige_multiplier,
       // Anti-cheat fields
@@ -98,6 +121,19 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       is_on_watchlist: data.is_on_watchlist,
       is_blocked: data.is_blocked,
       appeal_pending: data.appeal_pending,
+      // Trinkets
+      owned_trinket_ids: data.owned_trinket_ids,
+      equipped_trinket_ids: data.equipped_trinket_ids,
+      trinket_shop_items: data.trinket_shop_items,
+      trinket_shop_last_refresh: data.trinket_shop_last_refresh,
+      has_totem_protection: data.has_totem_protection,
+      // Miners
+      miner_count: data.miner_count,
+      miner_last_tick: data.miner_last_tick,
+      // Prestige upgrades
+      prestige_tokens: data.prestige_tokens,
+      owned_prestige_upgrade_ids: data.owned_prestige_upgrade_ids,
+      auto_prestige_enabled: data.auto_prestige_enabled,
     };
 
     const { error } = await supabase
@@ -107,22 +143,6 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       });
 
     if (error) {
-      // If error mentions unknown column, try without autoclicker fields
-      if (error.message?.includes('column') || error.code === '42703') {
-        console.warn('Autoclicker columns not in DB yet, saving without them...');
-        const { error: fallbackError } = await supabase
-          .from('user_game_data')
-          .upsert(safeData, {
-            onConflict: 'user_id',
-          });
-        
-        if (fallbackError) {
-          console.error('Error saving user game data (fallback):', fallbackError.message, fallbackError);
-          return false;
-        }
-        return true;
-      }
-      
       console.error('Error saving user game data:', error.message, error);
       return false;
     }
@@ -185,18 +205,22 @@ let isSaving = false;
 export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }): void {
   // Always accumulate the latest data
   pendingData = { ...pendingData, ...data };
+  console.log('📝 debouncedSaveUserGameData: Queued data', { user_id: data.user_id, yates_dollars: data.yates_dollars });
   
   const now = Date.now();
   const timeSinceLastSave = now - lastSaveTime;
   
   // If enough time has passed and we're not already saving, save immediately
   if (timeSinceLastSave >= SAVE_INTERVAL && !isSaving) {
+    console.log('⚡ debouncedSaveUserGameData: Saving immediately (interval passed)');
     executeSave();
   } else if (!saveTimeout) {
     // Schedule a save for when the interval completes
     const timeUntilNextSave = Math.max(0, SAVE_INTERVAL - timeSinceLastSave);
+    console.log(`⏱️ debouncedSaveUserGameData: Scheduling save in ${timeUntilNextSave}ms`);
     saveTimeout = setTimeout(() => {
       if (pendingData && !isSaving) {
+        console.log('⏰ debouncedSaveUserGameData: Timeout fired, executing save');
         executeSave();
       }
     }, timeUntilNextSave);
@@ -204,8 +228,13 @@ export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_i
 }
 
 async function executeSave(): Promise<void> {
-  if (!pendingData || isSaving) return;
+  if (!pendingData || isSaving) {
+    if (!pendingData) console.log('⚠️ executeSave: No pending data');
+    if (isSaving) console.log('⚠️ executeSave: Already saving');
+    return;
+  }
   
+  console.log('💾 executeSave: Starting save to Supabase...', { user_id: pendingData.user_id, yates_dollars: pendingData.yates_dollars });
   isSaving = true;
   const dataToSave = pendingData;
   pendingData = null;
@@ -217,9 +246,14 @@ async function executeSave(): Promise<void> {
   }
   
   try {
-    await saveUserGameData(dataToSave);
+    const success = await saveUserGameData(dataToSave);
+    if (success) {
+      console.log('✅ executeSave: Successfully saved to Supabase');
+    } else {
+      console.error('❌ executeSave: saveUserGameData returned false');
+    }
   } catch (err) {
-    console.error('Failed to save game data:', err);
+    console.error('❌ executeSave: Failed to save game data:', err);
     // Put the data back if save failed
     pendingData = { ...(dataToSave || {}), ...(pendingData || {}) } as UserGameData;
   } finally {

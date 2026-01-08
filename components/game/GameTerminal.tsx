@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useClient } from '@/contexts/ClientContext';
 import { PICKAXES } from '@/lib/gameData';
 import { supabase } from '@/lib/supabase';
+import { TRINKETS } from '@/types/game';
 
 // Admin IDs that can ban users (only Bernardo and Logan)
 const BAN_ADMIN_IDS = ['123456', '000001'];
@@ -32,7 +33,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const terminalRef = useRef<HTMLDivElement>(null);
   const cmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { gameState, resetGame, buyPickaxe, equipPickaxe } = useGame();
+  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory } = useGame();
   const { employee } = useAuth();
   const { client } = useClient();
   
@@ -75,9 +76,16 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     };
   }, [isOpen, onClose]);
 
-  // CM() mode - 7 clicks/sec + auto-buy pickaxes
+  // CM() mode - 7 clicks/sec + auto-buy pickaxes + auto-prestige
   useEffect(() => {
     if (cmActive) {
+      // Clear any blocks when CM is activated (admin mode)
+      if (gameState.isBlocked) {
+        dismissWarning();
+      }
+      // Clear click history when CM starts
+      clearClickHistory();
+      
       cmIntervalRef.current = setInterval(() => {
         // Auto-click
         onMine();
@@ -88,11 +96,20 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         if (nextPickaxe && gameState.yatesDollars >= nextPickaxe.price) {
           buyPickaxe(nextPickaxe.id);
         }
+        
+        // Auto-prestige when ready (prestige() checks requirements internally)
+        prestige();
       }, 1000 / 7); // 7 clicks per second
     } else {
       if (cmIntervalRef.current) {
         clearInterval(cmIntervalRef.current);
         cmIntervalRef.current = null;
+      }
+      // Clear click history when CM is turned off so manual clicks don't trigger anti-cheat
+      clearClickHistory();
+      // Also clear any blocks
+      if (gameState.isBlocked) {
+        dismissWarning();
       }
     }
 
@@ -101,7 +118,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         clearInterval(cmIntervalRef.current);
       }
     };
-  }, [cmActive, onMine, gameState.ownedPickaxeIds, gameState.yatesDollars, buyPickaxe]);
+  }, [cmActive, onMine, gameState.ownedPickaxeIds, gameState.yatesDollars, buyPickaxe, prestige]);
 
   const addToHistory = useCallback((line: string) => {
     setHistory(prev => [...prev, line]);
@@ -203,8 +220,8 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       if (error) {
         addToHistory(`❌ Error: ${error.message}`);
         return;
-      }
-      
+}
+
       if (!data || data.length === 0) {
         addToHistory('📋 No banned users');
         return;
@@ -229,7 +246,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     if (!isBanAdmin) {
       addToHistory('❌ ACCESS DENIED - Only Bernardo/Logan can view');
       return;
-    }
+      }
     
     try {
       // Fetch clients
@@ -248,7 +265,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('━━━━━━━━━━━');
       if (!clients || clients.length === 0) {
         addToHistory('  No clients found');
-      } else {
+    } else {
         clients.forEach((c: { id: string; username: string; mail_handle: string }) => {
           addToHistory(`${c.username || 'no-name'}`);
           addToHistory(`  ID: ${c.id}`);
@@ -276,12 +293,18 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('');
       addToHistory('⛏️ EMPLOYEE COMMANDS:');
       addToHistory('━━━━━━━━━━━━━━━━━━━━━');
-      addToHistory('reset         - Reset your progress');
-      addToHistory(`pcx [id]      - Give pickaxe (1-${PICKAXES.length})`);
-      addToHistory('allpcx        - Unlock all pickaxes');
-      addToHistory('money [amt]   - Add Yates Dollars');
-      addToHistory('cm            - Toggle auto-clicker mode');
-      addToHistory('clear         - Clear terminal');
+      addToHistory('reset          - Reset your progress');
+      addToHistory(`pcx [id]       - Give pickaxe (1-${PICKAXES.length})`);
+      addToHistory('allpcx         - Unlock all pickaxes');
+      addToHistory('money [amt]    - Add Yates Dollars');
+      addToHistory('miners [amt]   - Add miners');
+      addToHistory('trinket [id]   - Give trinket');
+      addToHistory('trinkets       - List all trinkets');
+      addToHistory('tokens [amt]   - Add prestige tokens');
+      addToHistory('prestige       - Force prestige');
+      addToHistory('cm             - Toggle auto-clicker mode');
+      addToHistory('unblock        - Clear anti-cheat block');
+      addToHistory('clear          - Clear terminal');
       if (isBanAdmin) {
         addToHistory('');
         addToHistory('🔨 BAN COMMANDS (Admin only):');
@@ -334,7 +357,22 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     // CM toggle
     else if (trimmed === 'cm') {
       setCmActive(prev => !prev);
+      // Clear block and click history when toggling CM
+      clearClickHistory();
+      if (gameState.isBlocked) {
+        dismissWarning();
+      }
       addToHistory(cmActive ? '🛑 CM mode DEACTIVATED' : '🤫 CM mode ACTIVATED');
+    }
+    // Unblock command
+    else if (trimmed === 'unblock') {
+      clearClickHistory();
+      if (gameState.isBlocked) {
+        dismissWarning();
+        addToHistory('✅ Block cleared - you can click again');
+      } else {
+        addToHistory('✅ Click history cleared');
+      }
     }
     // Ban commands
     else if (trimmed.startsWith('ban ')) {
@@ -356,6 +394,84 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     }
     else if (trimmed === 'clear' || trimmed === 'clear()') {
       setHistory(['🔒 ADMIN TERMINAL', 'Type help for commands', '']);
+    }
+    // Miners command
+    else if (trimmed.startsWith('miners ')) {
+      const amtStr = trimmed.slice(7).trim();
+      const amt = parseInt(amtStr, 10);
+      if (isNaN(amt) || amt <= 0) {
+        addToHistory('❌ Invalid amount. Usage: miners 10');
+      } else {
+        if (typeof window !== 'undefined') {
+          const win = window as unknown as { _ya?: { giveMiners: (n: number) => void } };
+          if (win._ya?.giveMiners) {
+            win._ya.giveMiners(amt);
+            addToHistory(`👷 Added ${amt} miners!`);
+          } else {
+            addToHistory('❌ Miner function not available');
+          }
+        }
+      }
+    }
+    // Trinket list command
+    else if (trimmed === 'trinkets') {
+      addToHistory('');
+      addToHistory('💍 AVAILABLE TRINKETS:');
+      addToHistory('━━━━━━━━━━━━━━━━━━━━━━━');
+      TRINKETS.forEach(t => {
+        addToHistory(`${t.id} - ${t.name} (${t.rarity})`);
+      });
+      addToHistory('');
+      addToHistory('Use: trinket [id]');
+    }
+    // Trinket give command
+    else if (trimmed.startsWith('trinket ')) {
+      const trinketId = trimmed.slice(8).trim();
+      const trinket = TRINKETS.find(t => t.id === trinketId);
+      if (!trinket) {
+        addToHistory(`❌ Unknown trinket: ${trinketId}`);
+        addToHistory('Use "trinkets" to see available IDs');
+      } else {
+        if (typeof window !== 'undefined') {
+          const win = window as unknown as { _ya?: { giveTrinket: (id: string) => void } };
+          if (win._ya?.giveTrinket) {
+            win._ya.giveTrinket(trinketId);
+            addToHistory(`💍 Gave trinket: ${trinket.name}`);
+          } else {
+            addToHistory('❌ Trinket function not available');
+          }
+        }
+      }
+    }
+    // Prestige tokens command
+    else if (trimmed.startsWith('tokens ')) {
+      const amtStr = trimmed.slice(7).trim();
+      const amt = parseInt(amtStr, 10);
+      if (isNaN(amt) || amt <= 0) {
+        addToHistory('❌ Invalid amount. Usage: tokens 10');
+      } else {
+        if (typeof window !== 'undefined') {
+          const win = window as unknown as { _ya?: { giveTokens: (n: number) => void } };
+          if (win._ya?.giveTokens) {
+            win._ya.giveTokens(amt);
+            addToHistory(`✨ Added ${amt} prestige tokens!`);
+          } else {
+            addToHistory('❌ Token function not available');
+          }
+        }
+      }
+    }
+    // Force prestige command
+    else if (trimmed === 'prestige') {
+      if (typeof window !== 'undefined') {
+        const win = window as unknown as { _ya?: { p: () => void } };
+        if (win._ya?.p) {
+          win._ya.p();
+          addToHistory('✨ Prestige activated!');
+        } else {
+          addToHistory('❌ Prestige function not available');
+        }
+      }
     }
     else {
       addToHistory(`❌ Unknown command: ${trimmed}`);

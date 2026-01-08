@@ -81,6 +81,37 @@ body::before {
   animation: spin-slow 3s linear infinite;
 }
 
+/* Floating money animation for miners */
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-60px);
+  }
+}
+
+.animate-float-up {
+  animation: float-up 1.5s ease-out forwards;
+}
+
+/* Pickaxe swing animation for miners */
+@keyframes swing {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-20deg);
+  }
+}
+
+.animate-swing {
+  animation: swing 0.3s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
 /* Custom scrollbar for employee image gallery */
 .employee-gallery {
   scrollbar-width: thin !important;

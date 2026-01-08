@@ -9,6 +9,13 @@ import GameShop from './GameShop';
 import RockSelector from './RockSelector';
 import GameTerminal from './GameTerminal';
 import PrestigeButton from './PrestigeButton';
+import TrinketShopButton from './TrinketShopButton';
+import TrinketSlot from './TrinketSlot';
+import MinerSprites, { MinerPurchaseButton } from './MinerSprite';
+import PrestigeStore from './PrestigeStore';
+import AchievementsPanel from './AchievementsPanel';
+import { MINER_BASE_DAMAGE } from '@/types/game';
+import { ROCKS, getRockById } from '@/lib/gameData';
 
 interface MiningGameProps {
   onExit?: () => void;
@@ -37,10 +44,10 @@ interface CouponPopup {
 }
 
 export default function MiningGame({ onExit }: MiningGameProps) {
-  const { 
-    gameState, 
-    currentPickaxe, 
-    currentRock, 
+  const {
+    gameState,
+    currentPickaxe,
+    currentRock,
     mineRock,
     buyAutoclicker,
     toggleAutoclicker,
@@ -60,7 +67,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const [showTerminal, setShowTerminal] = useState(false);
   const [displayProgress, setDisplayProgress] = useState(0);
   const [rockBroken, setRockBroken] = useState(false);
-  
+
   // Anti-cheat warning modal state
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [appealText, setAppealText] = useState('');
@@ -72,7 +79,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       setShowWarningModal(true);
     }
   }, [gameState.isBlocked, gameState.antiCheatWarnings, gameState.appealPending]);
-  
+
   const rockRef = useRef<HTMLDivElement>(null);
   const popupIdRef = useRef(0);
   const autoclickerIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -89,7 +96,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
         autoclickerIntervalRef.current = null;
       }
     }
-    
+
     return () => {
       if (autoclickerIntervalRef.current) {
         clearInterval(autoclickerIntervalRef.current);
@@ -189,6 +196,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   }, [mineRock, gameState.currentRockHP, currentRock.clicksToBreak]);
 
   // Keyboard handler - ESC to exit, I for terminal, + to mine
+  // Prevents WASD from bubbling to prevent page scroll/navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't handle shortcuts if typing in terminal input
@@ -197,23 +205,31 @@ export default function MiningGame({ onExit }: MiningGameProps) {
         return;
       }
 
+      // Prevent WASD keys from bubbling (fixes typing issue)
+      const preventedKeys = ['w', 'a', 's', 'd', 'W', 'A', 'S', 'D'];
+      if (preventedKeys.includes(e.key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
       if (e.key === 'Escape' && onExit) {
         onExit();
       }
-      
+
       // 'I' key toggles terminal
       if (e.key === 'i' || e.key === 'I') {
         setShowTerminal(prev => !prev);
       }
-      
+
       // '+' key to mine (sneaky mode)
       if (e.key === '+' || e.key === '=') {
         handleMine();
       }
     };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [onExit, handleMine]);
 
   const formatNumber = (num: number): string => {
@@ -234,6 +250,12 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const actualProgress = ((currentRock.clicksToBreak - gameState.currentRockHP) / currentRock.clicksToBreak) * 100;
   const progressPercent = rockBroken ? 100 : (displayProgress || actualProgress);
   const totalCoupons = gameState.coupons.discount30 + gameState.coupons.discount50 + gameState.coupons.discount100;
+
+  // Calculate income per second for miners
+  const minerRock = getRockById(gameState.currentRockId) || ROCKS[0];
+  const minerDps = gameState.minerCount * MINER_BASE_DAMAGE;
+  const minerRocksPerSecond = minerDps / minerRock.clicksToBreak;
+  const incomePerSecond = Math.ceil(minerRocksPerSecond * minerRock.moneyPerBreak * gameState.prestigeMultiplier);
 
   // Check if player can buy the next pickaxe (sequential order)
   const canBuyNextPickaxe = useMemo(() => {
@@ -285,7 +307,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   return (
     <div className="fixed inset-0 overflow-hidden select-none z-[100]">
       {/* Cave Background */}
-      <div 
+      <div
         className="absolute inset-0"
         style={{
           background: `
@@ -295,15 +317,15 @@ export default function MiningGame({ onExit }: MiningGameProps) {
         }}
       >
         {/* Rock texture overlay */}
-        <div 
+        <div
           className="absolute inset-0 opacity-30"
           style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
           }}
         />
-        
+
         {/* Ambient cave glow */}
-        <div 
+        <div
           className="absolute inset-0"
           style={{
             background: 'radial-gradient(circle at 50% 60%, rgba(255, 150, 50, 0.1) 0%, transparent 50%)',
@@ -327,80 +349,90 @@ export default function MiningGame({ onExit }: MiningGameProps) {
               <span className="hidden sm:inline text-gray-600 text-xs">(ESC)</span>
             </button>
           )}
-          
+
           <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-2 border border-yellow-600/30 shadow-lg">
             <span className="text-lg sm:text-2xl">💰</span>
             <span className="text-yellow-400 font-bold text-base sm:text-xl">${formatNumber(gameState.yatesDollars)}</span>
           </div>
-          
-            {/* Coupon Display - Individual bars */}
-            {totalCoupons > 0 && (
-              <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border border-purple-600/30 shadow-lg">
-                <div className="flex items-center gap-1.5 sm:gap-3">
-                  {gameState.coupons.discount30 > 0 && (
-                    <div className="flex items-center gap-0.5 sm:gap-1 bg-green-600/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
-                      <span className="text-[10px] sm:text-xs text-green-400 font-bold">30%</span>
-                      <span className="text-green-300 font-bold text-[10px] sm:text-xs">×{gameState.coupons.discount30}</span>
-                    </div>
-                  )}
-                  {gameState.coupons.discount50 > 0 && (
-                    <div className="flex items-center gap-0.5 sm:gap-1 bg-blue-600/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
-                      <span className="text-[10px] sm:text-xs text-blue-400 font-bold">50%</span>
-                      <span className="text-blue-300 font-bold text-[10px] sm:text-xs">×{gameState.coupons.discount50}</span>
-                    </div>
-                  )}
-                  {gameState.coupons.discount100 > 0 && (
-                    <div className="flex items-center gap-0.5 sm:gap-1 bg-yellow-600/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
-                      <span className="text-[10px] sm:text-xs text-yellow-400 font-bold">FREE</span>
-                      <span className="text-yellow-300 font-bold text-[10px] sm:text-xs">×{gameState.coupons.discount100}</span>
-                    </div>
-                  )}
-                </div>
+
+          {/* Coupon Display - Individual bars */}
+          {totalCoupons > 0 && (
+            <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border border-purple-600/30 shadow-lg">
+              <div className="flex items-center gap-1.5 sm:gap-3">
+                {gameState.coupons.discount30 > 0 && (
+                  <div className="flex items-center gap-0.5 sm:gap-1 bg-green-600/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
+                    <span className="text-[10px] sm:text-xs text-green-400 font-bold">30%</span>
+                    <span className="text-green-300 font-bold text-[10px] sm:text-xs">×{gameState.coupons.discount30}</span>
+                  </div>
+                )}
+                {gameState.coupons.discount50 > 0 && (
+                  <div className="flex items-center gap-0.5 sm:gap-1 bg-blue-600/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
+                    <span className="text-[10px] sm:text-xs text-blue-400 font-bold">50%</span>
+                    <span className="text-blue-300 font-bold text-[10px] sm:text-xs">×{gameState.coupons.discount50}</span>
+                  </div>
+                )}
+                {gameState.coupons.discount100 > 0 && (
+                  <div className="flex items-center gap-0.5 sm:gap-1 bg-yellow-600/20 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
+                    <span className="text-[10px] sm:text-xs text-yellow-400 font-bold">FREE</span>
+                    <span className="text-yellow-300 font-bold text-[10px] sm:text-xs">×{gameState.coupons.discount100}</span>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Autoclicker - Buy or Toggle on/off */}
-            {gameState.hasAutoclicker ? (
-              <button
-                onClick={toggleAutoclicker}
-                className={`bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border shadow-lg transition-all touch-manipulation cursor-pointer ${
-                  gameState.autoclickerEnabled
-                    ? 'border-cyan-500/50 shadow-cyan-500/20 hover:border-cyan-400'
-                    : 'border-gray-600/50 hover:border-gray-500'
+          {/* Autoclicker - Buy or Toggle on/off */}
+          {gameState.hasAutoclicker ? (
+            <button
+              onClick={toggleAutoclicker}
+              className={`bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border shadow-lg transition-all touch-manipulation cursor-pointer ${gameState.autoclickerEnabled
+                ? 'border-cyan-500/50 shadow-cyan-500/20 hover:border-cyan-400'
+                : 'border-gray-600/50 hover:border-gray-500'
                 }`}
-              >
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <span className={gameState.autoclickerEnabled ? 'text-cyan-400 animate-pulse' : 'text-gray-500'}>🤖</span>
-                  <span className={`text-[10px] sm:text-xs font-bold ${gameState.autoclickerEnabled ? 'text-cyan-300' : 'text-gray-400'}`}>
-                    {gameState.autoclickerEnabled ? 'ON' : 'OFF'}
-                  </span>
-                  <span className={`text-[10px] sm:text-xs ${gameState.autoclickerEnabled ? 'text-cyan-400' : 'text-gray-500'}`}>
-                    {AUTOCLICKER_CPS}/s
-                  </span>
-                </div>
-              </button>
-            ) : (
-              <button
-                onClick={buyAutoclicker}
-                disabled={gameState.yatesDollars < AUTOCLICKER_COST}
-                className={`bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border shadow-lg transition-all touch-manipulation ${
-                  gameState.yatesDollars >= AUTOCLICKER_COST
-                    ? 'border-cyan-500/50 hover:border-cyan-400 hover:bg-cyan-900/30 cursor-pointer'
-                    : 'border-gray-600/30 opacity-60 cursor-not-allowed'
+            >
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className={gameState.autoclickerEnabled ? 'text-cyan-400 animate-pulse' : 'text-gray-500'}>🤖</span>
+                <span className={`text-[10px] sm:text-xs font-bold ${gameState.autoclickerEnabled ? 'text-cyan-300' : 'text-gray-400'}`}>
+                  {gameState.autoclickerEnabled ? 'ON' : 'OFF'}
+                </span>
+                <span className={`text-[10px] sm:text-xs ${gameState.autoclickerEnabled ? 'text-cyan-400' : 'text-gray-500'}`}>
+                  {AUTOCLICKER_CPS}/s
+                </span>
+              </div>
+            </button>
+          ) : (
+            <button
+              onClick={buyAutoclicker}
+              disabled={gameState.yatesDollars < AUTOCLICKER_COST}
+              className={`bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border shadow-lg transition-all touch-manipulation ${gameState.yatesDollars >= AUTOCLICKER_COST
+                ? 'border-cyan-500/50 hover:border-cyan-400 hover:bg-cyan-900/30 cursor-pointer'
+                : 'border-gray-600/30 opacity-60 cursor-not-allowed'
                 }`}
-              >
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <span className="text-gray-400">🤖</span>
-                  <span className="text-[10px] sm:text-xs text-gray-300 font-bold">AUTOCLICKER</span>
-                  <span className={`text-[10px] sm:text-xs font-bold ${gameState.yatesDollars >= AUTOCLICKER_COST ? 'text-cyan-400' : 'text-gray-500'}`}>
-                    ${(AUTOCLICKER_COST / 1000000).toFixed(0)}M
-                  </span>
-                </div>
-              </button>
-            )}
+            >
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="text-gray-400">🤖</span>
+                <span className="text-[10px] sm:text-xs text-gray-300 font-bold">AUTOCLICKER</span>
+                <span className={`text-[10px] sm:text-xs font-bold ${gameState.yatesDollars >= AUTOCLICKER_COST ? 'text-cyan-400' : 'text-gray-500'}`}>
+                  ${(AUTOCLICKER_COST / 1000000).toFixed(0)}M
+                </span>
+              </div>
+            </button>
+          )}
 
-            {/* Prestige Button - appears when eligible */}
-            <PrestigeButton />
+          {/* Prestige Button - appears when eligible */}
+          <PrestigeButton />
+
+          {/* Prestige Store - appears after first prestige */}
+          <PrestigeStore />
+
+          {/* Miner Purchase Button */}
+          <MinerPurchaseButton />
+
+          {/* Achievements */}
+          <AchievementsPanel />
+
+          {/* Trinket Slot */}
+          <TrinketSlot />
         </div>
 
         {/* Shop Button + Notification */}
@@ -411,10 +443,10 @@ export default function MiningGame({ onExit }: MiningGameProps) {
           >
             🛒 <span className="hidden xs:inline">SHOP</span>
           </button>
-          
+
           {/* New Pickaxe Available Notification */}
           {canBuyNextPickaxe && !showShop && (
-            <div 
+            <div
               className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-2 sm:px-4 py-1 sm:py-2 rounded-lg shadow-lg animate-pulse cursor-pointer border border-green-400/30 touch-manipulation"
               onClick={() => setShowShop(true)}
             >
@@ -428,10 +460,9 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       <div className="absolute inset-0 flex items-center justify-center pt-20 sm:pt-16 pb-40 sm:pb-32 px-2">
         <div className="relative flex items-center scale-75 sm:scale-90 md:scale-100">
           {/* Pickaxe */}
-          <div 
-            className={`relative w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 transition-transform origin-bottom-right -mr-6 sm:-mr-8 z-10 ${
-              isSwinging ? 'rotate-[30deg]' : 'rotate-0'
-            }`}
+          <div
+            className={`relative w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 transition-transform origin-bottom-right -mr-6 sm:-mr-8 z-10 ${isSwinging ? 'rotate-[30deg]' : 'rotate-0'
+              }`}
             style={{ transitionDuration: '0.15s' }}
           >
             <Image
@@ -446,13 +477,12 @@ export default function MiningGame({ onExit }: MiningGameProps) {
           </div>
 
           {/* Rock (Clickable/Touchable) */}
-          <div 
+          <div
             ref={rockRef}
             onClick={handleMine}
             onTouchEnd={handleMine}
-            className={`relative w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 cursor-pointer transition-transform hover:scale-105 active:scale-95 touch-manipulation ${
-              rockShake ? 'animate-shake' : ''
-            } ${rockBroken ? 'animate-rock-break' : ''}`}
+            className={`relative w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 cursor-pointer transition-transform hover:scale-105 active:scale-95 touch-manipulation ${rockShake ? 'animate-shake' : ''
+              } ${rockBroken ? 'animate-rock-break' : ''}`}
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             <Image
@@ -463,7 +493,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
               unoptimized
               className={`object-contain drop-shadow-2xl transition-all pointer-events-none ${rockBroken ? 'scale-110 brightness-150' : ''} ${gameState.isBlocked ? 'grayscale brightness-50' : ''}`}
             />
-            
+
             {/* Rock break flash */}
             {rockBroken && (
               <div className="absolute inset-0 bg-white/50 rounded-full animate-flash-out pointer-events-none" />
@@ -516,20 +546,35 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       {/* Bottom Stats */}
       <div className="fixed bottom-0 left-0 right-0 p-2 sm:p-4 z-30">
         <div className="max-w-2xl mx-auto space-y-2 sm:space-y-3">
-          {/* Current Rock HP Bar */}
-          <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-2 sm:p-3 border border-gray-700/50">
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-gray-300 font-medium text-xs sm:text-sm">⛏️ Mining: {currentRock.name}</span>
-              <span className="text-gray-400 text-[10px] sm:text-xs">
-                {gameState.currentRockHP} / {currentRock.clicksToBreak} HP
-              </span>
+          {/* Current Rock HP Bar with $/Sec box on the right */}
+          <div className="flex gap-2 sm:gap-3 items-start">
+            <div className="flex-1 bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-2 sm:p-3 border border-gray-700/50">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-gray-300 font-medium text-xs sm:text-sm">⛏️ Mining: {currentRock.name}</span>
+                <span className="text-gray-400 text-[10px] sm:text-xs">
+                  {gameState.currentRockHP} / {currentRock.clicksToBreak} HP
+                </span>
+              </div>
+              <div className="w-full h-2 sm:h-3 bg-gray-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-150"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
             </div>
-            <div className="w-full h-2 sm:h-3 bg-gray-800 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-150"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
+
+            {/* $/Sec box on the right */}
+            {gameState.minerCount > 0 && (
+              <div className="bg-black/90 backdrop-blur-sm rounded-lg sm:rounded-xl px-3 sm:px-4 py-2 sm:py-3 border-2 border-yellow-500 shadow-xl pointer-events-none">
+                <div className="flex items-center gap-2 sm:gap-3 text-yellow-400">
+                  <span className="text-2xl sm:text-3xl">⛏️</span>
+                  <div className="flex items-center gap-3">
+                    <p className="text-green-400 font-bold text-xs sm:text-sm">+${formatNumber(incomePerSecond)}/s</p>
+                    <p className="font-bold text-sm sm:text-base">{gameState.minerCount} Miners</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Next Rock Unlock Bar */}
@@ -542,7 +587,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
                 </span>
               </div>
               <div className="w-full h-2 sm:h-3 bg-gray-800 rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-150"
                   style={{ width: `${nextRockInfo.progress}%` }}
                 />
@@ -566,12 +611,12 @@ export default function MiningGame({ onExit }: MiningGameProps) {
               <span className="text-gray-400 text-[10px] sm:text-xs">Rock</span>
               <span className="text-white font-bold block text-xs sm:text-sm">{currentRock.id}/19</span>
             </button>
-            
+
             <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-700/50">
               <span className="text-gray-400 text-[10px] sm:text-xs">Power</span>
               <span className="text-white font-bold block text-xs sm:text-sm">{formatNumber(currentPickaxe.clickPower)}</span>
             </div>
-            
+
             <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-700/50 max-w-[120px]">
               <span className="text-gray-400 text-[10px] sm:text-xs">Pickaxe</span>
               <span className="text-white font-bold block text-xs sm:text-sm truncate">{currentPickaxe.name}</span>
@@ -586,9 +631,15 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       {/* Rock Selector Modal */}
       {showRockSelector && <RockSelector onClose={() => setShowRockSelector(false)} />}
 
+      {/* Miner Sprites - positioned at bottom of screen */}
+      <MinerSprites />
+
+      {/* Trinket Shop Button - bottom left */}
+      <TrinketShopButton />
+
       {/* Game Terminal */}
-      <GameTerminal 
-        isOpen={showTerminal} 
+      <GameTerminal
+        isOpen={showTerminal}
         onClose={() => setShowTerminal(false)}
         onMine={handleMine}
       />

@@ -67,3 +67,4 @@ CREATE INDEX IF NOT EXISTS idx_cheat_appeals_user_id ON cheat_appeals(user_id);
 CREATE INDEX IF NOT EXISTS idx_cheat_appeals_status ON cheat_appeals(status);
 
 
+
