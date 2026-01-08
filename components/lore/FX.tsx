@@ -12,3 +12,5 @@ export function LoreFX({ type, origin = 'center', intensity = 'medium' }: FXProp
   const baseClass = `lore-fx lore-fx-${type} lore-fx-${origin} lore-fx-${intensity}`;
   return <div className={baseClass} aria-hidden />;
 }
+
+export default LoreFX;
