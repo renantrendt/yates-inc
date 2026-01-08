@@ -398,4 +398,3 @@ export default function InboxSidebar({ isOpen, onClose }: InboxSidebarProps) {
     </>
   );
 }
-

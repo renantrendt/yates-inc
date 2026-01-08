@@ -46,6 +46,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     toggleAutoclicker,
     dismissWarning,
     submitAppeal,
+    isBanned,
+    banReason,
   } = useGame();
 
   const [moneyPopups, setMoneyPopups] = useState<MoneyPopup[]>([]);
@@ -249,6 +251,37 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     return getNextRockUnlockInfo(gameState.totalClicks);
   }, [gameState.totalClicks]);
 
+  // Show ban screen if user is banned
+  if (isBanned) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-[100]">
+        <div className="text-center p-8 max-w-md">
+          <div className="text-8xl mb-6">🚫</div>
+          <h1 className="text-4xl font-bold text-red-500 mb-4">BANNED</h1>
+          <p className="text-white text-lg mb-4">
+            Your account has been banned from Yates Inc.
+          </p>
+          {banReason && (
+            <p className="text-gray-400 mb-6">
+              <span className="text-gray-500">Reason:</span> {banReason}
+            </p>
+          )}
+          <p className="text-gray-500 text-sm">
+            If you believe this is a mistake, contact an administrator.
+          </p>
+          {onExit && (
+            <button
+              onClick={onExit}
+              className="mt-6 px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+            >
+              Exit
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 overflow-hidden select-none z-[100]">
       {/* Cave Background */}
@@ -424,7 +457,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
           >
             <Image
               key={`rock-${currentRock.id}-${gameState.isBlocked ? 'bedrock' : currentRock.image}`}
-              src={gameState.isBlocked ? '/bedrock.png' : currentRock.image}
+              src={gameState.isBlocked ? '/game/rocks/coal.png' : currentRock.image}
               alt={gameState.isBlocked ? 'Bedrock (Blocked)' : currentRock.name}
               fill
               unoptimized
@@ -746,4 +779,3 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     </div>
   );
 }
-

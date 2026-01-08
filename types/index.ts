@@ -163,3 +163,67 @@ export interface StockContextType {
 
 
 
+
+
+// Paycheck Types
+export interface EmployeePaycheck {
+  id: string;
+  employee_id: string;
+  yates_balance: number;
+  walters_balance: number;
+  salary_amount: number;
+  salary_currency: 'yates' | 'walters';
+  days_until_paycheck: number;
+  pay_interval: number;
+  last_paycheck_date: string;
+}
+
+export interface PaycheckTaxInfo {
+  originalAmount: number;
+  taxRate: number;
+  taxRateLabel: string;
+  taxAmount: number;
+  finalAmount: number;
+  isAdded: boolean;
+  isSubtracted: boolean;
+}
+
+export interface PaycheckContextType {
+  paychecks: EmployeePaycheck[];
+  currentUserPaycheck: EmployeePaycheck | null;
+  loading: boolean;
+  fetchPaychecks: () => Promise<void>;
+  updateSalary: (employeeId: string, amount: number, currency: 'yates' | 'walters') => Promise<void>;
+  updatePayInterval: (employeeId: string, interval: number) => Promise<void>;
+  processPaycheck: (employeeId: string) => Promise<void>;
+  getPaycheckTaxInfo: (salaryAmount: number) => PaycheckTaxInfo;
+}
+
+// Stock Market Types
+export interface StockPricePoint {
+  timestamp: number;
+  price: number;
+}
+
+export interface StockState {
+  priceHistory: StockPricePoint[];
+  currentPrice: number;
+  ownedStocks: number;
+  stockProfits: number; // Money earned from selling stocks (for premium purchases)
+  lastPriceUpdate: number;
+}
+
+export interface StockContextType {
+  stockState: StockState;
+  currentPrice: number;
+  priceHistory: StockPricePoint[];
+  ownedStocks: number;
+  stockProfits: number;
+  buyStock: (quantity: number, gameSpendMoney: (amount: number) => boolean) => boolean;
+  sellStock: (quantity: number) => boolean;
+  spendStocks: (quantity: number) => boolean;
+  canBuyStocks: (currentRockId: number, ownedPickaxeIds: number[]) => boolean;
+}
+
+
+

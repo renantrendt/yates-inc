@@ -329,5 +329,3 @@ export function usePaycheck() {
   }
   return context;
 }
-
-

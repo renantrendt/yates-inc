@@ -283,4 +283,3 @@ export default function BudgetSidebar({ isOpen, onClose }: BudgetSidebarProps) {
     </>
   );
 }
-

@@ -288,15 +288,3 @@ export default function PayPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-

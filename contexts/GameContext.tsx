@@ -82,6 +82,9 @@ interface GameContextType {
   // Anti-cheat functions
   dismissWarning: () => void;
   submitAppeal: (reason: string) => Promise<boolean>;
+  // Ban state
+  isBanned: boolean;
+  banReason: string | null;
 }
 
 const defaultGameState: GameState = {
@@ -135,6 +138,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
   const [shopStock, setShopStock] = useState<ShopStock>(() => generateShopStock());
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isBanned, setIsBanned] = useState(false);
+  const [banReason, setBanReason] = useState<string | null>(null);
   const { employee } = useAuth();
   const { client } = useClient();
   
@@ -221,6 +226,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
       // If logged in, try to load from Supabase
       if (userId && userType) {
+        // Check if user is banned first
+        const { data: banData } = await supabase
+          .from('banned_users')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+        
+        if (banData) {
+          // User is banned - block them
+          setGameState(prev => ({
+            ...prev,
+            isBlocked: true,
+            appealPending: false,
+          }));
+          setIsBanned(true);
+          setBanReason(banData.ban_reason || 'No reason provided');
+          console.log('🚫 User is BANNED:', banData.ban_reason);
+          setIsLoaded(true);
+          return; // Don't load game data for banned users
+        }
+
         const supabaseData = await fetchUserGameData(userId);
         if (supabaseData) {
           setGameState({
@@ -330,61 +356,83 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [userId, userType]);
 
-  // Expose cheat functions to window for F12 console testing
+  // Cheat functions for employees (anyone with numbered ID like 000001, 123456, etc.)
+  // Employees have numeric string IDs, clients have UUIDs
+  const isEmployee = userId ? /^\d+$/.test(userId) : false;
+  
+  // Expose cheat functions to window ONLY for admins
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      ((window as unknown) as Record<string, unknown>).yatesReset = () => {
-        localStorage.removeItem(STORAGE_KEY);
-        setGameStateRef.current(defaultGameState);
-        console.log('🎮 Progress reset! Refresh the page.');
-      };
+      // Clean up any existing cheat functions first
+      const win = (window as unknown) as Record<string, unknown>;
+      delete win._ya;
+      delete win.yatesReset;
+      delete win.yatesGivePcx;
+      delete win.yatesGiveAllPcx;
+      delete win.yatesGiveMoney;
+      delete win.yatesHelp;
       
-      ((window as unknown) as Record<string, unknown>).yatesGivePcx = (id: number) => {
-        if (id < 1 || id > PICKAXES.length) {
-          console.log(`❌ Invalid pickaxe ID. Use 1-${PICKAXES.length}`);
-          return;
-        }
-        setGameStateRef.current(prev => ({
-          ...prev,
-          ownedPickaxeIds: [...new Set([...prev.ownedPickaxeIds, id])],
-          currentPickaxeId: id,
-        }));
-        const pcx = PICKAXES.find(p => p.id === id);
-        console.log(`⛏️ Gave pickaxe: ${pcx?.name} (ID: ${id})`);
-      };
-      
-      ((window as unknown) as Record<string, unknown>).yatesGiveAllPcx = () => {
-        setGameStateRef.current(prev => ({
-          ...prev,
-          ownedPickaxeIds: PICKAXES.map(p => p.id),
-          currentPickaxeId: PICKAXES[PICKAXES.length - 1].id,
-        }));
-        console.log('⛏️ Unlocked ALL pickaxes!');
-      };
-      
-      ((window as unknown) as Record<string, unknown>).yatesGiveMoney = (amount: number) => {
-        setGameStateRef.current(prev => ({
-          ...prev,
-          yatesDollars: prev.yatesDollars + amount,
-        }));
-        console.log(`💰 Added $${amount.toLocaleString()} Yates Dollars!`);
-      };
-      
-      ((window as unknown) as Record<string, unknown>).yatesHelp = () => {
-        console.log(`
-🎮 YATES MINING GAME CHEATS:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-yatesReset()         - Reset all progress
-yatesGivePcx(id)     - Give pickaxe by ID (1-${PICKAXES.length})
-yatesGiveAllPcx()    - Unlock all pickaxes
-yatesGiveMoney(amt)  - Add Yates Dollars
-yatesHelp()          - Show this help
-        `);
-      };
-      
-      console.log('🎮 Yates Mining Game: Type yatesHelp() for cheat commands');
+      // Only expose if employee (has numbered ID)
+      if (isEmployee) {
+        // Use obfuscated name so it's not easily discoverable
+        win._ya = {
+          r: () => {
+            localStorage.removeItem(STORAGE_KEY);
+            setGameStateRef.current(defaultGameState);
+            console.log('🎮 Progress reset! Refresh the page.');
+          },
+          p: (id: number) => {
+            if (id < 1 || id > PICKAXES.length) {
+              console.log(`❌ Invalid pickaxe ID. Use 1-${PICKAXES.length}`);
+              return;
+            }
+            setGameStateRef.current(prev => ({
+              ...prev,
+              ownedPickaxeIds: [...new Set([...prev.ownedPickaxeIds, id])],
+              currentPickaxeId: id,
+            }));
+            const pcx = PICKAXES.find(p => p.id === id);
+            console.log(`⛏️ Gave pickaxe: ${pcx?.name} (ID: ${id})`);
+          },
+          ap: () => {
+            setGameStateRef.current(prev => ({
+              ...prev,
+              ownedPickaxeIds: PICKAXES.map(p => p.id),
+              currentPickaxeId: PICKAXES[PICKAXES.length - 1].id,
+            }));
+            console.log('⛏️ Unlocked ALL pickaxes!');
+          },
+          m: (amount: number) => {
+            setGameStateRef.current(prev => ({
+              ...prev,
+              yatesDollars: prev.yatesDollars + amount,
+            }));
+            console.log(`💰 Added $${amount.toLocaleString()} Yates Dollars!`);
+          },
+          h: () => {
+            console.log(`
+🎮 ADMIN CHEATS:
+━━━━━━━━━━━━━━━━
+_ya.r()      - Reset progress
+_ya.p(id)    - Give pickaxe (1-${PICKAXES.length})
+_ya.ap()     - All pickaxes
+_ya.m(amt)   - Add money
+_ya.h()      - This help
+            `);
+          },
+        };
+        // No console.log announcement - admins know the commands
+      }
     }
-  }, []);
+    
+    return () => {
+      // Cleanup on unmount
+      if (typeof window !== 'undefined') {
+        const win = (window as unknown) as Record<string, unknown>;
+        delete win._ya;
+      }
+    };
+  }, [isEmployee]);
 
   const currentPickaxe = getPickaxeById(gameState.currentPickaxeId) || PICKAXES[0];
   const currentRock = getRockById(gameState.currentRockId) || ROCKS[0];
@@ -784,6 +832,8 @@ yatesHelp()          - Show this help
         prestige,
         dismissWarning,
         submitAppeal,
+        isBanned,
+        banReason,
       }}
     >
       {children}
@@ -798,4 +848,3 @@ export function useGame() {
   }
   return context;
 }
-

@@ -115,4 +115,3 @@ export const SHOP_MIN_ITEMS = 3; // Minimum items in stock
 export const SHOP_MAX_ITEMS = 6; // Maximum items in stock
 export const SHOP_MIN_QUANTITY = 1; // Min quantity per item
 export const SHOP_MAX_QUANTITY = 3; // Max quantity per item
-

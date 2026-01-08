@@ -179,14 +179,3 @@ export default function PaycheckPopup() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

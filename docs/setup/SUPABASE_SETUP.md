@@ -136,3 +136,15 @@ ON CONFLICT (id) DO NOTHING;
 
 
 
+
+- No logout button is needed (per spec)
+- CEO can add/delete tasks and change due dates
+- Assigned employees can only increase their task progress
+- All product images are in the `/public` folder
+
+
+
+
+
+
+

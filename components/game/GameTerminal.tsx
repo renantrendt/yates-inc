@@ -2,7 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGame } from '@/contexts/GameContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useClient } from '@/contexts/ClientContext';
 import { PICKAXES } from '@/lib/gameData';
+import { supabase } from '@/lib/supabase';
+
+// Admin IDs that can ban users (only Bernardo and Logan)
+const BAN_ADMIN_IDS = ['123456', '000001'];
 
 interface GameTerminalProps {
   isOpen: boolean;
@@ -13,8 +19,8 @@ interface GameTerminalProps {
 export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalProps) {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([
-    '🎮 YATES MINING TERMINAL',
-    'Type yatesHelp() to see commands',
+    '🔒 ADMIN TERMINAL',
+    'Type help for commands',
     '',
   ]);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
@@ -27,6 +33,13 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const cmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const { gameState, resetGame, buyPickaxe, equipPickaxe } = useGame();
+  const { employee } = useAuth();
+  const { client } = useClient();
+  
+  // Check if current user is employee (numbered ID) or ban admin
+  const userId = employee?.id || client?.id || null;
+  const isEmployee = userId ? /^\d+$/.test(userId) : false;
+  const isBanAdmin = userId ? BAN_ADMIN_IDS.includes(userId) : false;
 
   // Focus input when terminal opens
   useEffect(() => {
@@ -94,28 +107,198 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     setHistory(prev => [...prev, line]);
   }, []);
 
+  // Ban a user by their user_id (only ban admins can do this)
+  const banUser = useCallback(async (targetUserId: string, reason?: string) => {
+    if (!isBanAdmin) {
+      addToHistory('❌ ACCESS DENIED - Only Bernardo/Logan can ban');
+      return;
+    }
+    
+    try {
+      // First check if user exists in either employees or clients
+      const { data: empData } = await supabase
+        .from('employees')
+        .select('id, name')
+        .eq('id', targetUserId)
+        .single();
+      
+      const { data: clientData } = await supabase
+        .from('clients')
+        .select('id, username, mail_handle')
+        .eq('id', targetUserId)
+        .single();
+      
+      if (!empData && !clientData) {
+        addToHistory(`❌ User ID "${targetUserId}" not found`);
+        return;
+      }
+      
+      const userType = empData ? 'employee' : 'client';
+      const username = empData?.name || clientData?.username || 'Unknown';
+      const email = clientData?.mail_handle || null;
+      
+      // Insert ban record
+      const { error } = await supabase.from('banned_users').upsert({
+        user_id: targetUserId,
+        user_type: userType,
+        email: email,
+        username: username,
+        banned_by: userId,
+        ban_reason: reason || 'No reason provided',
+        is_permanent: true,
+      }, {
+        onConflict: 'user_id'
+      });
+      
+      if (error) {
+        addToHistory(`❌ Failed to ban: ${error.message}`);
+        return;
+      }
+      
+      addToHistory(`🔨 BANNED: ${username} (${targetUserId})`);
+      addToHistory(`   Type: ${userType}`);
+      if (reason) addToHistory(`   Reason: ${reason}`);
+    } catch (err) {
+      addToHistory(`❌ Error: ${err}`);
+    }
+  }, [isBanAdmin, userId, addToHistory]);
+
+  // Unban a user (only ban admins can do this)
+  const unbanUser = useCallback(async (targetUserId: string) => {
+    if (!isBanAdmin) {
+      addToHistory('❌ ACCESS DENIED - Only Bernardo/Logan can unban');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('banned_users')
+        .delete()
+        .eq('user_id', targetUserId);
+      
+      if (error) {
+        addToHistory(`❌ Failed to unban: ${error.message}`);
+        return;
+      }
+      
+      addToHistory(`✅ UNBANNED: ${targetUserId}`);
+    } catch (err) {
+      addToHistory(`❌ Error: ${err}`);
+    }
+  }, [isBanAdmin, addToHistory]);
+
+  // List all banned users (only ban admins can see this)
+  const listBanned = useCallback(async () => {
+    if (!isBanAdmin) {
+      addToHistory('❌ ACCESS DENIED - Only Bernardo/Logan can view');
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('banned_users')
+        .select('*')
+        .order('banned_at', { ascending: false });
+      
+      if (error) {
+        addToHistory(`❌ Error: ${error.message}`);
+        return;
+      }
+      
+      if (!data || data.length === 0) {
+        addToHistory('📋 No banned users');
+        return;
+      }
+      
+      addToHistory('');
+      addToHistory('🔨 BANNED USERS:');
+      addToHistory('━━━━━━━━━━━━━━━━');
+      data.forEach((ban) => {
+        addToHistory(`${ban.username || ban.user_id} (${ban.user_type})`);
+        addToHistory(`  ID: ${ban.user_id}`);
+        addToHistory(`  Reason: ${ban.ban_reason || 'None'}`);
+        addToHistory('');
+      });
+    } catch (err) {
+      addToHistory(`❌ Error: ${err}`);
+    }
+  }, [isBanAdmin, addToHistory]);
+
+  // List all users (clients) - ban admins only
+  const listUsers = useCallback(async () => {
+    if (!isBanAdmin) {
+      addToHistory('❌ ACCESS DENIED - Only Bernardo/Logan can view');
+      return;
+    }
+    
+    try {
+      // Fetch clients
+      const { data: clients, error: clientErr } = await supabase
+        .from('clients')
+        .select('id, username, mail_handle')
+        .order('created_at', { ascending: false });
+      
+      if (clientErr) {
+        addToHistory(`❌ Error: ${clientErr.message}`);
+        return;
+      }
+      
+      addToHistory('');
+      addToHistory('👥 CLIENTS:');
+      addToHistory('━━━━━━━━━━━');
+      if (!clients || clients.length === 0) {
+        addToHistory('  No clients found');
+      } else {
+        clients.forEach((c: { id: string; username: string; mail_handle: string }) => {
+          addToHistory(`${c.username || 'no-name'}`);
+          addToHistory(`  ID: ${c.id}`);
+          addToHistory(`  Handle: @${c.mail_handle || 'none'}`);
+          addToHistory('');
+        });
+      }
+    } catch (err) {
+      addToHistory(`❌ Error: ${err}`);
+    }
+  }, [isBanAdmin, addToHistory]);
+
   const executeCommand = useCallback((cmd: string) => {
     const trimmed = cmd.trim();
     addToHistory(`> ${trimmed}`);
 
+    // Check employee access for all commands except clear
+    if (!isEmployee && trimmed !== 'clear' && trimmed !== 'clear()') {
+      addToHistory('❌ ACCESS DENIED - Employees only');
+      return;
+    }
+
     // Parse command
-    if (trimmed === 'yatesHelp()') {
+    if (trimmed === 'help') {
       addToHistory('');
-      addToHistory('🎮 YATES MINING GAME CHEATS:');
-      addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      addToHistory('yatesReset()         - Reset all progress');
-      addToHistory(`yatesGivePcx(id)     - Give pickaxe by ID (1-${PICKAXES.length})`);
-      addToHistory('yatesGiveAllPcx()    - Unlock all pickaxes');
-      addToHistory('yatesGiveMoney(amt)  - Add Yates Dollars');
-      addToHistory('yatesHelp()          - Show this help');
+      addToHistory('⛏️ EMPLOYEE COMMANDS:');
+      addToHistory('━━━━━━━━━━━━━━━━━━━━━');
+      addToHistory('reset         - Reset your progress');
+      addToHistory(`pcx [id]      - Give pickaxe (1-${PICKAXES.length})`);
+      addToHistory('allpcx        - Unlock all pickaxes');
+      addToHistory('money [amt]   - Add Yates Dollars');
+      addToHistory('cm            - Toggle auto-clicker mode');
+      addToHistory('clear         - Clear terminal');
+      if (isBanAdmin) {
+        addToHistory('');
+        addToHistory('🔨 BAN COMMANDS (Admin only):');
+        addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        addToHistory('users             - List all clients');
+        addToHistory('ban [id] [reason] - Ban a user');
+        addToHistory('unban [id]        - Unban a user');
+        addToHistory('banned            - List all banned');
+      }
       addToHistory('');
     } 
-    else if (trimmed === 'yatesReset()') {
+    else if (trimmed === 'reset') {
       resetGame();
       addToHistory('🎮 Progress reset! Refresh the page.');
     }
-    else if (trimmed.startsWith('yatesGivePcx(') && trimmed.endsWith(')')) {
-      const idStr = trimmed.slice(13, -1);
+    else if (trimmed.startsWith('pcx ')) {
+      const idStr = trimmed.slice(4).trim();
       const id = parseInt(idStr, 10);
       if (isNaN(id) || id < 1 || id > PICKAXES.length) {
         addToHistory(`❌ Invalid pickaxe ID. Use 1-${PICKAXES.length}`);
@@ -126,47 +309,59 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory(`⛏️ Gave pickaxe: ${pcx?.name} (ID: ${id})`);
       }
     }
-    else if (trimmed === 'yatesGiveAllPcx()') {
+    else if (trimmed === 'allpcx') {
       PICKAXES.forEach(p => {
         buyPickaxe(p.id);
       });
       equipPickaxe(PICKAXES[PICKAXES.length - 1].id);
       addToHistory('⛏️ Unlocked ALL pickaxes!');
     }
-    else if (trimmed.startsWith('yatesGiveMoney(') && trimmed.endsWith(')')) {
-      const amtStr = trimmed.slice(15, -1);
+    else if (trimmed.startsWith('money ')) {
+      const amtStr = trimmed.slice(6).trim();
       const amt = parseInt(amtStr, 10);
       if (isNaN(amt)) {
         addToHistory('❌ Invalid amount');
       } else {
-        // We need to use spendMoney with negative... or access gameState directly
-        // For now, let's emit to window
         if (typeof window !== 'undefined') {
-          const win = window as unknown as Record<string, unknown>;
-          if (typeof win.yatesGiveMoney === 'function') {
-            win.yatesGiveMoney(amt);
+          const win = window as unknown as { _ya?: { m: (n: number) => void } };
+          if (win._ya?.m) {
+            win._ya.m(amt);
           }
         }
         addToHistory(`💰 Added $${amt.toLocaleString()} Yates Dollars!`);
       }
     }
-    // Secret CM() command - not in help
-    else if (trimmed === 'CM()' || trimmed === 'CM(true)') {
-      setCmActive(true);
-      addToHistory('🤫 CM mode ACTIVATED - auto-clicking + auto-buying...');
+    // CM toggle
+    else if (trimmed === 'cm') {
+      setCmActive(prev => !prev);
+      addToHistory(cmActive ? '🛑 CM mode DEACTIVATED' : '🤫 CM mode ACTIVATED');
     }
-    else if (trimmed === 'CM(false)') {
-      setCmActive(false);
-      addToHistory('🛑 CM mode DEACTIVATED');
+    // Ban commands
+    else if (trimmed.startsWith('ban ')) {
+      const args = trimmed.slice(4).trim();
+      const spaceIndex = args.indexOf(' ');
+      const targetId = spaceIndex > 0 ? args.slice(0, spaceIndex) : args;
+      const reason = spaceIndex > 0 ? args.slice(spaceIndex + 1) : undefined;
+      banUser(targetId, reason);
+    }
+    else if (trimmed.startsWith('unban ')) {
+      const targetId = trimmed.slice(6).trim();
+      unbanUser(targetId);
+    }
+    else if (trimmed === 'banned') {
+      listBanned();
+    }
+    else if (trimmed === 'users') {
+      listUsers();
     }
     else if (trimmed === 'clear' || trimmed === 'clear()') {
-      setHistory(['🎮 YATES MINING TERMINAL', 'Type yatesHelp() to see commands', '']);
+      setHistory(['🔒 ADMIN TERMINAL', 'Type help for commands', '']);
     }
     else {
       addToHistory(`❌ Unknown command: ${trimmed}`);
-      addToHistory('Type yatesHelp() for available commands');
+      addToHistory('Type help for available commands');
     }
-  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe]);
+  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,25 +403,26 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     }
   };
 
-  if (!isOpen) return null;
+  // Don't render for non-employees
+  if (!isOpen || !isEmployee) return null;
 
   return (
     <div
       ref={terminalRef}
-      className="fixed bottom-4 right-4 w-80 sm:w-96 bg-black/95 border border-green-500/50 rounded-lg shadow-2xl shadow-green-500/20 z-[200] font-mono text-sm"
+      className="fixed bottom-4 right-4 w-80 sm:w-96 bg-black/95 border border-red-500/50 rounded-lg shadow-2xl shadow-red-500/20 z-[200] font-mono text-sm"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-green-500/30 bg-green-900/20">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-red-500/30 bg-red-900/20">
         <div className="flex items-center gap-2">
-          <span className="text-green-400">⌨️</span>
-          <span className="text-green-300 text-xs">TERMINAL</span>
+          <span className="text-red-400">🔒</span>
+          <span className="text-red-300 text-xs">ADMIN TERMINAL</span>
           {cmActive && (
             <span className="text-yellow-400 text-xs animate-pulse">[CM]</span>
           )}
         </div>
         <button
           onClick={onClose}
-          className="text-green-500 hover:text-green-300 transition-colors"
+          className="text-red-500 hover:text-red-300 transition-colors"
         >
           ✕
         </button>
@@ -235,27 +431,27 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       {/* History */}
       <div
         ref={historyRef}
-        className="h-48 overflow-y-auto p-3 text-green-400 text-xs space-y-0.5"
+        className="h-48 overflow-y-auto p-3 text-red-400 text-xs space-y-0.5"
       >
         {history.map((line, i) => (
-          <div key={i} className={line.startsWith('>') ? 'text-green-200' : ''}>
+          <div key={i} className={line.startsWith('>') ? 'text-red-200' : ''}>
             {line || '\u00A0'}
           </div>
         ))}
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="border-t border-green-500/30">
+      <form onSubmit={handleSubmit} className="border-t border-red-500/30">
         <div className="flex items-center px-3 py-2">
-          <span className="text-green-500 mr-2">{'>'}</span>
+          <span className="text-red-500 mr-2">{'>'}</span>
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent text-green-300 outline-none placeholder-green-700"
-            placeholder="type a command..."
+            className="flex-1 bg-transparent text-red-300 outline-none placeholder-red-700"
+            placeholder="admin command..."
             autoComplete="off"
             spellCheck={false}
           />
@@ -264,4 +460,3 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     </div>
   );
 }
-

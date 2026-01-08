@@ -369,4 +369,3 @@ export function useStock() {
   }
   return context;
 }
-
