@@ -133,6 +133,12 @@ export const employees = [
     role: 'SCM',
     bio: "Harris is our newest hire and Supply Chain Manager. While he has some basic coding skills, his real strength is managing the supply chain and logistics. He handles all our partnerships, vendor relationships, and ensures resources flow smoothly to keep operations running.",
   },
+  {
+    id: '390738',
+    name: 'Dilshaan',
+    role: 'Advertiser',
+    bio: "Dilshaan is our Advertiser, responsible for promoting Yates Inc. and getting the word out about our products and services.",
+  },
 ];
 
 export function calculateDeliveryTime(numProducts: number): string {

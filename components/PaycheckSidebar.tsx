@@ -229,17 +229,20 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
                             ${paycheck.salary_amount.toFixed(2)} {paycheck.salary_currency === 'yates' ? 'Yates' : 'Walters'}
                           </span>
                         </div>
-                        <button
-                          onClick={() => handleEdit(
-                            paycheck.employee_id, 
-                            paycheck.salary_amount, 
-                            paycheck.salary_currency,
-                            paycheck.pay_interval
-                          )}
-                          className="text-blue-600 dark:text-blue-400 text-sm hover:underline"
-                        >
-                          Edit
-                        </button>
+                        {/* Hide edit for Logan (CEO) */}
+                        {paycheck.employee_id !== '000001' && (
+                          <button
+                            onClick={() => handleEdit(
+                              paycheck.employee_id, 
+                              paycheck.salary_amount, 
+                              paycheck.salary_currency,
+                              paycheck.pay_interval
+                            )}
+                            className="text-blue-600 dark:text-blue-400 text-sm hover:underline"
+                          >
+                            Edit
+                          </button>
+                        )}
                       </div>
                       {/* Pay Interval Display */}
                       <div className="text-xs text-gray-500 dark:text-gray-400">
