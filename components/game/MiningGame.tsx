@@ -244,6 +244,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   }, [onExit, handleMine]);
 
   const formatNumber = (num: number): string => {
+    if (num >= 1000000000000) return `${(num / 1000000000000).toFixed(1)}T`;
+    if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toString();
@@ -424,7 +426,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
                 <span className="text-gray-400">🤖</span>
                 <span className="text-[10px] sm:text-xs text-gray-300 font-bold">AUTOCLICKER</span>
                 <span className={`text-[10px] sm:text-xs font-bold ${gameState.yatesDollars >= AUTOCLICKER_COST ? 'text-cyan-400' : 'text-gray-500'}`}>
-                  ${(AUTOCLICKER_COST / 1000000).toFixed(0)}M
+                  ${formatNumber(AUTOCLICKER_COST)}
                 </span>
               </div>
             </button>

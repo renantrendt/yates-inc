@@ -9,6 +9,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useClient } from '@/contexts/ClientContext';
 import { savePurchase, fetchUserPurchases } from '@/lib/userDataSync';
 
+// Format money with T, B, M, K suffixes
+function formatMoney(amount: number): string {
+  if (amount >= 1000000000000) return `$${(amount / 1000000000000).toFixed(2)}T`;
+  if (amount >= 1000000000) return `$${(amount / 1000000000).toFixed(2)}B`;
+  if (amount >= 1000000) return `$${(amount / 1000000).toFixed(2)}M`;
+  if (amount >= 1000) return `$${(amount / 1000).toFixed(1)}K`;
+  return `$${amount.toFixed(2)}`;
+}
+
 interface PremiumProduct {
   id: number;
   name: string;
@@ -197,7 +206,7 @@ export default function PremiumProductsPage() {
         <div className="pt-2 border-t border-yellow-500/20">
           <div className="text-xs text-purple-400/80">Stock Profits</div>
           <div className="text-lg font-bold text-purple-400 font-mono">
-            ${(stockProfits / 1000000).toFixed(2)}M
+            {formatMoney(stockProfits)}
           </div>
         </div>
       </div>

@@ -10,6 +10,15 @@ interface StockMarketProps {
   onClose: () => void;
 }
 
+// Format money with T, B, M, K suffixes
+function formatStockMoney(amount: number): string {
+  if (amount >= 1000000000000) return `$${(amount / 1000000000000).toFixed(2)}T`;
+  if (amount >= 1000000000) return `$${(amount / 1000000000).toFixed(2)}B`;
+  if (amount >= 1000000) return `$${(amount / 1000000).toFixed(2)}M`;
+  if (amount >= 1000) return `$${(amount / 1000).toFixed(1)}K`;
+  return `$${amount.toFixed(2)}`;
+}
+
 export default function StockMarket({ isOpen, onClose }: StockMarketProps) {
   const { currentPrice, priceHistory, ownedStocks, stockProfits, buyStock, sellStock, canBuyStocks } = useStock();
   const { gameState, spendMoney } = useGame();
@@ -78,7 +87,7 @@ export default function StockMarket({ isOpen, onClose }: StockMarketProps) {
       ctx.fillStyle = '#8b949e';
       ctx.font = '10px monospace';
       ctx.textAlign = 'right';
-      ctx.fillText(`$${(price / 1000000).toFixed(2)}M`, width - 5, y + 4);
+      ctx.fillText(formatStockMoney(price).replace('$', ''), width - 5, y + 4);
     }
 
     // Draw the price line
@@ -187,7 +196,7 @@ export default function StockMarket({ isOpen, onClose }: StockMarketProps) {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-2xl font-bold text-white font-mono">
-                ${(currentPrice / 1000000).toFixed(2)}M
+                {formatStockMoney(currentPrice)}
               </span>
               <span className={`text-sm font-mono ${priceChange.value >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {priceChange.value >= 0 ? '+' : ''}{priceChange.percent.toFixed(2)}%
@@ -247,13 +256,13 @@ export default function StockMarket({ isOpen, onClose }: StockMarketProps) {
               <div>
                 <span className="text-gray-500">24h High</span>
                 <span className="ml-2 text-white font-mono">
-                  ${(Math.max(...priceHistory.slice(-96).map(p => p.price)) / 1000000).toFixed(2)}M
+                  {formatStockMoney(Math.max(...priceHistory.slice(-96).map(p => p.price)))}
                 </span>
               </div>
               <div>
                 <span className="text-gray-500">24h Low</span>
                 <span className="ml-2 text-white font-mono">
-                  ${(Math.min(...priceHistory.slice(-96).map(p => p.price)) / 1000000).toFixed(2)}M
+                  {formatStockMoney(Math.min(...priceHistory.slice(-96).map(p => p.price)))}
                 </span>
               </div>
               <div>
@@ -276,13 +285,13 @@ export default function StockMarket({ isOpen, onClose }: StockMarketProps) {
                 <div className="bg-[#0d1117] rounded-lg p-3">
                   <div className="text-xs text-gray-500">Value</div>
                   <div className="text-xl font-bold text-green-400">
-                    ${((ownedStocks * currentPrice) / 1000000).toFixed(2)}M
+                    {formatStockMoney(ownedStocks * currentPrice)}
                   </div>
                 </div>
                 <div className="bg-[#0d1117] rounded-lg p-3 col-span-2">
                   <div className="text-xs text-gray-500">Premium Balance (from sales)</div>
                   <div className="text-xl font-bold text-purple-400">
-                    ${(stockProfits / 1000000).toFixed(2)}M
+                    {formatStockMoney(stockProfits)}
                   </div>
                 </div>
               </div>

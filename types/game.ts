@@ -71,10 +71,10 @@ export interface GameState {
   autoPrestigeEnabled: boolean;
 }
 
-// Prestige requirements
+// Prestige requirements (Rock 19 = Titanium Quartz, Pickaxe 17 = Pin)
 export const PRESTIGE_REQUIREMENTS = {
-  minRockId: 17,
-  minPickaxeId: 13,
+  minRockId: 19,
+  minPickaxeId: 17,
 };
 
 // Yates special account (hidden admin - keeps money on prestige)
