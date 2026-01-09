@@ -71,10 +71,10 @@ export interface GameState {
   autoPrestigeEnabled: boolean;
 }
 
-// Prestige requirements (Rock 19 = Titanium Quartz, Pickaxe 17 = Pin)
+// Prestige requirements (Rock 19 = Titanium Quartz, Pickaxe 16 = Pin)
 export const PRESTIGE_REQUIREMENTS = {
   minRockId: 19,
-  minPickaxeId: 17,
+  minPickaxeId: 16,
 };
 
 // Yates special account (hidden admin - keeps money on prestige)
@@ -288,7 +288,7 @@ export const RARITY_COLORS: Record<TrinketRarity, string> = {
 // =====================
 
 export const MINER_BASE_COST = 250; // $250 for first miner
-export const MINER_COST_MULTIPLIER = 1.08; // Each miner costs 8% more (gentler scaling)
+export const MINER_COST_MULTIPLIER = 1.042; // Each miner costs 4.2% more - caps around $500M for miner 360
 export const MINER_MAX_COUNT = 360;
 export const MINER_TICK_INTERVAL = 1000; // 1 second between miner ticks
 export const MINER_BASE_DAMAGE = 15; // Base damage per miner per tick (beefy bois)
@@ -548,8 +548,8 @@ export const ACHIEVEMENTS: Achievement[] = [
 // Achievement checking functions
 export function checkAchievementUnlocked(achievement: Achievement, state: GameState): boolean {
   switch (achievement.id) {
-    case 'all_pickaxes': return state.ownedPickaxeIds.length >= 15;
-    case 'max_rock': return state.currentRockId >= 10;
+    case 'all_pickaxes': return state.ownedPickaxeIds.length >= 25; // 25 total pickaxes
+    case 'max_rock': return state.currentRockId >= 29; // 29 total rocks
     case 'money_1m': return state.yatesDollars >= 1000000;
     case 'money_100m': return state.yatesDollars >= 100000000;
     case 'prestige_1': return state.prestigeCount >= 1;

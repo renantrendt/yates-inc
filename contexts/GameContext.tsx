@@ -210,6 +210,21 @@ function generateTrinketShopItems(): string[] {
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
+// Anti-cheat: Window-level click tracking (survives HMR and re-renders)
+const CLICK_WINDOW_MS = 1000; // 1 second rolling window
+const NORMAL_CLICK_THRESHOLD = 9; // Max 9 clicks/sec for normal users
+const WATCHLIST_CLICK_THRESHOLD = 7; // Max 7 clicks/sec for watchlist users
+
+// Initialize on window if not exists
+declare global {
+  interface Window {
+    _clickTimestamps?: number[];
+  }
+}
+if (typeof window !== 'undefined' && !window._clickTimestamps) {
+  window._clickTimestamps = [];
+}
+
 export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState>(defaultGameState);
   const [shopStock, setShopStock] = useState<ShopStock>(() => generateShopStock());
@@ -232,28 +247,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Ref to track if we're still loading initial data (prevent saves during load)
   const isLoadingRef = useRef(true);
 
-  // Anti-cheat: Track click timestamps for rate detection
-  const clickTimestampsRef = useRef<number[]>([]);
-  const CLICK_WINDOW_MS = 1000; // 1 second rolling window
-  const NORMAL_CLICK_THRESHOLD = 20; // Max 20 clicks/sec for normal users
-  const WATCHLIST_CLICK_THRESHOLD = 15; // Max 15 clicks/sec for watchlist users
-
   // Check if click rate exceeds threshold and trigger warning if needed
   const checkClickRate = useCallback((): boolean => {
     const now = Date.now();
-    // Add current click timestamp
-    clickTimestampsRef.current.push(now);
+    const clicks = window._clickTimestamps || [];
     
+    // Add current click timestamp
+    clicks.push(now);
+
     // Remove clicks older than 1 second
-    clickTimestampsRef.current = clickTimestampsRef.current.filter(
+    const beforeFilter = clicks.length;
+    window._clickTimestamps = clicks.filter(
       (timestamp) => now - timestamp <= CLICK_WINDOW_MS
     );
-    
+
     // Get the appropriate threshold
     const threshold = gameState.isOnWatchlist ? WATCHLIST_CLICK_THRESHOLD : NORMAL_CLICK_THRESHOLD;
     
+    const clickCount = window._clickTimestamps.length;
+    
+    // Debug logging EVERY click now
+    console.log(`🔍 Clicks in window: ${clickCount} (before filter: ${beforeFilter}, threshold: ${threshold})`);
+
     // Check if over threshold
-    if (clickTimestampsRef.current.length > threshold) {
+    if (clickCount > threshold) {
+      console.log(`🚨 VIOLATION! ${clickCount} > ${threshold}`);
       return true; // Violation detected
     }
     return false;
@@ -271,13 +289,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       };
     });
     // Clear click history after violation
-    clickTimestampsRef.current = [];
+    window._clickTimestamps = [];
   }, []);
 
   // Dismiss warning (called from UI after user acknowledges)
   const dismissWarning = useCallback(() => {
     // Clear click history when dismissing warning
-    clickTimestampsRef.current = [];
+    window._clickTimestamps = [];
     setGameState((prev) => ({
       ...prev,
       isBlocked: false,
@@ -286,7 +304,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   
   // Clear click history (for admin commands like CM)
   const clearClickHistory = useCallback(() => {
-    clickTimestampsRef.current = [];
+    window._clickTimestamps = [];
   }, []);
 
   // Load from localStorage IMMEDIATELY (synchronous) so game works right away
@@ -501,19 +519,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
         const damage = prev.minerCount * MINER_BASE_DAMAGE; // 5 damage per miner per second
         const newHP = prev.currentRockHP - damage;
         
+        // Always add miner damage to totalClicks (for rock unlock progress)
+        const newTotalClicks = prev.totalClicks + damage;
+        
         // Rock didn't break yet
         if (newHP > 0) {
           return {
             ...prev,
             currentRockHP: newHP,
+            totalClicks: newTotalClicks,
           };
         }
         
         // Rock broke! Get money
         const money = Math.ceil(rock.moneyPerBreak * prev.prestigeMultiplier);
-        
-        // Add miner damage as "clicks" for rock unlock progress
-        const newTotalClicks = prev.totalClicks + damage;
         
         // Check for rock upgrade
         const highestUnlocked = getHighestUnlockedRock(newTotalClicks);
@@ -735,20 +754,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const currentRock = getRockById(gameState.currentRockId) || ROCKS[0];
 
   const mineRock = useCallback(() => {
+    console.log('⛏️ mineRock called!');
+    
     // Anti-cheat: If blocked, don't process clicks
     if (gameState.isBlocked || gameState.appealPending) {
+      console.log('🚫 Blocked or appeal pending');
       return { brokeRock: false, earnedMoney: 0, couponDrop: null };
     }
 
-    // Anti-cheat: Check click rate (skip for purchased autoclicker, CM command users, and employees)
+    // Anti-cheat: Check click rate (skip ONLY for purchased autoclicker when enabled)
     const isViolation = checkClickRate();
     const hasAutoclickerWhitelist = gameState.hasAutoclicker && gameState.autoclickerEnabled;
-    const isCMUser = isEmployee; // Employees with numbered IDs can use CM
     
-    if (isViolation && !hasAutoclickerWhitelist && !isCMUser) {
-      // Only trigger if not whitelisted
-      triggerAntiCheatWarning();
-      return { brokeRock: false, earnedMoney: 0, couponDrop: null };
+    if (isViolation) {
+      console.log(`🚨 Violation detected! Whitelist: ${hasAutoclickerWhitelist}`);
+      if (!hasAutoclickerWhitelist) {
+        console.log(`🔨 BLOCKING USER - triggering warning!`);
+        triggerAntiCheatWarning();
+        return { brokeRock: false, earnedMoney: 0, couponDrop: null };
+      }
     }
 
     const pickaxe = getPickaxeById(gameState.currentPickaxeId) || PICKAXES[0];

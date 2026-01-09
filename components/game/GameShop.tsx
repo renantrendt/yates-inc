@@ -71,7 +71,7 @@ export default function GameShop({ onClose }: GameShopProps) {
 
   const canAccessProducts = 
     gameState.currentRockId >= SHOP_UNLOCK_REQUIREMENTS.productsTab.minRockId &&
-    gameState.currentPickaxeId >= SHOP_UNLOCK_REQUIREMENTS.productsTab.minPickaxeId;
+    gameState.ownedPickaxeIds.some(id => id >= SHOP_UNLOCK_REQUIREMENTS.productsTab.minPickaxeId);
 
   // Product prices in Yates Dollars (15x the real price)
   const getProductPrice = (priceFloat: number): number => {

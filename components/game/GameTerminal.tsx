@@ -122,30 +122,82 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     setHistory(prev => [...prev, line]);
   }, []);
 
-  // Ban a user by their user_id (only ban admins can do this)
-  const banUser = useCallback(async (targetUserId: string, reason?: string) => {
+  // Ban a user by their user_id, email, or username (only ban admins can do this)
+  const banUser = useCallback(async (targetInput: string, reason?: string) => {
     if (!isBanAdmin) {
       addToHistory('❌ ACCESS DENIED - Only Bernardo/Logan can ban');
       return;
     }
     
     try {
-      // First check if user exists in either employees or clients
-      const { data: empData } = await supabase
-        .from('employees')
-        .select('id, name')
-        .eq('id', targetUserId)
-        .single();
+      let targetUserId = targetInput;
+      let empData = null;
+      let clientData = null;
       
-      const { data: clientData } = await supabase
-        .from('clients')
-        .select('id, username, mail_handle')
-        .eq('id', targetUserId)
-        .single();
+      // Check if input looks like a UUID (contains dashes and is long) or numeric ID
+      const isDirectId = targetInput.includes('-') || /^\d+$/.test(targetInput);
       
-      if (!empData && !clientData) {
-        addToHistory(`❌ User ID "${targetUserId}" not found`);
-        return;
+      if (!isDirectId) {
+        // Search by email or username
+        addToHistory(`🔍 Searching for "${targetInput}"...`);
+        
+        // Search in clients by mail_handle or username
+        const { data: clientByEmail } = await supabase
+          .from('clients')
+          .select('id, username, mail_handle')
+          .ilike('mail_handle', targetInput)
+          .maybeSingle();
+        
+        const { data: clientByUsername } = await supabase
+          .from('clients')
+          .select('id, username, mail_handle')
+          .ilike('username', targetInput)
+          .maybeSingle();
+        
+        // Search in employees by name
+        const { data: empByName } = await supabase
+          .from('employees')
+          .select('id, name')
+          .ilike('name', targetInput)
+          .maybeSingle();
+        
+        if (clientByEmail) {
+          clientData = clientByEmail;
+          targetUserId = clientByEmail.id;
+          addToHistory(`✅ Found client by email: ${clientByEmail.username}`);
+        } else if (clientByUsername) {
+          clientData = clientByUsername;
+          targetUserId = clientByUsername.id;
+          addToHistory(`✅ Found client by username: ${clientByUsername.username}`);
+        } else if (empByName) {
+          empData = empByName;
+          targetUserId = empByName.id;
+          addToHistory(`✅ Found employee: ${empByName.name}`);
+        } else {
+          addToHistory(`❌ No user found matching "${targetInput}"`);
+          return;
+        }
+      } else {
+        // Direct ID lookup
+        const { data: emp } = await supabase
+          .from('employees')
+          .select('id, name')
+          .eq('id', targetUserId)
+          .maybeSingle();
+        
+        const { data: client } = await supabase
+          .from('clients')
+          .select('id, username, mail_handle')
+          .eq('id', targetUserId)
+          .maybeSingle();
+        
+        empData = emp;
+        clientData = client;
+        
+        if (!empData && !clientData) {
+          addToHistory(`❌ User ID "${targetUserId}" not found`);
+          return;
+        }
       }
       
       const userType = empData ? 'employee' : 'client';
@@ -309,10 +361,11 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory('');
         addToHistory('🔨 BAN COMMANDS (Admin only):');
         addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        addToHistory('users             - List all clients');
-        addToHistory('ban [id] [reason] - Ban a user');
-        addToHistory('unban [id]        - Unban a user');
-        addToHistory('banned            - List all banned');
+        addToHistory('users                  - List all clients');
+        addToHistory('ban [id/email/name] [reason]');
+        addToHistory('                       - Ban by ID, email, or username');
+        addToHistory('unban [id]             - Unban a user');
+        addToHistory('banned                 - List all banned');
       }
       addToHistory('');
     } 

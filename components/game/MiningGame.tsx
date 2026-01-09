@@ -106,6 +106,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   }, [gameState.hasAutoclicker, gameState.autoclickerEnabled, mineRock]);
 
   const handleMine = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
+    console.log('👆 handleMine called!');
+    
     // Prevent default touch behavior
     if (e) {
       e.preventDefault();
@@ -121,7 +123,9 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     setTimeout(() => setRockShake(false), 100);
 
     // Mine the rock
+    console.log('⛏️ Calling mineRock...');
     const result = mineRock();
+    console.log('📊 mineRock result:', result);
 
     // Handle rock break animation
     if (result.brokeRock) {
@@ -132,9 +136,11 @@ export default function MiningGame({ onExit }: MiningGameProps) {
         setDisplayProgress(0);
       }, 300);
     } else {
-      // Update display progress normally
+      // Update display progress for click feedback, then reset to let actualProgress take over
       const newProgress = ((currentRock.clicksToBreak - gameState.currentRockHP + 1) / currentRock.clicksToBreak) * 100;
       setDisplayProgress(Math.min(100, newProgress));
+      // Reset displayProgress after animation so miners can update the bar via actualProgress
+      setTimeout(() => setDisplayProgress(0), 200);
     }
 
     // Create money popup
