@@ -231,13 +231,106 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   }, [isBanAdmin, userId, addToHistory]);
 
   // Unban a user (only ban admins can do this)
-  const unbanUser = useCallback(async (targetUserId: string) => {
+  // Can accept user_id, email, or username - same as ban
+  const unbanUser = useCallback(async (targetInput: string) => {
     if (!isBanAdmin) {
       addToHistory('❌ ACCESS DENIED - Only Bernardo/Logan can unban');
       return;
     }
     
     try {
+      let targetUserId = targetInput;
+      let foundUsername = targetInput;
+      
+      // Check if input looks like a UUID (contains dashes) or numeric ID (employee)
+      const isDirectId = targetInput.includes('-') || /^\d+$/.test(targetInput);
+      
+      if (!isDirectId) {
+        // Search by email or username in banned_users table first
+        addToHistory(`🔍 Searching for "${targetInput}"...`);
+        
+        // Check banned_users by username or email
+        const { data: bannedByUsername } = await supabase
+          .from('banned_users')
+          .select('user_id, username, email')
+          .ilike('username', targetInput)
+          .maybeSingle();
+        
+        const { data: bannedByEmail } = await supabase
+          .from('banned_users')
+          .select('user_id, username, email')
+          .ilike('email', targetInput)
+          .maybeSingle();
+        
+        if (bannedByUsername) {
+          targetUserId = bannedByUsername.user_id;
+          foundUsername = bannedByUsername.username || targetUserId;
+          addToHistory(`✅ Found banned user by username: ${foundUsername}`);
+        } else if (bannedByEmail) {
+          targetUserId = bannedByEmail.user_id;
+          foundUsername = bannedByEmail.username || targetUserId;
+          addToHistory(`✅ Found banned user by email: ${foundUsername}`);
+        } else {
+          // Try searching in clients/employees tables
+          const { data: clientByEmail } = await supabase
+            .from('clients')
+            .select('id, username, mail_handle')
+            .ilike('mail_handle', targetInput)
+            .maybeSingle();
+          
+          const { data: clientByUsername } = await supabase
+            .from('clients')
+            .select('id, username, mail_handle')
+            .ilike('username', targetInput)
+            .maybeSingle();
+          
+          const { data: empByName } = await supabase
+            .from('employees')
+            .select('id, name')
+            .ilike('name', targetInput)
+            .maybeSingle();
+          
+          if (clientByEmail) {
+            targetUserId = clientByEmail.id;
+            foundUsername = clientByEmail.username;
+          } else if (clientByUsername) {
+            targetUserId = clientByUsername.id;
+            foundUsername = clientByUsername.username;
+          } else if (empByName) {
+            targetUserId = empByName.id;
+            foundUsername = empByName.name;
+          } else {
+            addToHistory(`❌ No user found matching "${targetInput}"`);
+            return;
+          }
+          addToHistory(`✅ Found user: ${foundUsername}`);
+        }
+      } else {
+        // Check if this ID is actually banned
+        const { data: banRecord } = await supabase
+          .from('banned_users')
+          .select('username')
+          .eq('user_id', targetUserId)
+          .maybeSingle();
+        
+        if (banRecord?.username) {
+          foundUsername = banRecord.username;
+        }
+      }
+      
+      // First check if user is actually banned
+      const { data: existingBan } = await supabase
+        .from('banned_users')
+        .select('user_id')
+        .eq('user_id', targetUserId)
+        .maybeSingle();
+      
+      if (!existingBan) {
+        addToHistory(`⚠️ User "${foundUsername}" is not banned`);
+        return;
+      }
+      
+      // Now delete the ban
       const { error } = await supabase
         .from('banned_users')
         .delete()
@@ -248,7 +341,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         return;
       }
       
-      addToHistory(`✅ UNBANNED: ${targetUserId}`);
+      addToHistory(`✅ UNBANNED: ${foundUsername} (${targetUserId})`);
     } catch (err) {
       addToHistory(`❌ Error: ${err}`);
     }

@@ -46,6 +46,16 @@ button, a, input[type="button"], input[type="submit"] {
 .touch-manipulation {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Prevent zoom on double-tap for game elements */
+.game-area {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -ms-touch-action: manipulation;
 }
 
 /* Prevent white gaps on overscroll */
