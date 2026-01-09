@@ -474,7 +474,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
       {/* Main Mining Area */}
       <div className="absolute inset-0 flex items-center justify-center pt-20 sm:pt-16 pb-40 sm:pb-32 px-2">
-        <div className="relative flex items-center scale-75 sm:scale-90 md:scale-100">
+        <div className="relative flex items-center">
           {/* Pickaxe */}
           <div
             className={`relative w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 transition-transform origin-bottom-right -mr-6 sm:-mr-8 z-10 ${isSwinging ? 'rotate-[30deg]' : 'rotate-0'
@@ -492,18 +492,17 @@ export default function MiningGame({ onExit }: MiningGameProps) {
             />
           </div>
 
-          {/* Rock (Clickable/Touchable) - Invisible padding for bigger hitbox */}
+          {/* Rock (Clickable/Touchable) - Fixed hitbox size for all rocks */}
           <div
             ref={rockRef}
             onClick={handleMine}
             onTouchEnd={handleMine}
-            className="relative cursor-pointer touch-manipulation p-0"
+            className="relative w-72 h-72 cursor-pointer touch-manipulation flex items-center justify-center"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
-            {/* Actual rock visual - original size */}
+            {/* Rock visual inside the hitbox */}
             <div
-              className={`relative w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 transition-transform hover:scale-105 active:scale-95 ${rockShake ? 'animate-shake' : ''
-                } ${rockBroken ? 'animate-rock-break' : ''}`}
+              className={`relative w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 transition-transform hover:scale-105 active:scale-95 ${rockShake ? 'animate-shake' : ''} ${rockBroken ? 'animate-rock-break' : ''}`}
             >
               <Image
                 key={`rock-${currentRock.id}-${gameState.isBlocked ? 'bedrock' : currentRock.image}`}
@@ -573,7 +572,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
               <div className="flex justify-between items-center mb-1">
                 <span className="text-gray-300 font-medium text-xs sm:text-sm">⛏️ Mining: {currentRock.name}</span>
                 <span className="text-gray-400 text-[10px] sm:text-xs">
-                  {gameState.currentRockHP} / {currentRock.clicksToBreak} HP
+                  {formatNumber(gameState.currentRockHP)} / {formatNumber(currentRock.clicksToBreak)} HP
                 </span>
               </div>
               <div className="w-full h-2 sm:h-3 bg-gray-800 rounded-full overflow-hidden">

@@ -566,6 +566,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ownedPickaxeIds: [1],
           totalClicks: 0,
           rocksMinedCount: 0,
+          minerCount: 0, // Reset miners on prestige
           yatesDollars: (isYates || ownsTotem) ? prev.yatesDollars : 0,
           prestigeCount: newPrestigeCount,
           prestigeMultiplier: newMultiplier,
@@ -607,7 +608,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
     }
     
-    // Add bonuses from prestige upgrades
+    // Check for trinket bonus multiplier from prestige upgrades (like Mega Boost)
+    let trinketMultiplier = 1.0;
+    for (const upgradeId of gameState.ownedPrestigeUpgradeIds) {
+      const upgrade = PRESTIGE_UPGRADES.find(u => u.id === upgradeId);
+      if (upgrade?.effects.trinketBonus) {
+        trinketMultiplier += upgrade.effects.trinketBonus;
+      }
+    }
+    
+    // Apply trinket multiplier to all trinket bonuses
+    bonuses.moneyBonus *= trinketMultiplier;
+    bonuses.rockDamageBonus *= trinketMultiplier;
+    bonuses.clickSpeedBonus *= trinketMultiplier;
+    bonuses.couponBonus *= trinketMultiplier;
+    bonuses.minerSpeedBonus *= trinketMultiplier;
+    bonuses.minerDamageBonus *= trinketMultiplier;
+    
+    // Add bonuses from prestige upgrades (not multiplied by trinketBonus)
     for (const upgradeId of gameState.ownedPrestigeUpgradeIds) {
       const upgrade = PRESTIGE_UPGRADES.find(u => u.id === upgradeId);
       if (upgrade) {

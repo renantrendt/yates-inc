@@ -147,6 +147,7 @@ export interface TrinketEffects {
   couponLuckBonus?: number;   // % extra coupon luck
   allBonus?: number;          // % bonus to everything
   prestigeProtection?: boolean; // Keep money on prestige (consumable)
+  trinketBonus?: number;      // % boost to all trinket effects
 }
 
 export interface Trinket {
@@ -357,6 +358,55 @@ export const PRESTIGE_UPGRADES: PrestigeUpgrade[] = [
     cost: 10,
     effects: {},
     description: 'Equip 2 trinkets at once',
+    maxPurchases: 1,
+  },
+  // === NEW PRESTIGE UPGRADES ===
+  {
+    id: 'miner_sprint',
+    name: 'Miner Sprint',
+    cost: 8,
+    effects: { minerSpeedBonus: 0.50 },
+    description: '+50% miner speed',
+    maxPurchases: 1,
+  },
+  {
+    id: 'money_printer',
+    name: 'Money Printer',
+    cost: 10,
+    effects: { moneyBonus: 0.50 },
+    description: '+50% money',
+    maxPurchases: 1,
+  },
+  {
+    id: 'rapid_clicker',
+    name: 'Rapid Clicker',
+    cost: 13,
+    effects: { clickSpeedBonus: 0.52 },
+    description: '+52% click speed',
+    maxPurchases: 1,
+  },
+  {
+    id: 'heavy_hitter',
+    name: 'Heavy Hitter',
+    cost: 13,
+    effects: { rockDamageBonus: 0.54 },
+    description: '+54% pickaxe damage',
+    maxPurchases: 1,
+  },
+  {
+    id: 'relic_hunter',
+    name: 'Relic Hunter',
+    cost: 16,
+    effects: { couponBonus: 0.30 },
+    description: '+30% relic luck',
+    maxPurchases: 1,
+  },
+  {
+    id: 'mega_boost',
+    name: 'Mega Boost',
+    cost: 25,
+    effects: { moneyBonus: 1.0, rockDamageBonus: 0.50, trinketBonus: 0.31 },
+    description: '+100% money, +50% pcx dmg, +31% trinket effects',
     maxPurchases: 1,
   },
 ];
