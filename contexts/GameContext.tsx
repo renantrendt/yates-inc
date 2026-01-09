@@ -555,7 +555,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         const isYates = userId === YATES_ACCOUNT_ID;
         const newPrestigeCount = gameState.prestigeCount + 1;
         const newMultiplier = 1.0 + (newPrestigeCount * 0.1);
-        const hasProtection = gameState.hasTotemProtection;
+        // Check if player owns totem (not the flag - can get out of sync)
+        const ownsTotem = gameState.ownedTrinketIds.includes('totem');
         
         setGameState(prev => ({
           ...prev,
@@ -565,18 +566,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ownedPickaxeIds: [1],
           totalClicks: 0,
           rocksMinedCount: 0,
-          yatesDollars: (isYates || hasProtection) ? prev.yatesDollars : 0,
+          yatesDollars: (isYates || ownsTotem) ? prev.yatesDollars : 0,
           prestigeCount: newPrestigeCount,
           prestigeMultiplier: newMultiplier,
           prestigeTokens: prev.prestigeTokens + PRESTIGE_TOKENS_PER_PRESTIGE,
-          hasTotemProtection: false, // Consume totem protection
+          hasTotemProtection: false,
+          // Remove totem from inventory if used
+          ownedTrinketIds: ownsTotem ? prev.ownedTrinketIds.filter(id => id !== 'totem') : prev.ownedTrinketIds,
+          equippedTrinketIds: ownsTotem ? prev.equippedTrinketIds.filter(id => id !== 'totem') : prev.equippedTrinketIds,
         }));
-        console.log(`🤖 Auto-prestige! Level ${newPrestigeCount}`);
+        console.log(`🤖 Auto-prestige! Level ${newPrestigeCount}${ownsTotem ? ' (Totem used!)' : ''}`);
       }
     }, 5000); // Check every 5 seconds
     
     return () => clearInterval(interval);
-  }, [gameState.autoPrestigeEnabled, gameState.currentRockId, gameState.ownedPickaxeIds, gameState.prestigeCount, userId, gameState.hasTotemProtection]);
+  }, [gameState.autoPrestigeEnabled, gameState.currentRockId, gameState.ownedPickaxeIds, gameState.prestigeCount, userId, gameState.ownedTrinketIds]);
 
   // Helper function to calculate total bonuses from equipped trinkets and prestige upgrades
   const calculateTotalBonuses = useCallback(() => {
@@ -1001,7 +1005,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!canPrestige()) return null;
 
     const isYates = userId === YATES_ACCOUNT_ID;
-    const hasProtection = gameState.hasTotemProtection;
+    // Check if player owns the totem trinket (not just the flag - the flag can get out of sync)
+    const ownsTotem = gameState.ownedTrinketIds.includes('totem');
+    const hasProtection = ownsTotem;
     const currentMoney = gameState.yatesDollars;
     const keepsMoney = isYates || hasProtection;
     const amountToCompany = keepsMoney ? 0 : Math.floor(currentMoney / 32);
@@ -1043,7 +1049,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     console.log(`🌟 PRESTIGE ${newPrestigeCount}! Multiplier: ${newMultiplier}x, +${PRESTIGE_TOKENS_PER_PRESTIGE} tokens${reason}`);
 
     return { amountToCompany, newMultiplier };
-  }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, gameState.hasTotemProtection, userId]);
+  }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, gameState.ownedTrinketIds, userId]);
 
   // =====================
   // TRINKET FUNCTIONS
