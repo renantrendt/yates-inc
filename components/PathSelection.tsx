@@ -23,6 +23,20 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
     // Handle keyboard input
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            // Don't capture WASD if user is typing in an input/textarea
+            const target = e.target as HTMLElement;
+            const activeElement = document.activeElement as HTMLElement;
+            if (
+                target.tagName === 'INPUT' || 
+                target.tagName === 'TEXTAREA' ||
+                target.contentEditable === 'true' ||
+                activeElement?.tagName === 'INPUT' || 
+                activeElement?.tagName === 'TEXTAREA' ||
+                activeElement?.contentEditable === 'true'
+            ) {
+                return; // Let the user type normally
+            }
+
             const key = e.key.toLowerCase();
             if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
                 e.preventDefault();

@@ -65,6 +65,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const [showShop, setShowShop] = useState(false);
   const [showRockSelector, setShowRockSelector] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
+  const [showTrinketIndex, setShowTrinketIndex] = useState(false);
   const [displayProgress, setDisplayProgress] = useState(0);
   const [rockBroken, setRockBroken] = useState(false);
 
@@ -199,13 +200,23 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   // Prevents WASD from bubbling to prevent page scroll/navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't handle shortcuts if typing in terminal input
+      // Don't handle shortcuts if typing in any input/textarea (email, terminal, etc.)
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
-        return;
+      const activeElement = document.activeElement as HTMLElement;
+      
+      // Check both target and activeElement to cover all input scenarios
+      if (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' ||
+        target.contentEditable === 'true' ||
+        activeElement?.tagName === 'INPUT' || 
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.contentEditable === 'true'
+      ) {
+        return; // Allow normal typing in inputs
       }
 
-      // Prevent WASD keys from bubbling (fixes typing issue)
+      // Prevent WASD keys only when NOT typing in inputs
       const preventedKeys = ['w', 'a', 's', 'd', 'W', 'A', 'S', 'D'];
       if (preventedKeys.includes(e.key)) {
         e.preventDefault();
@@ -429,7 +440,10 @@ export default function MiningGame({ onExit }: MiningGameProps) {
           <MinerPurchaseButton />
 
           {/* Achievements */}
-          <AchievementsPanel />
+          <AchievementsPanel 
+            isTrinketIndexOpen={showTrinketIndex}
+            setIsTrinketIndexOpen={setShowTrinketIndex}
+          />
 
           {/* Trinket Slot */}
           <TrinketSlot />
@@ -476,69 +490,74 @@ export default function MiningGame({ onExit }: MiningGameProps) {
             />
           </div>
 
-          {/* Rock (Clickable/Touchable) */}
+          {/* Rock (Clickable/Touchable) - Invisible padding for bigger hitbox */}
           <div
             ref={rockRef}
             onClick={handleMine}
             onTouchEnd={handleMine}
-            className={`relative w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 cursor-pointer transition-transform hover:scale-105 active:scale-95 touch-manipulation ${rockShake ? 'animate-shake' : ''
-              } ${rockBroken ? 'animate-rock-break' : ''}`}
+            className="relative cursor-pointer touch-manipulation p-0"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
-            <Image
-              key={`rock-${currentRock.id}-${gameState.isBlocked ? 'bedrock' : currentRock.image}`}
-              src={gameState.isBlocked ? '/game/rocks/coal.png' : currentRock.image}
-              alt={gameState.isBlocked ? 'Bedrock (Blocked)' : currentRock.name}
-              fill
-              unoptimized
-              className={`object-contain drop-shadow-2xl transition-all pointer-events-none ${rockBroken ? 'scale-110 brightness-150' : ''} ${gameState.isBlocked ? 'grayscale brightness-50' : ''}`}
-            />
-
-            {/* Rock break flash */}
-            {rockBroken && (
-              <div className="absolute inset-0 bg-white/50 rounded-full animate-flash-out pointer-events-none" />
-            )}
-
-            {/* Money Popups */}
-            {moneyPopups.map((popup) => (
-              <div
-                key={popup.id}
-                className="absolute pointer-events-none animate-float-up text-yellow-400 font-bold text-2xl"
-                style={{
-                  left: popup.x,
-                  top: popup.y,
-                  textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-                }}
-              >
-                +${popup.amount}
-              </div>
-            ))}
-
-            {/* Particles */}
-            {particles.map((particle) => (
-              <div
-                key={particle.id}
-                className="absolute w-2 h-2 bg-amber-600 rounded-full pointer-events-none animate-particle"
-                style={{
-                  left: particle.x,
-                  top: particle.y,
-                  '--vx': `${particle.vx}px`,
-                  '--vy': `${particle.vy}px`,
-                } as React.CSSProperties}
+            {/* Actual rock visual - original size */}
+            <div
+              className={`relative w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 transition-transform hover:scale-105 active:scale-95 ${rockShake ? 'animate-shake' : ''
+                } ${rockBroken ? 'animate-rock-break' : ''}`}
+            >
+              <Image
+                key={`rock-${currentRock.id}-${gameState.isBlocked ? 'bedrock' : currentRock.image}`}
+                src={gameState.isBlocked ? '/game/rocks/coal.png' : currentRock.image}
+                alt={gameState.isBlocked ? 'Bedrock (Blocked)' : currentRock.name}
+                fill
+                unoptimized
+                className={`object-contain drop-shadow-2xl transition-all pointer-events-none ${rockBroken ? 'scale-110 brightness-150' : ''} ${gameState.isBlocked ? 'grayscale brightness-50' : ''}`}
               />
-            ))}
 
-            {/* Coupon Popups */}
-            {couponPopups.map((popup) => (
-              <div
-                key={popup.id}
-                className="absolute left-1/2 -translate-x-1/2 -top-16 pointer-events-none animate-bounce-in"
-              >
-                <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg px-4 py-2 rounded-lg shadow-lg">
-                  🎟️ {getCouponLabel(popup.type)}
+              {/* Rock break flash */}
+              {rockBroken && (
+                <div className="absolute inset-0 bg-white/50 rounded-full animate-flash-out pointer-events-none" />
+              )}
+
+              {/* Money Popups */}
+              {moneyPopups.map((popup) => (
+                <div
+                  key={popup.id}
+                  className="absolute pointer-events-none animate-float-up text-yellow-400 font-bold text-2xl"
+                  style={{
+                    left: popup.x,
+                    top: popup.y,
+                    textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+                  }}
+                >
+                  +${popup.amount}
                 </div>
-              </div>
-            ))}
+              ))}
+
+              {/* Particles */}
+              {particles.map((particle) => (
+                <div
+                  key={particle.id}
+                  className="absolute w-2 h-2 bg-amber-600 rounded-full pointer-events-none animate-particle"
+                  style={{
+                    left: particle.x,
+                    top: particle.y,
+                    '--vx': `${particle.vx}px`,
+                    '--vy': `${particle.vy}px`,
+                  } as React.CSSProperties}
+                />
+              ))}
+
+              {/* Coupon Popups */}
+              {couponPopups.map((popup) => (
+                <div
+                  key={popup.id}
+                  className="absolute left-1/2 -translate-x-1/2 -top-16 pointer-events-none animate-bounce-in"
+                >
+                  <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg px-4 py-2 rounded-lg shadow-lg">
+                    🎟️ {getCouponLabel(popup.type)}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -609,7 +628,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
               className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-700/50 hover:border-gray-500/50 active:border-gray-400/50 transition-colors touch-manipulation"
             >
               <span className="text-gray-400 text-[10px] sm:text-xs">Rock</span>
-              <span className="text-white font-bold block text-xs sm:text-sm">{currentRock.id}/19</span>
+              <span className="text-white font-bold block text-xs sm:text-sm">{currentRock.id}/{ROCKS.length}</span>
             </button>
 
             <div className="bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-700/50">
@@ -634,8 +653,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       {/* Miner Sprites - positioned at bottom of screen */}
       <MinerSprites />
 
-      {/* Trinket Shop Button - bottom left */}
-      <TrinketShopButton />
+      {/* Trinket Shop Button - bottom left (hidden when trinket index is open) */}
+      <TrinketShopButton hidden={showTrinketIndex} />
 
       {/* Game Terminal */}
       <GameTerminal

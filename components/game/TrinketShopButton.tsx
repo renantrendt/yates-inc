@@ -5,9 +5,16 @@ import { useGame } from '@/contexts/GameContext';
 import TrinketShopModal from './TrinketShopModal';
 import { RARITY_COLORS } from '@/types/game';
 
-export default function TrinketShopButton() {
+interface TrinketShopButtonProps {
+  hidden?: boolean;
+}
+
+export default function TrinketShopButton({ hidden = false }: TrinketShopButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { trinketShopItems, getTrinketShopTimeLeft, yatesTotemSpawned } = useGame();
+  
+  // Don't render if hidden (e.g., when trinket index is open)
+  if (hidden) return null;
   
   const timeLeft = getTrinketShopTimeLeft();
   const minutes = Math.floor(timeLeft / 60000);

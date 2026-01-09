@@ -2,14 +2,22 @@
 
 import React, { useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
-import { ACHIEVEMENTS, checkAchievementUnlocked } from '@/types/game';
+import { ACHIEVEMENTS, checkAchievementUnlocked, TRINKETS } from '@/types/game';
+import TrinketIndex from './TrinketIndex';
 
-export default function AchievementsPanel() {
+interface AchievementsPanelProps {
+  isTrinketIndexOpen: boolean;
+  setIsTrinketIndexOpen: (open: boolean) => void;
+}
+
+export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketIndexOpen }: AchievementsPanelProps) {
   const { gameState } = useGame();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   
   const unlockedCount = ACHIEVEMENTS.filter(a => checkAchievementUnlocked(a, gameState)).length;
   const totalCount = ACHIEVEMENTS.length;
+  const trinketOwnedCount = gameState.ownedTrinketIds.length;
+  const trinketTotalCount = TRINKETS.length;
   
   const categoryOrder = ['pickaxe', 'rock', 'money', 'prestige', 'miner', 'trinket'] as const;
   const categoryNames: Record<string, string> = {
@@ -23,20 +31,32 @@ export default function AchievementsPanel() {
 
   return (
     <>
-      {/* Trophy button */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-all shadow-lg"
-      >
-        <span className="text-xl">🏆</span>
-        <span>{unlockedCount}/{totalCount}</span>
-      </button>
+      {/* Split button - Achievements & Trinket Index */}
+      <div className="flex rounded-lg overflow-hidden shadow-lg">
+        {/* Achievements (left half) */}
+        <button
+          onClick={() => setIsAchievementsOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold transition-all border-r-2 border-amber-800"
+        >
+          <span className="text-xl">🏆</span>
+          <span className="text-sm">{unlockedCount}/{totalCount}</span>
+        </button>
+
+        {/* Trinket Index (right half) */}
+        <button
+          onClick={() => setIsTrinketIndexOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold transition-all"
+        >
+          <span className="text-xl">💎</span>
+          <span className="text-sm">{trinketOwnedCount}/{trinketTotalCount}</span>
+        </button>
+      </div>
 
       {/* Achievements Modal */}
-      {isOpen && (
+      {isAchievementsOpen && (
         <div 
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          onClick={() => setIsOpen(false)}
+          onClick={() => setIsAchievementsOpen(false)}
         >
           <div 
             className="bg-gray-900 rounded-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto border-2 border-amber-500"
@@ -105,7 +125,7 @@ export default function AchievementsPanel() {
             })}
 
             <button
-              onClick={() => setIsOpen(false)}
+              onClick={() => setIsAchievementsOpen(false)}
               className="w-full mt-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-bold transition-all"
             >
               Close
@@ -113,6 +133,12 @@ export default function AchievementsPanel() {
           </div>
         </div>
       )}
+
+      {/* Trinket Index Modal */}
+      <TrinketIndex
+        isOpen={isTrinketIndexOpen}
+        onClose={() => setIsTrinketIndexOpen(false)}
+      />
     </>
   );
 }

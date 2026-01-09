@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClient } from '@/contexts/ClientContext';
-import { PICKAXES } from '@/lib/gameData';
+import { PICKAXES, ROCKS } from '@/lib/gameData';
 import { supabase } from '@/lib/supabase';
 import { TRINKETS } from '@/types/game';
 
@@ -33,7 +33,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const terminalRef = useRef<HTMLDivElement>(null);
   const cmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory } = useGame();
+  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, toggleAutoPrestige } = useGame();
   const { employee } = useAuth();
   const { client } = useClient();
   
@@ -76,7 +76,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     };
   }, [isOpen, onClose]);
 
-  // CM() mode - 7 clicks/sec + auto-buy pickaxes + auto-prestige
+  // CM() mode - 7 clicks/sec + auto-buy pickaxes (NO auto-prestige - use 'autoprestige' command separately)
   useEffect(() => {
     if (cmActive) {
       // Clear any blocks when CM is activated (admin mode)
@@ -96,9 +96,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         if (nextPickaxe && gameState.yatesDollars >= nextPickaxe.price) {
           buyPickaxe(nextPickaxe.id);
         }
-        
-        // Auto-prestige when ready (prestige() checks requirements internally)
-        prestige();
+        // Note: Auto-prestige removed - use 'autoprestige' command if you want it
       }, 1000 / 7); // 7 clicks per second
     } else {
       if (cmIntervalRef.current) {
@@ -296,13 +294,15 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('reset          - Reset your progress');
       addToHistory(`pcx [id]       - Give pickaxe (1-${PICKAXES.length})`);
       addToHistory('allpcx         - Unlock all pickaxes');
+      addToHistory(`allrocks       - Unlock all rocks (${ROCKS.length})`);
       addToHistory('money [amt]    - Add Yates Dollars');
       addToHistory('miners [amt]   - Add miners');
       addToHistory('trinket [id]   - Give trinket');
       addToHistory('trinkets       - List all trinkets');
       addToHistory('tokens [amt]   - Add prestige tokens');
       addToHistory('prestige       - Force prestige');
-      addToHistory('cm             - Toggle auto-clicker mode');
+      addToHistory('autoprestige   - Toggle auto-prestige');
+      addToHistory('cm             - Toggle auto-clicker (no autoprestige)');
       addToHistory('unblock        - Clear anti-cheat block');
       addToHistory('clear          - Clear terminal');
       if (isBanAdmin) {
@@ -339,18 +339,24 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       equipPickaxe(PICKAXES[PICKAXES.length - 1].id);
       addToHistory('⛏️ Unlocked ALL pickaxes!');
     }
+    // All rocks command
+    else if (trimmed === 'allrocks') {
+      const maxUnlock = ROCKS[ROCKS.length - 1].unlockAtClicks;
+      setTotalClicks(maxUnlock + 1000);
+      addToHistory(`🪨 Unlocked ALL rocks! (${ROCKS.length} total)`);
+    }
+    // Auto-prestige toggle (separate from CM)
+    else if (trimmed === 'autoprestige') {
+      toggleAutoPrestige();
+      addToHistory(`🤖 Auto-prestige ${gameState.autoPrestigeEnabled ? 'DISABLED' : 'ENABLED'}`);
+    }
     else if (trimmed.startsWith('money ')) {
       const amtStr = trimmed.slice(6).trim();
       const amt = parseInt(amtStr, 10);
       if (isNaN(amt)) {
         addToHistory('❌ Invalid amount');
       } else {
-        if (typeof window !== 'undefined') {
-          const win = window as unknown as { _ya?: { m: (n: number) => void } };
-          if (win._ya?.m) {
-            win._ya.m(amt);
-          }
-        }
+        addMoney(amt);
         addToHistory(`💰 Added $${amt.toLocaleString()} Yates Dollars!`);
       }
     }
@@ -402,15 +408,8 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       if (isNaN(amt) || amt <= 0) {
         addToHistory('❌ Invalid amount. Usage: miners 10');
       } else {
-        if (typeof window !== 'undefined') {
-          const win = window as unknown as { _ya?: { giveMiners: (n: number) => void } };
-          if (win._ya?.giveMiners) {
-            win._ya.giveMiners(amt);
-            addToHistory(`👷 Added ${amt} miners!`);
-          } else {
-            addToHistory('❌ Miner function not available');
-          }
-        }
+        addMiners(amt);
+        addToHistory(`👷 Added ${amt} miners!`);
       }
     }
     // Trinket list command
@@ -432,15 +431,8 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory(`❌ Unknown trinket: ${trinketId}`);
         addToHistory('Use "trinkets" to see available IDs');
       } else {
-        if (typeof window !== 'undefined') {
-          const win = window as unknown as { _ya?: { giveTrinket: (id: string) => void } };
-          if (win._ya?.giveTrinket) {
-            win._ya.giveTrinket(trinketId);
-            addToHistory(`💍 Gave trinket: ${trinket.name}`);
-          } else {
-            addToHistory('❌ Trinket function not available');
-          }
-        }
+        giveTrinket(trinketId);
+        addToHistory(`💍 Gave trinket: ${trinket.name}`);
       }
     }
     // Prestige tokens command
@@ -450,34 +442,24 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       if (isNaN(amt) || amt <= 0) {
         addToHistory('❌ Invalid amount. Usage: tokens 10');
       } else {
-        if (typeof window !== 'undefined') {
-          const win = window as unknown as { _ya?: { giveTokens: (n: number) => void } };
-          if (win._ya?.giveTokens) {
-            win._ya.giveTokens(amt);
-            addToHistory(`✨ Added ${amt} prestige tokens!`);
-          } else {
-            addToHistory('❌ Token function not available');
-          }
-        }
+        addPrestigeTokens(amt);
+        addToHistory(`✨ Added ${amt} prestige tokens!`);
       }
     }
     // Force prestige command
     else if (trimmed === 'prestige') {
-      if (typeof window !== 'undefined') {
-        const win = window as unknown as { _ya?: { p: () => void } };
-        if (win._ya?.p) {
-          win._ya.p();
-          addToHistory('✨ Prestige activated!');
-        } else {
-          addToHistory('❌ Prestige function not available');
-        }
+      const result = prestige();
+      if (result) {
+        addToHistory(`✨ Prestige activated! New multiplier: ${result.newMultiplier}x`);
+      } else {
+        addToHistory('❌ Cannot prestige yet (need rock 12 + pickaxe 6)');
       }
     }
     else {
       addToHistory(`❌ Unknown command: ${trimmed}`);
       addToHistory('Type help for available commands');
     }
-  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers]);
+  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, prestige, toggleAutoPrestige, gameState.autoPrestigeEnabled, gameState.isBlocked, dismissWarning, clearClickHistory]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

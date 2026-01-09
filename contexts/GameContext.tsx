@@ -112,6 +112,12 @@ interface GameContextType {
   canEquipDualTrinkets: () => boolean;
   // Auto-prestige
   toggleAutoPrestige: () => void;
+  // Admin functions (terminal)
+  addMoney: (amount: number) => void;
+  addMiners: (amount: number) => void;
+  addPrestigeTokens: (amount: number) => void;
+  giveTrinket: (trinketId: string) => boolean;
+  setTotalClicks: (clicks: number) => void;
 }
 
 const defaultGameState: GameState = {
@@ -153,7 +159,9 @@ const defaultGameState: GameState = {
   autoPrestigeEnabled: false,
 };
 
-const STORAGE_KEY = 'yates-mining-game';
+const STORAGE_KEY_PREFIX = 'yates-mining-game';
+// Storage key is user-specific to prevent data conflicts between accounts
+const getStorageKey = (userId: string | null) => userId ? `${STORAGE_KEY_PREFIX}-${userId}` : `${STORAGE_KEY_PREFIX}-guest`;
 
 // Generate random shop stock
 function generateShopStock(): ShopStock {
@@ -227,8 +235,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Anti-cheat: Track click timestamps for rate detection
   const clickTimestampsRef = useRef<number[]>([]);
   const CLICK_WINDOW_MS = 1000; // 1 second rolling window
-  const NORMAL_CLICK_THRESHOLD = 13; // Max 13 clicks/sec for normal users
-  const WATCHLIST_CLICK_THRESHOLD = 10; // Max 10 clicks/sec for watchlist users
+  const NORMAL_CLICK_THRESHOLD = 20; // Max 20 clicks/sec for normal users
+  const WATCHLIST_CLICK_THRESHOLD = 15; // Max 15 clicks/sec for watchlist users
 
   // Check if click rate exceeds threshold and trigger warning if needed
   const checkClickRate = useCallback((): boolean => {
@@ -286,7 +294,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     isLoadingRef.current = true; // Mark as loading
     
     // Load localStorage first - this is instant
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const storageKey = getStorageKey(userId);
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -346,53 +355,60 @@ export function GameProvider({ children }: { children: ReactNode }) {
             // Try to load from Supabase (will merge with localStorage if it fails)
             const supabaseData = await fetchUserGameData(userId);
             if (supabaseData) {
-              // Merge Supabase data with current state (from localStorage)
-              // This preserves localStorage values for flags like hasSeenCutscene
-              // but updates progress data from Supabase
-              setGameState(prev => ({
+              setGameState(prev => {
+                // Smart merge: Keep whichever data has more progress (higher totalClicks)
+                // This prevents old Supabase data from overwriting newer localStorage progress
+                const localClicks = prev.totalClicks || 0;
+                const supabaseClicks = supabaseData.total_clicks || 0;
+                const useSupabase = supabaseClicks >= localClicks;
+                
+                console.log(`📊 Merge decision: ${useSupabase ? 'Supabase' : 'LocalStorage'} has more progress (${useSupabase ? supabaseClicks : localClicks} clicks)`);
+                
+                return {
                 ...prev,
-                // Update progress data from Supabase
-                yatesDollars: supabaseData.yates_dollars ?? prev.yatesDollars,
-                totalClicks: supabaseData.total_clicks ?? prev.totalClicks,
-                currentPickaxeId: supabaseData.current_pickaxe_id ?? prev.currentPickaxeId,
-                currentRockId: supabaseData.current_rock_id ?? prev.currentRockId,
-                currentRockHP: supabaseData.current_rock_hp ?? prev.currentRockHP,
-                rocksMinedCount: supabaseData.rocks_mined_count ?? prev.rocksMinedCount,
-                ownedPickaxeIds: supabaseData.owned_pickaxe_ids?.length ? supabaseData.owned_pickaxe_ids : prev.ownedPickaxeIds,
-                coupons: {
+                // Use whichever source has more progress
+                yatesDollars: useSupabase ? (supabaseData.yates_dollars ?? prev.yatesDollars) : prev.yatesDollars,
+                totalClicks: useSupabase ? (supabaseData.total_clicks ?? prev.totalClicks) : prev.totalClicks,
+                currentPickaxeId: useSupabase ? (supabaseData.current_pickaxe_id ?? prev.currentPickaxeId) : prev.currentPickaxeId,
+                currentRockId: useSupabase ? (supabaseData.current_rock_id ?? prev.currentRockId) : prev.currentRockId,
+                currentRockHP: useSupabase ? (supabaseData.current_rock_hp ?? prev.currentRockHP) : prev.currentRockHP,
+                rocksMinedCount: useSupabase ? (supabaseData.rocks_mined_count ?? prev.rocksMinedCount) : prev.rocksMinedCount,
+                ownedPickaxeIds: useSupabase ? (supabaseData.owned_pickaxe_ids?.length ? supabaseData.owned_pickaxe_ids : prev.ownedPickaxeIds) : prev.ownedPickaxeIds,
+                coupons: useSupabase ? {
                   discount30: supabaseData.coupons_30 ?? prev.coupons.discount30,
                   discount50: supabaseData.coupons_50 ?? prev.coupons.discount50,
                   discount100: supabaseData.coupons_100 ?? prev.coupons.discount100,
-                },
+                } : prev.coupons,
                 // Keep localStorage value for hasSeenCutscene if it's true (user already saw it)
                 // Only update if Supabase says true (to sync across devices)
                 hasSeenCutscene: prev.hasSeenCutscene || (supabaseData.has_seen_cutscene ?? false),
-                hasAutoclicker: supabaseData.has_autoclicker ?? prev.hasAutoclicker,
-                autoclickerEnabled: supabaseData.autoclicker_enabled ?? prev.autoclickerEnabled,
-                prestigeCount: supabaseData.prestige_count ?? prev.prestigeCount,
-                prestigeMultiplier: supabaseData.prestige_multiplier ?? prev.prestigeMultiplier,
-                // Anti-cheat fields
+                hasAutoclicker: useSupabase ? (supabaseData.has_autoclicker ?? prev.hasAutoclicker) : prev.hasAutoclicker,
+                autoclickerEnabled: useSupabase ? (supabaseData.autoclicker_enabled ?? prev.autoclickerEnabled) : prev.autoclickerEnabled,
+                prestigeCount: useSupabase ? (supabaseData.prestige_count ?? prev.prestigeCount) : prev.prestigeCount,
+                prestigeMultiplier: useSupabase ? (supabaseData.prestige_multiplier ?? prev.prestigeMultiplier) : prev.prestigeMultiplier,
+                // Anti-cheat fields (always sync from Supabase for security)
                 antiCheatWarnings: supabaseData.anti_cheat_warnings ?? prev.antiCheatWarnings,
                 isOnWatchlist: supabaseData.is_on_watchlist ?? prev.isOnWatchlist,
                 isBlocked: supabaseData.is_blocked ?? prev.isBlocked,
                 appealPending: supabaseData.appeal_pending ?? prev.appealPending,
                 // Trinkets
-                ownedTrinketIds: supabaseData.owned_trinket_ids?.length ? supabaseData.owned_trinket_ids : prev.ownedTrinketIds,
-                equippedTrinketIds: supabaseData.equipped_trinket_ids?.length ? supabaseData.equipped_trinket_ids : prev.equippedTrinketIds,
+                ownedTrinketIds: useSupabase ? (supabaseData.owned_trinket_ids?.length ? supabaseData.owned_trinket_ids : prev.ownedTrinketIds) : prev.ownedTrinketIds,
+                equippedTrinketIds: useSupabase ? (supabaseData.equipped_trinket_ids?.length ? supabaseData.equipped_trinket_ids : prev.equippedTrinketIds) : prev.equippedTrinketIds,
                 trinketShopItems: supabaseData.trinket_shop_items?.length 
                   ? (supabaseData.trinket_shop_items as string[]) 
                   : prev.trinketShopItems,
                 trinketShopLastRefresh: supabaseData.trinket_shop_last_refresh ?? prev.trinketShopLastRefresh,
-                hasTotemProtection: supabaseData.has_totem_protection ?? prev.hasTotemProtection,
+                hasTotemProtection: useSupabase ? (supabaseData.has_totem_protection ?? prev.hasTotemProtection) : prev.hasTotemProtection,
                 // Miners
-                minerCount: supabaseData.miner_count ?? prev.minerCount,
-                minerLastTick: supabaseData.miner_last_tick ?? prev.minerLastTick,
+                minerCount: useSupabase ? (supabaseData.miner_count ?? prev.minerCount) : prev.minerCount,
+                minerLastTick: useSupabase ? (supabaseData.miner_last_tick ?? prev.minerLastTick) : prev.minerLastTick,
                 // Prestige upgrades
-                prestigeTokens: supabaseData.prestige_tokens ?? prev.prestigeTokens,
-                ownedPrestigeUpgradeIds: supabaseData.owned_prestige_upgrade_ids?.length ? supabaseData.owned_prestige_upgrade_ids : prev.ownedPrestigeUpgradeIds,
+                prestigeTokens: useSupabase ? (supabaseData.prestige_tokens ?? prev.prestigeTokens) : prev.prestigeTokens,
+                ownedPrestigeUpgradeIds: useSupabase ? (supabaseData.owned_prestige_upgrade_ids?.length ? supabaseData.owned_prestige_upgrade_ids : prev.ownedPrestigeUpgradeIds) : prev.ownedPrestigeUpgradeIds,
                 // Auto-prestige
-                autoPrestigeEnabled: supabaseData.auto_prestige_enabled ?? prev.autoPrestigeEnabled,
-              }));
+                autoPrestigeEnabled: useSupabase ? (supabaseData.auto_prestige_enabled ?? prev.autoPrestigeEnabled) : prev.autoPrestigeEnabled,
+              };
+              });
               console.log('📦 Loaded game data from Supabase (merged with localStorage)');
             } else {
               // Supabase failed, but we already loaded from localStorage above
@@ -440,7 +456,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const interval = setInterval(() => {
       const timeSinceRefresh = Date.now() - gameState.trinketShopLastRefresh;
-      if (timeSinceRefresh >= TRINKET_SHOP_REFRESH_INTERVAL || gameState.trinketShopItems.length === 0) {
+      // Only refresh based on time interval - NOT when shop is empty (buying last item shouldn't refresh)
+      // Initial load (lastRefresh === 0) will trigger refresh since timeSinceRefresh will be huge
+      if (timeSinceRefresh >= TRINKET_SHOP_REFRESH_INTERVAL) {
         const newItems = generateTrinketShopItems();
         // Check if Yates Totem spawned
         if (newItems.includes('yates_totem')) {
@@ -457,7 +475,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [gameState.trinketShopLastRefresh, gameState.trinketShopItems.length]);
+  }, [gameState.trinketShopLastRefresh]);
 
   // Miner tick logic - miners damage rock every second
   // Using a ref to avoid stale closure issues
@@ -571,7 +589,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       minerDamageBonus: 0,
     };
     
-    // Add bonuses from equipped trinkets
+    // First, calculate trinket bonuses
     for (const trinketId of gameState.equippedTrinketIds) {
       const trinket = TRINKETS.find(t => t.id === trinketId);
       if (trinket) {
@@ -610,8 +628,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      // Always save to localStorage immediately
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...gameState, shopStock }));
+      // Always save to localStorage immediately (user-specific key)
+      const storageKey = getStorageKey(userId);
+      localStorage.setItem(storageKey, JSON.stringify({ ...gameState, shopStock }));
       console.log('💾 Saved to localStorage:', { yatesDollars: gameState.yatesDollars, totalClicks: gameState.totalClicks });
 
       // If logged in, also sync to Supabase (debounced)
@@ -689,129 +708,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Cheat functions for employees (anyone with numbered ID like 000001, 123456, etc.)
   // Employees have numeric string IDs, clients have UUIDs
   const isEmployee = userId ? /^\d+$/.test(userId) : false;
-  
-  // Expose cheat functions to window ONLY for admins
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Clean up any existing cheat functions first
-      const win = (window as unknown) as Record<string, unknown>;
-      delete win._ya;
-      delete win.yatesReset;
-      delete win.yatesGivePcx;
-      delete win.yatesGiveAllPcx;
-      delete win.yatesGiveMoney;
-      delete win.yatesHelp;
-      
-      // Only expose if employee (has numbered ID)
-      if (isEmployee) {
-        // Use obfuscated name so it's not easily discoverable
-        win._ya = {
-          r: () => {
-        localStorage.removeItem(STORAGE_KEY);
-        setGameStateRef.current(defaultGameState);
-        console.log('🎮 Progress reset! Refresh the page.');
-          },
-          p: (id: number) => {
-        if (id < 1 || id > PICKAXES.length) {
-          console.log(`❌ Invalid pickaxe ID. Use 1-${PICKAXES.length}`);
-          return;
-        }
-        setGameStateRef.current(prev => ({
-          ...prev,
-          ownedPickaxeIds: [...new Set([...prev.ownedPickaxeIds, id])],
-          currentPickaxeId: id,
-        }));
-        const pcx = PICKAXES.find(p => p.id === id);
-        console.log(`⛏️ Gave pickaxe: ${pcx?.name} (ID: ${id})`);
-          },
-          ap: () => {
-        setGameStateRef.current(prev => ({
-          ...prev,
-          ownedPickaxeIds: PICKAXES.map(p => p.id),
-          currentPickaxeId: PICKAXES[PICKAXES.length - 1].id,
-        }));
-        console.log('⛏️ Unlocked ALL pickaxes!');
-          },
-          m: (amount: number) => {
-        setGameStateRef.current(prev => ({
-          ...prev,
-          yatesDollars: prev.yatesDollars + amount,
-        }));
-        console.log(`💰 Added $${amount.toLocaleString()} Yates Dollars!`);
-          },
-          h: () => {
-        console.log(`
-🎮 ADMIN CHEATS:
-━━━━━━━━━━━━━━━━
-_ya.r()      - Reset progress
-_ya.p(id)    - Give pickaxe (1-${PICKAXES.length})
-_ya.ap()     - All pickaxes
-_ya.m(amt)   - Add money
-_ya.at()     - Toggle auto-prestige
-_ya.t(id)    - Give trinket
-_ya.h()      - This help
-        `);
-          },
-          at: () => {
-        setGameStateRef.current(prev => ({
-          ...prev,
-          autoPrestigeEnabled: !prev.autoPrestigeEnabled,
-        }));
-        console.log('🤖 Auto-prestige toggled');
-          },
-          t: (id: string) => {
-        const validIds = TRINKETS.map(t => t.id);
-        if (!validIds.includes(id)) {
-          console.log(`❌ Invalid trinket ID. Options: ${validIds.join(', ')}`);
-          return;
-        }
-        setGameStateRef.current(prev => ({
-          ...prev,
-          ownedTrinketIds: [...new Set([...prev.ownedTrinketIds, id])],
-        }));
-        const trinket = TRINKETS.find(t => t.id === id);
-        console.log(`💎 Gave trinket: ${trinket?.name}`);
-          },
-          giveTrinket: (id: string) => {
-        const validIds = TRINKETS.map(t => t.id);
-        if (!validIds.includes(id)) {
-          console.log(`❌ Invalid trinket ID. Options: ${validIds.join(', ')}`);
-          return;
-        }
-        setGameStateRef.current(prev => ({
-          ...prev,
-          ownedTrinketIds: [...new Set([...prev.ownedTrinketIds, id])],
-        }));
-        const trinket = TRINKETS.find(t => t.id === id);
-        console.log(`💎 Gave trinket: ${trinket?.name}`);
-          },
-          giveMiners: (amt: number) => {
-        setGameStateRef.current(prev => ({
-          ...prev,
-          minerCount: Math.min(360, prev.minerCount + amt),
-        }));
-        console.log(`👷 Added ${amt} miners!`);
-          },
-          giveTokens: (amt: number) => {
-        setGameStateRef.current(prev => ({
-          ...prev,
-          prestigeTokens: prev.prestigeTokens + amt,
-        }));
-        console.log(`✨ Added ${amt} prestige tokens!`);
-          },
-        };
-        // No console.log announcement - admins know the commands
-      }
-    }
-    
-    return () => {
-      // Cleanup on unmount
-      if (typeof window !== 'undefined') {
-        const win = (window as unknown) as Record<string, unknown>;
-        delete win._ya;
-    }
-    };
-  }, [isEmployee]);
 
   const currentPickaxe = getPickaxeById(gameState.currentPickaxeId) || PICKAXES[0];
   const currentRock = getRockById(gameState.currentRockId) || ROCKS[0];
@@ -822,10 +718,13 @@ _ya.h()      - This help
       return { brokeRock: false, earnedMoney: 0, couponDrop: null };
     }
 
-    // Anti-cheat: Check click rate (skip for admins using internal autoclicker)
+    // Anti-cheat: Check click rate (skip for purchased autoclicker, CM command users, and employees)
     const isViolation = checkClickRate();
-    if (isViolation && !gameState.hasAutoclicker) {
-      // Only trigger if not using internal autoclicker
+    const hasAutoclickerWhitelist = gameState.hasAutoclicker && gameState.autoclickerEnabled;
+    const isCMUser = isEmployee; // Employees with numbered IDs can use CM
+    
+    if (isViolation && !hasAutoclickerWhitelist && !isCMUser) {
+      // Only trigger if not whitelisted
       triggerAntiCheatWarning();
       return { brokeRock: false, earnedMoney: 0, couponDrop: null };
     }
@@ -979,8 +878,9 @@ _ya.h()      - This help
 
   const resetGame = useCallback(() => {
     setGameState(defaultGameState);
-    localStorage.removeItem(STORAGE_KEY);
-  }, []);
+    const storageKey = getStorageKey(userId);
+    localStorage.removeItem(storageKey);
+  }, [userId]);
 
   const markCutsceneSeen = useCallback(() => {
     setGameState((prev) => ({
@@ -1124,6 +1024,13 @@ _ya.h()      - This help
       // Yates or totem protection keeps money, others lose it
       yatesDollars: keepsMoney ? prev.yatesDollars : 0,
       // Keep coupons, autoclicker, cutscene seen, trinkets
+      // BUT remove totem from inventory if it was used for protection
+      ownedTrinketIds: hasProtection 
+        ? prev.ownedTrinketIds.filter(id => id !== 'totem')
+        : prev.ownedTrinketIds,
+      equippedTrinketIds: hasProtection
+        ? prev.equippedTrinketIds.filter(id => id !== 'totem')
+        : prev.equippedTrinketIds,
       // Update prestige stats and give tokens
       prestigeCount: newPrestigeCount,
       prestigeMultiplier: newMultiplier,
@@ -1329,6 +1236,45 @@ _ya.h()      - This help
     }
   }, [userId, userType, employee?.name, client?.username]);
 
+  // Admin functions for internal terminal (only employees can use these)
+  const addMoney = useCallback((amount: number) => {
+    setGameState(prev => ({
+      ...prev,
+      yatesDollars: prev.yatesDollars + amount,
+    }));
+  }, []);
+
+  const addMiners = useCallback((amount: number) => {
+    setGameState(prev => ({
+      ...prev,
+      minerCount: Math.min(360, prev.minerCount + amount),
+    }));
+  }, []);
+
+  const addPrestigeTokens = useCallback((amount: number) => {
+    setGameState(prev => ({
+      ...prev,
+      prestigeTokens: prev.prestigeTokens + amount,
+    }));
+  }, []);
+
+  const giveTrinket = useCallback((trinketId: string) => {
+    const trinket = TRINKETS.find(t => t.id === trinketId);
+    if (!trinket) return false;
+    setGameState(prev => ({
+      ...prev,
+      ownedTrinketIds: [...new Set([...prev.ownedTrinketIds, trinketId])],
+    }));
+    return true;
+  }, []);
+
+  const setTotalClicks = useCallback((clicks: number) => {
+    setGameState(prev => ({
+      ...prev,
+      totalClicks: clicks,
+    }));
+  }, []);
+
   // Always render - game will work with default state while data loads
 
   return (
@@ -1379,6 +1325,12 @@ _ya.h()      - This help
         canEquipDualTrinkets,
         // Auto-prestige
         toggleAutoPrestige,
+        // Admin functions (terminal)
+        addMoney,
+        addMiners,
+        addPrestigeTokens,
+        giveTrinket,
+        setTotalClicks,
       }}
     >
       {children}
