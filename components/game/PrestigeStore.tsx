@@ -64,9 +64,9 @@ export default function PrestigeStore() {
               </div>
             </div>
             
-            {/* Upgrades Grid - Scrollable */}
+            {/* Upgrades Grid - Scrollable (sorted by cost low to high) */}
             <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
-              {PRESTIGE_UPGRADES.map(upgrade => {
+              {[...PRESTIGE_UPGRADES].sort((a, b) => a.cost - b.cost).map(upgrade => {
                 const owned = ownsPrestigeUpgrade(upgrade.id);
                 const canAfford = gameState.prestigeTokens >= upgrade.cost;
                 
@@ -96,6 +96,16 @@ export default function PrestigeStore() {
                           {upgrade.id === 'heavy_hitter' && '🔨'}
                           {upgrade.id === 'relic_hunter' && '🔮'}
                           {upgrade.id === 'mega_boost' && '🚀'}
+                          {upgrade.id === 'miner_damage_1' && '💪'}
+                          {upgrade.id === 'miner_damage_2' && '💪💪'}
+                          {upgrade.id === 'coupon_master' && '🎰'}
+                          {upgrade.id === 'supreme_clicker' && '⚡'}
+                          {upgrade.id === 'rock_crusher' && '🪨'}
+                          {upgrade.id === 'miner_overdrive' && '🔥'}
+                          {upgrade.id === 'gold_rush' && '🤑'}
+                          {upgrade.id === 'ultimate_miner' && '👷'}
+                          {upgrade.id === 'trinket_amplifier' && '✨'}
+                          {upgrade.id === 'yates_blessing' && '🙏'}
                           {upgrade.name}
                         </h3>
                         <p className="text-gray-400 text-sm">{upgrade.description}</p>
