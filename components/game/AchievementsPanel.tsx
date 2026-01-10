@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useGame } from '@/contexts/GameContext';
 import { ACHIEVEMENTS, checkAchievementUnlocked, TRINKETS } from '@/types/game';
 
@@ -12,6 +13,11 @@ interface AchievementsPanelProps {
 export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketIndexOpen }: AchievementsPanelProps) {
   const { gameState } = useGame();
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   const unlockedCount = ACHIEVEMENTS.filter(a => checkAchievementUnlocked(a, gameState)).length;
   const totalCount = ACHIEVEMENTS.length;
@@ -51,14 +57,14 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
         </button>
       </div>
 
-      {/* Achievements Modal */}
-      {isAchievementsOpen && (
+      {/* Achievements Modal - via portal */}
+      {isAchievementsOpen && mounted && createPortal(
         <div 
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/80 backdrop-blur-sm"
           onClick={() => setIsAchievementsOpen(false)}
         >
           <div 
-            className="bg-gray-900 rounded-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto border-2 border-amber-500"
+            className="bg-gray-900 rounded-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto border-2 border-amber-500 z-[9999]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-6">
@@ -130,7 +136,8 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
               Close
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

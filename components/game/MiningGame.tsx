@@ -486,7 +486,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
         <div className="relative flex items-center">
           {/* Pickaxe */}
           <div
-            className={`relative w-16 h-16 sm:w-28 sm:h-28 md:w-32 md:h-32 transition-transform origin-bottom-right -mr-4 sm:-mr-8 z-10 ${isSwinging ? 'rotate-[30deg]' : 'rotate-0'
+            className={`relative w-16 h-16 sm:w-28 sm:h-28 md:w-32 md:h-32 transition-transform origin-bottom-right -mr-4 sm:-mr-8 z-50 ${isSwinging ? 'rotate-[30deg]' : 'rotate-0'
               }`}
             style={{ transitionDuration: '0.15s' }}
           >
@@ -865,6 +865,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
           </div>
         </div>
       )}
+
     </div>
   );
 }

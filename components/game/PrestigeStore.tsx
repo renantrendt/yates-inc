@@ -1,12 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useGame } from '@/contexts/GameContext';
 import { PRESTIGE_UPGRADES } from '@/types/game';
 
 export default function PrestigeStore() {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { gameState, buyPrestigeUpgrade, ownsPrestigeUpgrade } = useGame();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   if (gameState.prestigeCount === 0) return null;
 
@@ -24,14 +30,14 @@ export default function PrestigeStore() {
         </div>
       </button>
       
-      {/* Prestige Store Modal */}
-      {isOpen && (
+      {/* Prestige Store Modal - via portal */}
+      {isOpen && mounted && createPortal(
         <div 
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/80 backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
         >
           <div 
-            className="bg-gray-800 rounded-2xl p-6 max-w-lg w-full mx-4 border border-purple-500"
+            className="bg-gray-800 rounded-2xl p-6 max-w-lg w-full mx-4 border border-purple-500 z-[9999]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -125,7 +131,8 @@ export default function PrestigeStore() {
               </p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
