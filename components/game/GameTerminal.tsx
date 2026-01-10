@@ -613,13 +613,14 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory(`✨ Added ${amt} prestige tokens!`);
       }
     }
-    // Force prestige command
+    // Force prestige command - bypasses requirements for employees
     else if (trimmed === 'prestige') {
-      const result = prestige();
+      const result = prestige(true); // Force=true bypasses requirements
       if (result) {
-        addToHistory(`✨ Prestige activated! New multiplier: ${result.newMultiplier}x`);
+        addToHistory(`⚡ Force prestige activated!`);
+        addToHistory(`✨ New multiplier: ${result.newMultiplier.toFixed(1)}x`);
       } else {
-        addToHistory('❌ Cannot prestige yet (need rock 12 + pickaxe 6)');
+        addToHistory(`❌ Prestige failed (unknown error)`);
       }
     }
     else {

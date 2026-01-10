@@ -85,7 +85,7 @@ interface GameContextType {
   buyAutoclicker: () => boolean;
   toggleAutoclicker: () => void;
   canPrestige: () => boolean;
-  prestige: () => { amountToCompany: number; newMultiplier: number } | null;
+  prestige: (force?: boolean) => { amountToCompany: number; newMultiplier: number } | null;
   // Anti-cheat functions
   dismissWarning: () => void;
   clearClickHistory: () => void;
@@ -675,7 +675,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           equippedTrinketIds: ownsTotem ? prev.equippedTrinketIds.filter(id => id !== 'totem') : prev.equippedTrinketIds,
         }));
       }
-    }, 5000); // Check every 5 seconds
+    }, 1000); // Check every 1 second
     
     return () => clearInterval(interval);
   }, [gameState.autoPrestigeEnabled, gameState.currentRockId, gameState.ownedPickaxeIds, gameState.prestigeCount, userId, gameState.ownedTrinketIds]);
@@ -1244,8 +1244,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Perform prestige - reset progress, gain multiplier
   // Yates (000000) keeps all money, others get 1/32 sent to company budget
   // Totem protection also keeps money (but consumes the protection)
-  const prestige = useCallback(() => {
-    if (!canPrestige()) return null;
+  // force=true bypasses requirements (for terminal command)
+  const prestige = useCallback((force: boolean = false) => {
+    if (!force && !canPrestige()) return null;
     
     const isYates = userId === YATES_ACCOUNT_ID;
     // Check if player owns the totem trinket (not just the flag - the flag can get out of sync)
