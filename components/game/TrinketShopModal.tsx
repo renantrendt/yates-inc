@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { RARITY_COLORS, Trinket } from '@/types/game';
@@ -95,9 +95,20 @@ export default function TrinketShopModal({ isOpen, onClose }: TrinketShopModalPr
     getTrinketShopTimeLeft 
   } = useGame();
   
+  const [timeLeft, setTimeLeft] = useState(0);
+  
+  // Update timer every second when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    setTimeLeft(getTrinketShopTimeLeft());
+    const interval = setInterval(() => {
+      setTimeLeft(getTrinketShopTimeLeft());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isOpen, getTrinketShopTimeLeft]);
+  
   if (!isOpen) return null;
   
-  const timeLeft = getTrinketShopTimeLeft();
   const minutes = Math.floor(timeLeft / 60000);
   const seconds = Math.floor((timeLeft % 60000) / 1000);
 

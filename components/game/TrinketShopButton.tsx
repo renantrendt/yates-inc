@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import TrinketShopModal from './TrinketShopModal';
 import { RARITY_COLORS } from '@/types/game';
@@ -11,12 +11,21 @@ interface TrinketShopButtonProps {
 
 export default function TrinketShopButton({ hidden = false }: TrinketShopButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0);
   const { trinketShopItems, getTrinketShopTimeLeft, yatesTotemSpawned } = useGame();
+  
+  // Update timer every second
+  useEffect(() => {
+    setTimeLeft(getTrinketShopTimeLeft());
+    const interval = setInterval(() => {
+      setTimeLeft(getTrinketShopTimeLeft());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [getTrinketShopTimeLeft]);
   
   // Don't render if hidden (e.g., when trinket index is open)
   if (hidden) return null;
   
-  const timeLeft = getTrinketShopTimeLeft();
   const minutes = Math.floor(timeLeft / 60000);
   const seconds = Math.floor((timeLeft % 60000) / 1000);
   
