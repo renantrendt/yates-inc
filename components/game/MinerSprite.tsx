@@ -63,13 +63,13 @@ export default function MinerSprites() {
     const startX = centerX + (statsPanelWidth / 2) + 40; // Start to the right of the panel
     const startY = vh - 100; // Near bottom
 
-    // Create a cloud/cluster effect
-    const col = index % 5;
-    const row = Math.floor(index / 5);
+    // Create a cloud/cluster effect - 10 columns for 100 miners
+    const col = index % 10;
+    const row = Math.floor(index / 10);
 
     // Add some randomness to make it look natural but organized
-    const offsetX = (col * 25) + (Math.sin(index * 13) * 10);
-    const offsetY = (row * -20) + (Math.cos(index * 7) * 5); // Stack upwards
+    const offsetX = (col * 22) + (Math.sin(index * 13) * 8);
+    const offsetY = (row * -18) + (Math.cos(index * 7) * 4); // Stack upwards
 
     const x = startX + offsetX;
     const y = startY + offsetY;
@@ -98,8 +98,8 @@ export default function MinerSprites() {
             <Image
               src="/game/characters/minerworker.png"
               alt="Miner"
-              width={48}
-              height={48}
+              width={55}
+              height={55}
               className="drop-shadow-lg"
             />
           </div>

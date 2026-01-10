@@ -316,7 +316,7 @@ export const MINER_COST_MULTIPLIER = 1.042; // Each miner costs 4.2% more - caps
 export const MINER_MAX_COUNT = 360;
 export const MINER_TICK_INTERVAL = 1000; // 1 second between miner ticks
 export const MINER_BASE_DAMAGE = 15; // Base damage per miner per tick (beefy bois)
-export const MINER_VISIBLE_MAX = 10; // Max visible sprites
+export const MINER_VISIBLE_MAX = 100; // Max visible sprites
 
 export function getMinerCost(currentMinerCount: number): number {
   return Math.floor(MINER_BASE_COST * Math.pow(MINER_COST_MULTIPLIER, currentMinerCount));
