@@ -48,14 +48,14 @@ export default function TrinketIndex({ isOpen, onClose }: TrinketIndexProps) {
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop - must be ABOVE TrinketShopModal (z-[60]) */}
       <div
-        className="fixed inset-0 bg-black/80 z-[90]"
+        className="fixed inset-0 bg-black/80 z-[150]"
         onClick={onClose}
       />
 
-      {/* Modal */}
-      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-5xl bg-gray-900 rounded-lg shadow-2xl z-[100] max-h-[90vh] overflow-hidden border-2 border-purple-500">
+      {/* Modal - must be ABOVE TrinketShopModal (z-[60]) */}
+      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-5xl bg-gray-900 rounded-lg shadow-2xl z-[160] max-h-[90vh] overflow-hidden border-2 border-purple-500">
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-900 to-pink-900 p-6 border-b-2 border-purple-500">
           <div className="flex justify-between items-center">

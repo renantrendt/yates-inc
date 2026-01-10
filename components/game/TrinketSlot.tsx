@@ -74,14 +74,14 @@ export default function TrinketSlot() {
       {/* Backdrop to close on click outside */}
       {showSelector && (
         <div 
-          className="fixed inset-0 z-40" 
+          className="fixed inset-0 z-[70]" 
           onClick={() => setShowSelector(false)}
         />
       )}
       
       {/* Trinket Selector Dropdown */}
       {showSelector && (
-        <div className="absolute top-full left-0 mt-2 w-64 bg-gray-900 rounded-xl p-3 border border-gray-600 shadow-xl z-50">
+        <div className="absolute top-full left-0 mt-2 w-64 bg-gray-900 rounded-xl p-3 border border-gray-600 shadow-xl z-[80]">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-white font-bold text-sm">Your Trinkets</h4>
             <button 

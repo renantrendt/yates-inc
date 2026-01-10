@@ -15,6 +15,7 @@ import MinerSprites, { MinerPurchaseButton } from './MinerSprite';
 import PrestigeStore from './PrestigeStore';
 import AchievementsPanel from './AchievementsPanel';
 import AbilityButton from './AbilityButton';
+import TrinketIndex from './TrinketIndex';
 import { MINER_BASE_DAMAGE } from '@/types/game';
 import { ROCKS, getRockById } from '@/lib/gameData';
 
@@ -661,6 +662,12 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
       {/* Trinket Shop Button - bottom left (hidden when trinket index is open) */}
       <TrinketShopButton hidden={showTrinketIndex} />
+
+      {/* Trinket Index - rendered at root level to escape z-40 HUD stacking context */}
+      <TrinketIndex
+        isOpen={showTrinketIndex}
+        onClose={() => setShowTrinketIndex(false)}
+      />
 
       {/* Ability Button - bottom right (for pickaxes with active abilities) */}
       <AbilityButton />

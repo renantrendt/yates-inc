@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { ACHIEVEMENTS, checkAchievementUnlocked, TRINKETS } from '@/types/game';
-import TrinketIndex from './TrinketIndex';
 
 interface AchievementsPanelProps {
   isTrinketIndexOpen: boolean;
@@ -133,12 +132,6 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
           </div>
         </div>
       )}
-
-      {/* Trinket Index Modal */}
-      <TrinketIndex
-        isOpen={isTrinketIndexOpen}
-        onClose={() => setIsTrinketIndexOpen(false)}
-      />
     </>
   );
 }

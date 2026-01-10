@@ -735,9 +735,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return;
     }
     
-    // Block saves during prestige cooldown (30 seconds)
+    // Block saves during prestige cooldown (5 seconds)
     const timeSincePrestige = Date.now() - lastPrestigeTimeRef.current;
-    if (lastPrestigeTimeRef.current > 0 && timeSincePrestige < 30000 && gameState.totalClicks > 1000) {
+    if (lastPrestigeTimeRef.current > 0 && timeSincePrestige < 5000 && gameState.totalClicks > 1000) {
       // Only block if clicks > 1000 (clearly stale data from before prestige)
       console.log('🚫 LOCALSTORAGE SAVE BLOCKED: Prestige cooldown, stale clicks', {
         timeSincePrestige,
@@ -752,44 +752,39 @@ export function GameProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(storageKey, JSON.stringify({ ...gameState, shopStock }));
 
       // If logged in, also sync to Supabase (debounced)
+      // NUCLEAR FIX: Only save fields that PERSIST across prestige
+      // All prestige-reset fields (clicks, money, pickaxes, miners, etc.) are ONLY
+      // updated via forceImmediateSave during prestige. This prevents stale React
+      // closures from overwriting correct prestige data.
       if (userId && userType) {
         debouncedSaveUserGameData({
           user_id: userId,
           user_type: userType,
-          yates_dollars: gameState.yatesDollars,
-          total_clicks: gameState.totalClicks,
-          current_pickaxe_id: gameState.currentPickaxeId,
-          current_rock_id: gameState.currentRockId,
-          current_rock_hp: gameState.currentRockHP,
-          rocks_mined_count: gameState.rocksMinedCount,
-          owned_pickaxe_ids: gameState.ownedPickaxeIds,
+          // Fields that PERSIST across prestige (safe to save anytime):
           coupons_30: gameState.coupons.discount30,
           coupons_50: gameState.coupons.discount50,
           coupons_100: gameState.coupons.discount100,
           has_seen_cutscene: gameState.hasSeenCutscene,
           has_autoclicker: gameState.hasAutoclicker,
           autoclicker_enabled: gameState.autoclickerEnabled,
-          prestige_count: gameState.prestigeCount,
-          prestige_multiplier: gameState.prestigeMultiplier,
-          // Anti-cheat fields
+          // Anti-cheat fields (always sync for security)
           anti_cheat_warnings: gameState.antiCheatWarnings,
           is_on_watchlist: gameState.isOnWatchlist,
           is_blocked: gameState.isBlocked,
           appeal_pending: gameState.appealPending,
-          // Trinkets
-          owned_trinket_ids: gameState.ownedTrinketIds,
-          equipped_trinket_ids: gameState.equippedTrinketIds,
+          // Trinket shop state (persists)
           trinket_shop_items: gameState.trinketShopItems,
           trinket_shop_last_refresh: gameState.trinketShopLastRefresh,
-          has_totem_protection: gameState.hasTotemProtection,
-          // Miners
-          miner_count: gameState.minerCount,
-          miner_last_tick: gameState.minerLastTick,
-          // Prestige upgrades
-          prestige_tokens: gameState.prestigeTokens,
+          // Prestige upgrades owned (persists - these are permanent unlocks)
           owned_prestige_upgrade_ids: gameState.ownedPrestigeUpgradeIds,
-          // Auto-prestige
+          // Auto-prestige setting (persists)
           auto_prestige_enabled: gameState.autoPrestigeEnabled,
+          // NOTE: The following are EXCLUDED and only updated via forceImmediateSave:
+          // - prestige_count, prestige_multiplier, prestige_tokens
+          // - yates_dollars, total_clicks
+          // - current_pickaxe_id, current_rock_id, current_rock_hp, rocks_mined_count
+          // - owned_pickaxe_ids, miner_count, miner_last_tick
+          // - owned_trinket_ids, equipped_trinket_ids, has_totem_protection
         });
       }
     } catch (err) {

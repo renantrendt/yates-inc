@@ -189,7 +189,7 @@ export async function savePurchase(purchase: UserPurchase): Promise<boolean> {
 
 // Throttled save - saves at most every SAVE_INTERVAL ms
 const SAVE_INTERVAL = 5000; // Save every 5 seconds max (reduced network spam)
-const FORCE_SAVE_COOLDOWN = 30000; // Block regular saves for 30s after force save
+const FORCE_SAVE_COOLDOWN = 5000; // Block regular saves for 5s after force save (just enough to clear stale React closures)
 let saveTimeout: NodeJS.Timeout | null = null;
 let pendingData: (Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }) | null = null;
 let lastSaveTime = 0;
@@ -322,4 +322,3 @@ export async function forceImmediateSave(data: Partial<UserGameData> & { user_id
     return false;
   }
 }
-
