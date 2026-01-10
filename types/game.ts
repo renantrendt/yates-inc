@@ -93,6 +93,8 @@ export interface GameState {
     duration: number;
   } | null;
   abilityCooldowns: Record<string, number>; // ability id -> cooldown end timestamp
+  // Achievements (permanently unlocked, persists across prestiges)
+  unlockedAchievementIds: string[];
 }
 
 // Prestige requirements (Rock 19 = Titanium Quartz, Pickaxe 16 = Pin)
@@ -569,11 +571,40 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
-// Achievement checking functions
+// Achievement checking functions - returns true if permanently unlocked OR currently meets criteria
 export function checkAchievementUnlocked(achievement: Achievement, state: GameState): boolean {
+  // If already permanently unlocked, return true
+  if (state.unlockedAchievementIds?.includes(achievement.id)) {
+    return true;
+  }
+  
+  // Otherwise check current state
   switch (achievement.id) {
     case 'all_pickaxes': return state.ownedPickaxeIds.length >= 25; // 25 total pickaxes
     case 'max_rock': return state.currentRockId >= 29; // 29 total rocks
+    case 'money_1m': return state.yatesDollars >= 1000000;
+    case 'money_100m': return state.yatesDollars >= 100000000;
+    case 'prestige_1': return state.prestigeCount >= 1;
+    case 'prestige_3': return state.prestigeCount >= 3;
+    case 'prestige_5': return state.prestigeCount >= 5;
+    case 'prestige_7': return state.prestigeCount >= 7;
+    case 'prestige_10': return state.prestigeCount >= 10;
+    case 'miner_1': return state.minerCount >= 1;
+    case 'miner_10': return state.minerCount >= 10;
+    case 'miner_100': return state.minerCount >= 100;
+    case 'miner_360': return state.minerCount >= 360;
+    case 'trinket_1': return state.ownedTrinketIds.length >= 1;
+    case 'trinket_5': return state.ownedTrinketIds.length >= 5;
+    case 'trinket_yates': return state.ownedTrinketIds.includes('yates_totem');
+    default: return false;
+  }
+}
+
+// Check if achievement should be unlocked based on current state only
+export function shouldUnlockAchievement(achievement: Achievement, state: GameState): boolean {
+  switch (achievement.id) {
+    case 'all_pickaxes': return state.ownedPickaxeIds.length >= 25;
+    case 'max_rock': return state.currentRockId >= 29;
     case 'money_1m': return state.yatesDollars >= 1000000;
     case 'money_100m': return state.yatesDollars >= 100000000;
     case 'prestige_1': return state.prestigeCount >= 1;

@@ -7,7 +7,8 @@ import {
   AUTOCLICKER_COST, PRESTIGE_REQUIREMENTS, YATES_ACCOUNT_ID,
   TRINKETS, Trinket, TRINKET_SHOP_REFRESH_INTERVAL, TRINKET_SHOP_MIN_ITEMS, TRINKET_SHOP_MAX_ITEMS,
   MINER_TICK_INTERVAL, MINER_BASE_DAMAGE, MINER_MAX_COUNT, getMinerCost,
-  PRESTIGE_UPGRADES, PrestigeUpgrade, PRESTIGE_TOKENS_PER_PRESTIGE, RARITY_COLORS
+  PRESTIGE_UPGRADES, PrestigeUpgrade, PRESTIGE_TOKENS_PER_PRESTIGE, RARITY_COLORS,
+  ACHIEVEMENTS, shouldUnlockAchievement
 } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
@@ -164,6 +165,8 @@ const defaultGameState: GameState = {
   // Pickaxe active abilities
   activeAbility: null,
   abilityCooldowns: {},
+  // Achievements (permanently unlocked)
+  unlockedAchievementIds: [],
 };
 
 const STORAGE_KEY_PREFIX = 'yates-mining-game';
@@ -433,6 +436,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 ownedPrestigeUpgradeIds: useSupabase ? (supabaseData.owned_prestige_upgrade_ids?.length ? supabaseData.owned_prestige_upgrade_ids : prev.ownedPrestigeUpgradeIds) : prev.ownedPrestigeUpgradeIds,
                 // Auto-prestige
                 autoPrestigeEnabled: useSupabase ? (supabaseData.auto_prestige_enabled ?? prev.autoPrestigeEnabled) : prev.autoPrestigeEnabled,
+                // Achievements (permanently unlocked)
+                unlockedAchievementIds: supabaseData.unlocked_achievement_ids?.length 
+                  ? supabaseData.unlocked_achievement_ids 
+                  : prev.unlockedAchievementIds,
               };
               });
             }
@@ -516,9 +523,49 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setGameState(prev => {
         if (prev.minerCount <= 0 || prev.isBlocked) return prev;
         
+        // Calculate bonuses from trinkets and prestige upgrades inline
+        let bonuses = {
+          moneyBonus: 0,
+          minerDamageBonus: 0,
+          minerSpeedBonus: 0,
+        };
+        
+        // Trinket bonuses
+        for (const trinketId of prev.equippedTrinketIds) {
+          const trinket = TRINKETS.find(t => t.id === trinketId);
+          if (trinket) {
+            const e = trinket.effects;
+            bonuses.moneyBonus += (e.moneyBonus || 0) + (e.allBonus || 0) + (e.minerMoneyBonus || 0);
+            bonuses.minerDamageBonus += (e.minerDamageBonus || 0) + (e.allBonus || 0);
+            bonuses.minerSpeedBonus += (e.minerSpeedBonus || 0) + (e.allBonus || 0);
+          }
+        }
+        
+        // Trinket multiplier from prestige upgrades
+        let trinketMultiplier = 1.0;
+        for (const upgradeId of prev.ownedPrestigeUpgradeIds) {
+          const upgrade = PRESTIGE_UPGRADES.find(u => u.id === upgradeId);
+          if (upgrade?.effects.trinketBonus) {
+            trinketMultiplier += upgrade.effects.trinketBonus;
+          }
+        }
+        bonuses.moneyBonus *= trinketMultiplier;
+        bonuses.minerDamageBonus *= trinketMultiplier;
+        bonuses.minerSpeedBonus *= trinketMultiplier;
+        
+        // Prestige upgrade bonuses
+        for (const upgradeId of prev.ownedPrestigeUpgradeIds) {
+          const upgrade = PRESTIGE_UPGRADES.find(u => u.id === upgradeId);
+          if (upgrade) {
+            bonuses.moneyBonus += upgrade.effects.moneyBonus || 0;
+            bonuses.minerDamageBonus += upgrade.effects.minerDamageBonus || 0;
+            bonuses.minerSpeedBonus += upgrade.effects.minerSpeedBonus || 0;
+          }
+        }
+        
         // Check for active ability bonuses
-        let minerSpeedBonus = 0;
-        let allBonus = 0;
+        let abilityMinerSpeedBonus = 0;
+        let abilityAllBonus = 0;
         if (prev.activeAbility) {
           const { startTime, duration, pickaxeId } = prev.activeAbility;
           const isActive = duration === 0 ? false : Date.now() < startTime + duration;
@@ -526,48 +573,71 @@ export function GameProvider({ children }: { children: ReactNode }) {
             const pickaxe = getPickaxeById(pickaxeId);
             const ability = pickaxe?.activeAbility;
             if (ability?.effect.type === 'miner_speed') {
-              minerSpeedBonus = ability.effect.value;
+              abilityMinerSpeedBonus = ability.effect.value;
             } else if (ability?.effect.type === 'all_boost') {
-              allBonus = ability.effect.value;
+              abilityAllBonus = ability.effect.value;
             }
           }
         }
         
-        const rock = getRockById(prev.currentRockId) || ROCKS[0];
-        // Apply miner speed bonus as extra damage
-        const damage = Math.ceil(prev.minerCount * MINER_BASE_DAMAGE * (1 + minerSpeedBonus + allBonus));
-        const newHP = prev.currentRockHP - damage;
+        let rock = getRockById(prev.currentRockId) || ROCKS[0];
+        // Apply ALL bonuses: trinkets, prestige upgrades, and active abilities
+        const totalDamageBonus = bonuses.minerDamageBonus + bonuses.minerSpeedBonus + abilityMinerSpeedBonus + abilityAllBonus;
+        const totalMoneyBonus = bonuses.moneyBonus + abilityAllBonus;
+        const damage = Math.ceil(prev.minerCount * MINER_BASE_DAMAGE * (1 + totalDamageBonus));
+        
+        // Calculate how much damage we have to deal
+        let remainingDamage = damage;
+        let currentHP = prev.currentRockHP;
+        let totalMoney = 0;
+        let rocksMinedThisTick = 0;
+        let currentRockId = prev.currentRockId;
+        
+        // Break multiple rocks if damage exceeds HP
+        while (remainingDamage >= currentHP) {
+          // Rock breaks!
+          remainingDamage -= currentHP;
+          rocksMinedThisTick++;
+          
+          // Get money for this rock
+          const moneyFromRock = Math.ceil(rock.moneyPerBreak * prev.prestigeMultiplier * (1 + totalMoneyBonus));
+          totalMoney += moneyFromRock;
+          
+          // Check for rock upgrade
+          const newTotalClicks = prev.totalClicks + damage;
+          const highestUnlocked = getHighestUnlockedRock(newTotalClicks);
+          if (highestUnlocked.id > currentRockId) {
+            currentRockId = highestUnlocked.id;
+            rock = getRockById(currentRockId) || ROCKS[0];
+          }
+          
+          // Reset HP to next rock's full HP
+          currentHP = rock.clicksToBreak;
+        }
+        
+        // Apply remaining damage to current rock
+        currentHP -= remainingDamage;
         
         // Always add miner damage to totalClicks (for rock unlock progress)
         const newTotalClicks = prev.totalClicks + damage;
         
-        // Rock didn't break yet
-        if (newHP > 0) {
+        // No rocks broken this tick
+        if (rocksMinedThisTick === 0) {
           return {
             ...prev,
-            currentRockHP: newHP,
+            currentRockHP: currentHP,
             totalClicks: newTotalClicks,
           };
         }
         
-        // Rock broke! Get money (also apply all_boost)
-        const money = Math.ceil(rock.moneyPerBreak * prev.prestigeMultiplier * (1 + allBonus));
-        
-        // Check for rock upgrade
-        const highestUnlocked = getHighestUnlockedRock(newTotalClicks);
-        const newCurrentRockId = highestUnlocked.id > prev.currentRockId ? highestUnlocked.id : prev.currentRockId;
-        
-        // Reset rock HP
-        const nextRock = getRockById(newCurrentRockId) || ROCKS[0];
-        
         return {
           ...prev,
-          currentRockHP: nextRock.clicksToBreak,
-          currentRockId: newCurrentRockId,
-          rocksMinedCount: prev.rocksMinedCount + 1,
-          yatesDollars: prev.yatesDollars + money,
+          currentRockHP: currentHP,
+          currentRockId: currentRockId,
+          rocksMinedCount: prev.rocksMinedCount + rocksMinedThisTick,
+          yatesDollars: prev.yatesDollars + totalMoney,
           totalClicks: newTotalClicks,
-          lastMinerEarnings: money, // Track for visual indicator
+          lastMinerEarnings: totalMoney, // Track for visual indicator
         };
       });
     }, 1000);
@@ -619,6 +689,37 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     return () => clearInterval(interval);
   }, [gameState.autoPrestigeEnabled, gameState.currentRockId, gameState.ownedPickaxeIds, gameState.prestigeCount, userId, gameState.ownedTrinketIds]);
+
+  // Achievement tracking - permanently unlock achievements when criteria met
+  useEffect(() => {
+    const newUnlocks: string[] = [];
+    
+    for (const achievement of ACHIEVEMENTS) {
+      // Skip if already permanently unlocked
+      if (gameState.unlockedAchievementIds?.includes(achievement.id)) continue;
+      
+      // Check if should unlock based on current state
+      if (shouldUnlockAchievement(achievement, gameState)) {
+        newUnlocks.push(achievement.id);
+      }
+    }
+    
+    // If there are new unlocks, add them to the permanent list
+    if (newUnlocks.length > 0) {
+      setGameState(prev => ({
+        ...prev,
+        unlockedAchievementIds: [...(prev.unlockedAchievementIds || []), ...newUnlocks],
+      }));
+    }
+  }, [
+    gameState.ownedPickaxeIds,
+    gameState.currentRockId,
+    gameState.yatesDollars,
+    gameState.prestigeCount,
+    gameState.minerCount,
+    gameState.ownedTrinketIds,
+    gameState.unlockedAchievementIds,
+  ]);
 
   // Helper function to calculate total bonuses from equipped trinkets and prestige upgrades
   const calculateTotalBonuses = useCallback(() => {
@@ -719,6 +820,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           owned_prestige_upgrade_ids: gameState.ownedPrestigeUpgradeIds,
           // Auto-prestige setting (persists)
           auto_prestige_enabled: gameState.autoPrestigeEnabled,
+          // Achievements (permanently unlocked, persists across prestiges)
+          unlocked_achievement_ids: gameState.unlockedAchievementIds,
           // NOTE: The following are EXCLUDED and only updated via forceImmediateSave:
           // - prestige_count, prestige_multiplier, prestige_tokens
           // - yates_dollars, total_clicks

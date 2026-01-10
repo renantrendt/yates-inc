@@ -57,6 +57,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     submitAppeal,
     isBanned,
     banReason,
+    getTotalBonuses,
   } = useGame();
 
   const [moneyPopups, setMoneyPopups] = useState<MoneyPopup[]>([]);
@@ -270,11 +271,13 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const progressPercent = rockBroken ? 100 : (displayProgress || actualProgress);
   const totalCoupons = gameState.coupons.discount30 + gameState.coupons.discount50 + gameState.coupons.discount100;
 
-  // Calculate income per second for miners
+  // Calculate income per second for miners (with all bonuses)
+  const bonuses = getTotalBonuses();
   const minerRock = getRockById(gameState.currentRockId) || ROCKS[0];
-  const minerDps = gameState.minerCount * MINER_BASE_DAMAGE;
+  const totalDamageBonus = bonuses.minerDamageBonus + bonuses.minerSpeedBonus;
+  const minerDps = gameState.minerCount * MINER_BASE_DAMAGE * (1 + totalDamageBonus);
   const minerRocksPerSecond = minerDps / minerRock.clicksToBreak;
-  const incomePerSecond = Math.ceil(minerRocksPerSecond * minerRock.moneyPerBreak * gameState.prestigeMultiplier);
+  const incomePerSecond = Math.ceil(minerRocksPerSecond * minerRock.moneyPerBreak * gameState.prestigeMultiplier * (1 + bonuses.moneyBonus));
 
   // Check if player can buy the next pickaxe (sequential order)
   const canBuyNextPickaxe = useMemo(() => {

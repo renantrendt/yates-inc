@@ -38,6 +38,8 @@ export interface UserGameData {
   prestige_tokens?: number;
   owned_prestige_upgrade_ids?: string[];
   auto_prestige_enabled?: boolean;
+  // Achievements (permanently unlocked)
+  unlocked_achievement_ids?: string[];
 }
 
 export interface UserPurchase {
