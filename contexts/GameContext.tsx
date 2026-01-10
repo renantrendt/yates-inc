@@ -580,64 +580,54 @@ export function GameProvider({ children }: { children: ReactNode }) {
           }
         }
         
-        let rock = getRockById(prev.currentRockId) || ROCKS[0];
+        const rock = getRockById(prev.currentRockId) || ROCKS[0];
         // Apply ALL bonuses: trinkets, prestige upgrades, and active abilities
         const totalDamageBonus = bonuses.minerDamageBonus + bonuses.minerSpeedBonus + abilityMinerSpeedBonus + abilityAllBonus;
         const totalMoneyBonus = bonuses.moneyBonus + abilityAllBonus;
         const damage = Math.ceil(prev.minerCount * MINER_BASE_DAMAGE * (1 + totalDamageBonus));
         
-        // Calculate how much damage we have to deal
-        let remainingDamage = damage;
-        let currentHP = prev.currentRockHP;
-        let totalMoney = 0;
-        let rocksMinedThisTick = 0;
-        let currentRockId = prev.currentRockId;
-        
-        // Break multiple rocks if damage exceeds HP
-        while (remainingDamage >= currentHP) {
-          // Rock breaks!
-          remainingDamage -= currentHP;
-          rocksMinedThisTick++;
-          
-          // Get money for this rock
-          const moneyFromRock = Math.ceil(rock.moneyPerBreak * prev.prestigeMultiplier * (1 + totalMoneyBonus));
-          totalMoney += moneyFromRock;
-          
-          // Check for rock upgrade
-          const newTotalClicks = prev.totalClicks + damage;
-          const highestUnlocked = getHighestUnlockedRock(newTotalClicks);
-          if (highestUnlocked.id > currentRockId) {
-            currentRockId = highestUnlocked.id;
-            rock = getRockById(currentRockId) || ROCKS[0];
-          }
-          
-          // Reset HP to next rock's full HP
-          currentHP = rock.clicksToBreak;
-        }
-        
-        // Apply remaining damage to current rock
-        currentHP -= remainingDamage;
-        
-        // Always add miner damage to totalClicks (for rock unlock progress)
+        // Calculate new HP after damage
+        const newHP = prev.currentRockHP - damage;
         const newTotalClicks = prev.totalClicks + damage;
         
-        // No rocks broken this tick
-        if (rocksMinedThisTick === 0) {
+        // Rock didn't break
+        if (newHP > 0) {
           return {
             ...prev,
-            currentRockHP: currentHP,
+            currentRockHP: newHP,
             totalClicks: newTotalClicks,
           };
         }
         
+        // Rock broke! Calculate how many rocks we break with overkill damage
+        const overkillDamage = Math.abs(newHP); // Damage beyond first rock
+        const fullRockHP = rock.clicksToBreak;
+        
+        // First rock + additional rocks from overkill
+        const additionalRocks = Math.floor(overkillDamage / fullRockHP);
+        const totalRocksBroken = 1 + additionalRocks;
+        
+        // Calculate remaining HP for next rock
+        const leftoverDamage = overkillDamage % fullRockHP;
+        const finalHP = fullRockHP - leftoverDamage;
+        
+        // Calculate total money earned
+        const moneyPerRock = Math.ceil(rock.moneyPerBreak * prev.prestigeMultiplier * (1 + totalMoneyBonus));
+        const totalMoney = moneyPerRock * totalRocksBroken;
+        
+        // Check for rock upgrade
+        const highestUnlocked = getHighestUnlockedRock(newTotalClicks);
+        const newCurrentRockId = highestUnlocked.id > prev.currentRockId ? highestUnlocked.id : prev.currentRockId;
+        const nextRock = getRockById(newCurrentRockId) || ROCKS[0];
+        
         return {
           ...prev,
-          currentRockHP: currentHP,
-          currentRockId: currentRockId,
-          rocksMinedCount: prev.rocksMinedCount + rocksMinedThisTick,
+          currentRockHP: newCurrentRockId !== prev.currentRockId ? nextRock.clicksToBreak : finalHP,
+          currentRockId: newCurrentRockId,
+          rocksMinedCount: prev.rocksMinedCount + totalRocksBroken,
           yatesDollars: prev.yatesDollars + totalMoney,
           totalClicks: newTotalClicks,
-          lastMinerEarnings: totalMoney, // Track for visual indicator
+          lastMinerEarnings: totalMoney,
         };
       });
     }, 1000);
@@ -921,10 +911,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const mineRock = useCallback(() => {
     const state = gameStateRef.current;
     
+    // DEBUG: Log state on every click attempt
+    console.log('🔨 MINE CLICK:', { 
+      isBlocked: state.isBlocked, 
+      appealPending: state.appealPending,
+      currentPickaxeId: state.currentPickaxeId,
+      currentRockId: state.currentRockId,
+      isEmployee 
+    });
+    
     // Employees bypass ALL anti-cheat (they have terminal access anyway)
     if (!isEmployee) {
       // Anti-cheat: If blocked, don't process clicks
       if (state.isBlocked || state.appealPending) {
+        console.log('❌ BLOCKED: isBlocked=', state.isBlocked, 'appealPending=', state.appealPending);
         return { brokeRock: false, earnedMoney: 0, couponDrop: null };
       }
 
@@ -933,6 +933,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const hasAutoclickerWhitelist = state.hasAutoclicker && state.autoclickerEnabled;
 
       if (isViolation && !hasAutoclickerWhitelist) {
+        console.log('❌ ANTI-CHEAT VIOLATION: click rate exceeded');
         triggerAntiCheatWarning();
         return { brokeRock: false, earnedMoney: 0, couponDrop: null };
       }
@@ -1083,11 +1084,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (gameState.ownedPickaxeIds.includes(pickaxeId)) return false;
     if (gameState.yatesDollars < pickaxe.price) return false;
 
+    // Clear click history to prevent anti-cheat false positives from rapid purchases
+    window._clickTimestamps = [];
+
     setGameState((prev) => ({
       ...prev,
       yatesDollars: prev.yatesDollars - pickaxe.price,
       ownedPickaxeIds: [...prev.ownedPickaxeIds, pickaxeId],
       currentPickaxeId: pickaxeId, // Auto-equip after purchase
+      // Reset anti-cheat block if not from appeal (user clearly has money = legitimate play)
+      isBlocked: prev.appealPending ? prev.isBlocked : false,
     }));
 
     return true;

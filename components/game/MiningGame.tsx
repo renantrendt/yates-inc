@@ -506,7 +506,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
             ref={rockRef}
             onClick={handleMine}
             onTouchEnd={handleMine}
-            className="relative w-56 h-56 sm:w-64 sm:h-64 md:w-72 md:h-72 cursor-pointer touch-manipulation flex items-center justify-center select-none"
+            className="relative z-40 w-56 h-56 sm:w-64 sm:h-64 md:w-72 md:h-72 cursor-pointer touch-manipulation flex items-center justify-center select-none"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             {/* Rock visual inside the hitbox */}
