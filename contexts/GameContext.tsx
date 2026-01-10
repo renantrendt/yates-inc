@@ -253,11 +253,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   
   // Ref to track if we're still loading initial data (prevent saves during load)
   const isLoadingRef = useRef(true);
-  
-  // Ref to track the highest prestige count seen - prevents stale saves from overwriting
-  const highestPrestigeRef = useRef(0);
-  // Ref to track when last prestige happened - cooldown for localStorage saves
-  const lastPrestigeTimeRef = useRef(0);
 
   // Check if click rate exceeds threshold and trigger warning if needed
   const checkClickRate = useCallback((): boolean => {
@@ -329,12 +324,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(saved);
         setGameState({ ...defaultGameState, ...parsed });
         
-        // Track highest prestige from localStorage
-        if (parsed.prestigeCount && parsed.prestigeCount > highestPrestigeRef.current) {
-          highestPrestigeRef.current = parsed.prestigeCount;
-          console.log('📊 Loaded highest prestige from localStorage:', parsed.prestigeCount);
-        }
-        
         if (parsed.shopStock) {
           const timeSinceRestock = Date.now() - parsed.shopStock.lastRestockTime;
           if (timeSinceRestock >= SHOP_RESTOCK_INTERVAL) {
@@ -397,33 +386,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 const localClicks = prev.totalClicks || 0;
                 const supabaseClicks = supabaseData.total_clicks || 0;
                 
-                // ALSO check against highestPrestigeRef - NEVER go below this
-                const highestKnown = highestPrestigeRef.current;
-                
-                // Use Supabase only if: higher prestige than BOTH local AND highestKnown
-                const useSupabase = supabasePrestige > localPrestige && 
-                  supabasePrestige >= highestKnown;
-                
-                // If neither source has the highest prestige, keep local (don't regress)
-                if (supabasePrestige < highestKnown && localPrestige < highestKnown) {
-                  console.log('🚫 MERGE BLOCKED: Both sources have lower prestige than highest known', {
-                    localPrestige,
-                    supabasePrestige,
-                    highestKnown,
-                  });
-                  return prev; // Keep current state, don't merge anything
-                }
-                
-                console.log('🔀 MERGE DECISION:', {
-                  localPrestige,
-                  supabasePrestige,
-                  highestKnown,
-                  localClicks,
-                  supabaseClicks,
-                  useSupabase,
-                  localDollars: prev.yatesDollars,
-                  supabaseDollars: supabaseData.yates_dollars,
-                });
+                // Use Supabase data if it has higher prestige, or same prestige with more clicks
+                const useSupabase = supabasePrestige > localPrestige || 
+                  (supabasePrestige === localPrestige && supabaseClicks > localClicks);
                 
                 return {
                 ...prev,
@@ -718,31 +683,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Don't save during initial load - wait until data is loaded
     if (!isLoaded || isLoadingRef.current) {
-      return;
-    }
-    
-    // Track highest prestige seen
-    if (gameState.prestigeCount > highestPrestigeRef.current) {
-      highestPrestigeRef.current = gameState.prestigeCount;
-    }
-    
-    // Block saves with LOWER prestige count (stale data from old useEffect closures)
-    if (gameState.prestigeCount < highestPrestigeRef.current) {
-      console.log('🚫 LOCALSTORAGE SAVE BLOCKED: Stale prestige data', {
-        stalePrestige: gameState.prestigeCount,
-        highestPrestige: highestPrestigeRef.current,
-      });
-      return;
-    }
-    
-    // Block saves during prestige cooldown (5 seconds)
-    const timeSincePrestige = Date.now() - lastPrestigeTimeRef.current;
-    if (lastPrestigeTimeRef.current > 0 && timeSincePrestige < 5000 && gameState.totalClicks > 1000) {
-      // Only block if clicks > 1000 (clearly stale data from before prestige)
-      console.log('🚫 LOCALSTORAGE SAVE BLOCKED: Prestige cooldown, stale clicks', {
-        timeSincePrestige,
-        clicks: gameState.totalClicks,
-      });
       return;
     }
     
@@ -1198,9 +1138,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const prestige = useCallback(() => {
     if (!canPrestige()) return null;
     
-    // Set prestige cooldown BEFORE state update to block stale saves
-    lastPrestigeTimeRef.current = Date.now();
-
     const isYates = userId === YATES_ACCOUNT_ID;
     // Check if player owns the totem trinket (not just the flag - the flag can get out of sync)
     const ownsTotem = gameState.ownedTrinketIds.includes('totem');
@@ -1212,9 +1149,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Calculate new multiplier: starts at 1.1, +0.1 per prestige
     const newPrestigeCount = gameState.prestigeCount + 1;
     const newMultiplier = 1.0 + (newPrestigeCount * 0.1);
-    
-    // Update highest prestige ref BEFORE state update
-    highestPrestigeRef.current = newPrestigeCount;
 
     setGameState((prev) => ({
       ...prev,
@@ -1248,7 +1182,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Force immediate save to Supabase after prestige (bypass debounce)
     // This prevents the merge logic from restoring old pre-prestige data on refresh
     if (userId && userType) {
-      console.log('🎯 PRESTIGE: Force saving to Supabase...', { newPrestigeCount, keepsMoney });
       const rock = ROCKS[0];
       forceImmediateSave({
         user_id: userId,

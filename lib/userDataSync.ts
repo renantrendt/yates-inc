@@ -52,8 +52,6 @@ export interface UserPurchase {
 // Fetch user game data from Supabase
 export async function fetchUserGameData(userId: string): Promise<UserGameData | null> {
   try {
-    console.log('📥 SUPABASE FETCH: Loading data for', userId);
-    
     const { data, error } = await supabase
       .from('user_game_data')
       .select('*')
@@ -61,25 +59,19 @@ export async function fetchUserGameData(userId: string): Promise<UserGameData | 
       .maybeSingle();
 
     if (error) {
-      console.error('❌ SUPABASE FETCH FAILED:', error.message, error.details);
+      console.error('Error fetching game data:', error);
       return null;
-    }
-
-    if (data) {
-      console.log('✅ SUPABASE FETCH SUCCESS:', { prestige: data.prestige_count, clicks: data.total_clicks, dollars: data.yates_dollars });
-    } else {
-      console.log('⚠️ SUPABASE: No data found for user');
     }
 
     return data as UserGameData || null;
   } catch (err) {
-    console.error('❌ SUPABASE FETCH EXCEPTION:', err);
+    console.error('Error fetching game data:', err);
     return null;
   }
 }
 
 // Save/update user game data to Supabase
-export async function saveUserGameData(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }, versionAtCallTime?: number): Promise<boolean> {
+export async function saveUserGameData(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }): Promise<boolean> {
   try {
     const fullData = {
       user_id: data.user_id,
@@ -115,33 +107,19 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       owned_prestige_upgrade_ids: data.owned_prestige_upgrade_ids,
       auto_prestige_enabled: data.auto_prestige_enabled,
     };
-
-    // FINAL CHECK: If version was provided and has changed, skip this save (a force save happened)
-    // This check happens RIGHT BEFORE the DB call to catch race conditions
-    if (versionAtCallTime !== undefined && versionAtCallTime !== saveVersion) {
-      console.log('🚫 SAVE ABORTED: Force save happened during preparation', { 
-        versionAtCallTime, 
-        currentVersion: saveVersion,
-        wouldHaveSaved: { prestige: data.prestige_count, clicks: data.total_clicks }
-      });
-      return true; // Return true so it doesn't retry
-    }
-
-    console.log('📤 SUPABASE SAVE:', { prestige: data.prestige_count, clicks: data.total_clicks, dollars: data.yates_dollars });
     
     const { error } = await supabase
       .from('user_game_data')
       .upsert(fullData, { onConflict: 'user_id' });
 
     if (error) {
-      console.error('❌ SUPABASE SAVE FAILED:', error.message, error.details, error.hint);
+      console.error('Error saving game data:', error);
       return false;
     }
     
-    console.log('✅ SUPABASE SAVE SUCCESS');
     return true;
   } catch (err) {
-    console.error('❌ SUPABASE SAVE EXCEPTION:', err);
+    console.error('Error saving game data:', err);
     return false;
   }
 }
@@ -189,26 +167,12 @@ export async function savePurchase(purchase: UserPurchase): Promise<boolean> {
 
 // Throttled save - saves at most every SAVE_INTERVAL ms
 const SAVE_INTERVAL = 5000; // Save every 5 seconds max (reduced network spam)
-const FORCE_SAVE_COOLDOWN = 5000; // Block regular saves for 5s after force save (just enough to clear stale React closures)
 let saveTimeout: NodeJS.Timeout | null = null;
 let pendingData: (Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }) | null = null;
 let lastSaveTime = 0;
 let isSaving = false;
-let saveVersion = 0; // Increments on force save to invalidate old in-flight saves
-let lastForceSaveTime = 0; // Track when force save happened to block stale saves
 
 export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }): void {
-  // Block saves during cooldown after force save (prevents stale useEffect data from overwriting)
-  const timeSinceForceSave = Date.now() - lastForceSaveTime;
-  if (timeSinceForceSave < FORCE_SAVE_COOLDOWN) {
-    console.log('🚫 DEBOUNCED SAVE BLOCKED: Force save cooldown active', { 
-      timeSinceForceSave, 
-      cooldown: FORCE_SAVE_COOLDOWN,
-      blockedPrestige: data.prestige_count 
-    });
-    return;
-  }
-  
   // Accumulate latest data
   pendingData = { ...pendingData, ...data };
   
@@ -232,21 +196,8 @@ export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_i
 async function executeSave(): Promise<void> {
   if (!pendingData || isSaving) return;
   
-  // Check cooldown BEFORE executing - this catches saves that were queued before prestige
-  const timeSinceForceSave = Date.now() - lastForceSaveTime;
-  if (timeSinceForceSave < FORCE_SAVE_COOLDOWN) {
-    console.log('🚫 EXECUTE SAVE BLOCKED: Force save cooldown active', { 
-      timeSinceForceSave, 
-      cooldown: FORCE_SAVE_COOLDOWN,
-      blockedPrestige: pendingData.prestige_count 
-    });
-    pendingData = null; // Clear the stale data
-    return;
-  }
-  
   isSaving = true;
   const dataToSave = pendingData;
-  const versionAtStart = saveVersion; // Capture version before async operation
   pendingData = null;
   lastSaveTime = Date.now();
   
@@ -256,13 +207,7 @@ async function executeSave(): Promise<void> {
   }
   
   try {
-    // Check if a force save happened while we were preparing
-    if (saveVersion !== versionAtStart) {
-      console.log('🚫 DEBOUNCED SAVE SKIPPED: Force save happened, version changed');
-      return;
-    }
-    // Pass version so saveUserGameData can double-check before actual DB write
-    await saveUserGameData(dataToSave, versionAtStart);
+    await saveUserGameData(dataToSave);
   } catch {
     // Put the data back if save failed
     pendingData = { ...(dataToSave || {}), ...(pendingData || {}) } as UserGameData;
@@ -296,15 +241,7 @@ export async function flushPendingData(): Promise<void> {
 // Force immediate save with specific data (bypass debounce completely)
 // Use this after critical actions like prestige
 export async function forceImmediateSave(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }): Promise<boolean> {
-  console.log('⚡ FORCE SAVE: Bypassing debounce...', { prestige: data.prestige_count, clicks: data.total_clicks });
-  
-  // Increment version to invalidate any in-flight debounced saves
-  saveVersion++;
-  // Set cooldown to block stale saves from useEffects that captured old state
-  lastForceSaveTime = Date.now();
-  console.log('⚡ FORCE SAVE: Invalidated old saves, version now:', saveVersion, '+ 2s cooldown active');
-  
-  // Clear any pending debounced save
+  // Clear any pending debounced save to avoid conflicts
   if (saveTimeout) {
     clearTimeout(saveTimeout);
     saveTimeout = null;
@@ -315,10 +252,9 @@ export async function forceImmediateSave(data: Partial<UserGameData> & { user_id
   try {
     const result = await saveUserGameData(data);
     lastSaveTime = Date.now();
-    console.log('⚡ FORCE SAVE RESULT:', result ? '✅ SUCCESS' : '❌ FAILED');
     return result;
   } catch (err) {
-    console.error('⚡ FORCE SAVE EXCEPTION:', err);
+    console.error('Force save failed:', err);
     return false;
   }
 }

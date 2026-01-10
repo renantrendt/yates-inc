@@ -41,7 +41,7 @@ export default function TrinketShopButton({ hidden = false }: TrinketShopButtonP
       {/* Trinket Shop Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 left-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95"
+        className="fixed bottom-4 left-4 z-30 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95"
         style={{ 
           backgroundColor: buttonColor,
           boxShadow: `0 0 20px ${buttonColor}50`,
