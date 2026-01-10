@@ -117,6 +117,7 @@ interface GameContextType {
   addMiners: (amount: number) => void;
   addPrestigeTokens: (amount: number) => void;
   giveTrinket: (trinketId: string) => boolean;
+  givePickaxe: (pickaxeId: number) => void;
   setTotalClicks: (clicks: number) => void;
   // Pickaxe ability functions
   activateAbility: () => boolean;
@@ -1642,6 +1643,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return true;
   }, []);
 
+  const givePickaxe = useCallback((pickaxeId: number) => {
+    setGameState(prev => ({
+      ...prev,
+      ownedPickaxeIds: [...new Set([...prev.ownedPickaxeIds, pickaxeId])],
+    }));
+  }, []);
+
   const setTotalClicks = useCallback((clicks: number) => {
     setGameState(prev => ({
       ...prev,
@@ -1704,6 +1712,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         addMiners,
         addPrestigeTokens,
         giveTrinket,
+        givePickaxe,
         setTotalClicks,
         // Pickaxe ability functions
         activateAbility,

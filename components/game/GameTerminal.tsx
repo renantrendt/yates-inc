@@ -33,7 +33,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const terminalRef = useRef<HTMLDivElement>(null);
   const cmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, toggleAutoPrestige } = useGame();
+  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory, addMoney, addMiners, addPrestigeTokens, giveTrinket, givePickaxe, setTotalClicks, toggleAutoPrestige } = useGame();
   const { employee } = useAuth();
   const { client } = useClient();
   
@@ -473,7 +473,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       if (isNaN(id) || id < 1 || id > PICKAXES.length) {
         addToHistory(`❌ Invalid pickaxe ID. Use 1-${PICKAXES.length}`);
       } else {
-        buyPickaxe(id);
+        givePickaxe(id);
         equipPickaxe(id);
         const pcx = PICKAXES.find(p => p.id === id);
         addToHistory(`⛏️ Gave pickaxe: ${pcx?.name} (ID: ${id})`);
@@ -481,10 +481,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     }
     else if (trimmed === 'allpcx') {
       PICKAXES.forEach(p => {
-        buyPickaxe(p.id);
+        givePickaxe(p.id);
       });
       equipPickaxe(PICKAXES[PICKAXES.length - 1].id);
-      addToHistory('⛏️ Unlocked ALL pickaxes!');
+      addToHistory(`⛏️ Unlocked ALL pickaxes! (${PICKAXES.length} total)`);
     }
     // All rocks command
     else if (trimmed === 'allrocks') {
