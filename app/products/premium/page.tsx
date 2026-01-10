@@ -9,8 +9,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useClient } from '@/contexts/ClientContext';
 import { savePurchase, fetchUserPurchases } from '@/lib/userDataSync';
 
-// Format money with T, B, M, K suffixes
+// Format money with Q, T, B, M, K suffixes
 function formatMoney(amount: number): string {
+  if (amount >= 1000000000000000) return `$${(amount / 1000000000000000).toFixed(2)}Q`;
   if (amount >= 1000000000000) return `$${(amount / 1000000000000).toFixed(2)}T`;
   if (amount >= 1000000000) return `$${(amount / 1000000000).toFixed(2)}B`;
   if (amount >= 1000000) return `$${(amount / 1000000).toFixed(2)}M`;

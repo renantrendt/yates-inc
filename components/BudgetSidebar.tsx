@@ -19,6 +19,7 @@ export default function BudgetSidebar({ isOpen, onClose }: BudgetSidebarProps) {
   if (!isOpen) return null;
 
   const formatMoney = (amount: number): string => {
+    if (amount >= 1000000000000000) return `$${(amount / 1000000000000000).toFixed(2)}Q`;
     if (amount >= 1000000000000) return `$${(amount / 1000000000000).toFixed(2)}T`;
     if (amount >= 1000000000) return `$${(amount / 1000000000).toFixed(2)}B`;
     if (amount >= 1000000) return `$${(amount / 1000000).toFixed(2)}M`;
