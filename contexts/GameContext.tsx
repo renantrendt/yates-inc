@@ -558,9 +558,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         for (const upgradeId of prev.ownedPrestigeUpgradeIds) {
           const upgrade = PRESTIGE_UPGRADES.find(u => u.id === upgradeId);
           if (upgrade) {
-            bonuses.moneyBonus += upgrade.effects.moneyBonus || 0;
-            bonuses.minerDamageBonus += upgrade.effects.minerDamageBonus || 0;
-            bonuses.minerSpeedBonus += upgrade.effects.minerSpeedBonus || 0;
+            const allB = upgrade.effects.allBonus || 0;
+            bonuses.moneyBonus += (upgrade.effects.moneyBonus || 0) + allB;
+            bonuses.minerDamageBonus += (upgrade.effects.minerDamageBonus || 0) + allB;
+            bonuses.minerSpeedBonus += (upgrade.effects.minerSpeedBonus || 0) + allB;
           }
         }
         
@@ -759,12 +760,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const upgrade = PRESTIGE_UPGRADES.find(u => u.id === upgradeId);
       if (upgrade) {
         const e = upgrade.effects;
-        bonuses.moneyBonus += e.moneyBonus || 0;
-        bonuses.rockDamageBonus += e.rockDamageBonus || 0;
-        bonuses.clickSpeedBonus += e.clickSpeedBonus || 0;
-        bonuses.couponBonus += e.couponBonus || 0;
-        bonuses.minerSpeedBonus += e.minerSpeedBonus || 0;
-        bonuses.minerDamageBonus += e.minerDamageBonus || 0;
+        const allB = e.allBonus || 0;
+        bonuses.moneyBonus += (e.moneyBonus || 0) + allB;
+        bonuses.rockDamageBonus += (e.rockDamageBonus || 0) + allB;
+        bonuses.clickSpeedBonus += (e.clickSpeedBonus || 0) + allB;
+        bonuses.couponBonus += (e.couponBonus || 0) + allB;
+        bonuses.minerSpeedBonus += (e.minerSpeedBonus || 0) + allB;
+        bonuses.minerDamageBonus += (e.minerDamageBonus || 0) + allB;
       }
     }
     
@@ -970,9 +972,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       for (const upgradeId of prev.ownedPrestigeUpgradeIds) {
         const upgrade = PRESTIGE_UPGRADES.find(u => u.id === upgradeId);
         if (upgrade) {
-          rockDamageBonus += upgrade.effects.rockDamageBonus || 0;
-          moneyBonus += upgrade.effects.moneyBonus || 0;
-          couponBonus += upgrade.effects.couponBonus || 0;
+          const allB = upgrade.effects.allBonus || 0;
+          rockDamageBonus += (upgrade.effects.rockDamageBonus || 0) + allB;
+          moneyBonus += (upgrade.effects.moneyBonus || 0) + allB;
+          couponBonus += (upgrade.effects.couponBonus || 0) + allB;
         }
       }
       
