@@ -786,41 +786,50 @@ export function GameProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(storageKey, JSON.stringify({ ...gameState, shopStock }));
 
       // If logged in, also sync to Supabase (debounced)
-      // NUCLEAR FIX: Only save fields that PERSIST across prestige
-      // All prestige-reset fields (clicks, money, pickaxes, miners, etc.) are ONLY
-      // updated via forceImmediateSave during prestige. This prevents stale React
-      // closures from overwriting correct prestige data.
+      // The debounce system has a cooldown after forceImmediateSave to prevent
+      // stale data from overwriting prestige resets.
       if (userId && userType) {
         debouncedSaveUserGameData({
           user_id: userId,
           user_type: userType,
-          // Fields that PERSIST across prestige (safe to save anytime):
+          // Core game state
+          yates_dollars: gameState.yatesDollars,
+          total_clicks: gameState.totalClicks,
+          current_pickaxe_id: gameState.currentPickaxeId,
+          current_rock_id: gameState.currentRockId,
+          current_rock_hp: gameState.currentRockHP,
+          rocks_mined_count: gameState.rocksMinedCount,
+          owned_pickaxe_ids: gameState.ownedPickaxeIds,
+          // Coupons
           coupons_30: gameState.coupons.discount30,
           coupons_50: gameState.coupons.discount50,
           coupons_100: gameState.coupons.discount100,
+          // Game settings
           has_seen_cutscene: gameState.hasSeenCutscene,
           has_autoclicker: gameState.hasAutoclicker,
           autoclicker_enabled: gameState.autoclickerEnabled,
-          // Anti-cheat fields (always sync for security)
+          // Anti-cheat fields
           anti_cheat_warnings: gameState.antiCheatWarnings,
           is_on_watchlist: gameState.isOnWatchlist,
           is_blocked: gameState.isBlocked,
           appeal_pending: gameState.appealPending,
-          // Trinket shop state (persists)
+          // Trinkets
+          owned_trinket_ids: gameState.ownedTrinketIds,
+          equipped_trinket_ids: gameState.equippedTrinketIds,
           trinket_shop_items: gameState.trinketShopItems,
           trinket_shop_last_refresh: gameState.trinketShopLastRefresh,
-          // Prestige upgrades owned (persists - these are permanent unlocks)
+          has_totem_protection: gameState.hasTotemProtection,
+          // Miners
+          miner_count: gameState.minerCount,
+          miner_last_tick: gameState.minerLastTick,
+          // Prestige
+          prestige_count: gameState.prestigeCount,
+          prestige_multiplier: gameState.prestigeMultiplier,
+          prestige_tokens: gameState.prestigeTokens,
           owned_prestige_upgrade_ids: gameState.ownedPrestigeUpgradeIds,
-          // Auto-prestige setting (persists)
           auto_prestige_enabled: gameState.autoPrestigeEnabled,
-          // Achievements (permanently unlocked, persists across prestiges)
+          // Achievements
           unlocked_achievement_ids: gameState.unlockedAchievementIds,
-          // NOTE: The following are EXCLUDED and only updated via forceImmediateSave:
-          // - prestige_count, prestige_multiplier, prestige_tokens
-          // - yates_dollars, total_clicks
-          // - current_pickaxe_id, current_rock_id, current_rock_hp, rocks_mined_count
-          // - owned_pickaxe_ids, miner_count, miner_last_tick
-          // - owned_trinket_ids, equipped_trinket_ids, has_totem_protection
         });
       }
     } catch (err) {
