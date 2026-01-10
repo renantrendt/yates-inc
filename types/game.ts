@@ -1,5 +1,20 @@
 // Mining Game Types
 
+// Active ability definition for pickaxes with usable abilities
+export interface PickaxeActiveAbility {
+  id: string;
+  name: string;
+  description: string;
+  icon: string; // emoji
+  duration: number; // ms, 0 for instant effects
+  cooldown: number; // ms
+  cost: number; // Yates dollars cost to use
+  effect: {
+    type: 'miner_speed' | 'damage_boost' | 'instant_break' | 'all_boost';
+    value: number; // multiplier (e.g., 0.5 = +50%, 2 = 200%)
+  };
+}
+
 export interface Pickaxe {
   id: number;
   name: string;
@@ -9,6 +24,7 @@ export interface Pickaxe {
   specialAbility?: string;
   moneyMultiplier?: number;
   couponLuckBonus?: number;
+  activeAbility?: PickaxeActiveAbility; // New: active ability with button
 }
 
 export interface Rock {
@@ -69,6 +85,14 @@ export interface GameState {
   ownedPrestigeUpgradeIds: string[];
   // Auto-prestige (CM command)
   autoPrestigeEnabled: boolean;
+  // Pickaxe active abilities
+  activeAbility: {
+    pickaxeId: number;
+    abilityId: string;
+    startTime: number;
+    duration: number;
+  } | null;
+  abilityCooldowns: Record<string, number>; // ability id -> cooldown end timestamp
 }
 
 // Prestige requirements (Rock 19 = Titanium Quartz, Pickaxe 16 = Pin)

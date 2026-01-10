@@ -14,6 +14,7 @@ import TrinketSlot from './TrinketSlot';
 import MinerSprites, { MinerPurchaseButton } from './MinerSprite';
 import PrestigeStore from './PrestigeStore';
 import AchievementsPanel from './AchievementsPanel';
+import AbilityButton from './AbilityButton';
 import { MINER_BASE_DAMAGE } from '@/types/game';
 import { ROCKS, getRockById } from '@/lib/gameData';
 
@@ -105,27 +106,25 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     };
   }, [gameState.hasAutoclicker, gameState.autoclickerEnabled, mineRock]);
 
-  const handleMine = useCallback((e?: React.MouseEvent | React.TouchEvent | React.PointerEvent) => {
-    console.log('👆 handleMine called!');
-    
-    // Prevent default touch behavior and double-firing
-    if (e) {
+  const handleMine = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
+    // Prevent default on touch to avoid double-firing
+    if (e && 'touches' in e) {
       e.preventDefault();
-      e.stopPropagation();
     }
 
-    // Trigger pickaxe swing animation
-    setIsSwinging(true);
-    setTimeout(() => setIsSwinging(false), 150);
-
-    // Trigger rock shake
-    setRockShake(true);
-    setTimeout(() => setRockShake(false), 100);
-
-    // Mine the rock
-    console.log('⛏️ Calling mineRock...');
+    // Mine the rock FIRST before any animations
     const result = mineRock();
-    console.log('📊 mineRock result:', result);
+    
+    // Only animate if we actually mined
+    if (result.earnedMoney > 0 || result.brokeRock) {
+      // Trigger pickaxe swing animation
+      setIsSwinging(true);
+      setTimeout(() => setIsSwinging(false), 150);
+
+      // Trigger rock shake
+      setRockShake(true);
+      setTimeout(() => setRockShake(false), 100);
+    }
 
     // Handle rock break animation
     if (result.brokeRock) {
@@ -501,9 +500,10 @@ export default function MiningGame({ onExit }: MiningGameProps) {
           {/* Rock (Clickable/Touchable) - Responsive hitbox matching visual rock */}
           <div
             ref={rockRef}
-            onPointerDown={handleMine}
+            onClick={handleMine}
+            onTouchEnd={handleMine}
             className="relative w-56 h-56 sm:w-64 sm:h-64 md:w-72 md:h-72 cursor-pointer touch-manipulation flex items-center justify-center select-none"
-            style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             {/* Rock visual inside the hitbox */}
             <div
@@ -661,6 +661,9 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
       {/* Trinket Shop Button - bottom left (hidden when trinket index is open) */}
       <TrinketShopButton hidden={showTrinketIndex} />
+
+      {/* Ability Button - bottom right (for pickaxes with active abilities) */}
+      <AbilityButton />
 
       {/* Game Terminal */}
       <GameTerminal

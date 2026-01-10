@@ -106,7 +106,7 @@ export default function TrinketShopModal({ isOpen, onClose }: TrinketShopModalPr
       onClick={onClose}
     >
       <div 
-        className="bg-gray-800 rounded-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto border border-gray-600"
+        className="bg-gray-800 rounded-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto scrollable-touch border border-gray-600"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -159,23 +159,25 @@ export default function TrinketShopModal({ isOpen, onClose }: TrinketShopModalPr
           {gameState.ownedTrinketIds.length === 0 ? (
             <p className="text-gray-500 text-sm">You don&apos;t own any trinkets yet.</p>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {gameState.ownedTrinketIds.map(id => {
-                const trinket = trinketShopItems.find(t => t.id === id);
-                // We need to check all trinkets, not just shop items
-                return (
-                  <div
-                    key={id}
-                    className="px-3 py-1 rounded-full text-sm"
-                    style={{ 
-                      backgroundColor: trinket ? `${RARITY_COLORS[trinket.rarity]}30` : '#374151',
-                      color: trinket ? RARITY_COLORS[trinket.rarity] : '#9ca3af',
-                    }}
-                  >
-                    {id.replace(/_/g, ' ')}
-                  </div>
-                );
-              })}
+            <div className="max-h-40 overflow-y-auto scrollable-touch pr-2">
+              <div className="flex flex-wrap gap-2">
+                {gameState.ownedTrinketIds.map(id => {
+                  const trinket = trinketShopItems.find(t => t.id === id);
+                  // We need to check all trinkets, not just shop items
+                  return (
+                    <div
+                      key={id}
+                      className="px-3 py-1 rounded-full text-sm"
+                      style={{ 
+                        backgroundColor: trinket ? `${RARITY_COLORS[trinket.rarity]}30` : '#374151',
+                        color: trinket ? RARITY_COLORS[trinket.rarity] : '#9ca3af',
+                      }}
+                    >
+                      {id.replace(/_/g, ' ')}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

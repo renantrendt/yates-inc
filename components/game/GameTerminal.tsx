@@ -449,6 +449,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('autoprestige   - Toggle auto-prestige');
       addToHistory('cm             - Toggle auto-clicker (no autoprestige)');
       addToHistory('unblock        - Clear anti-cheat block');
+      addToHistory('ability        - Get pcx with ability + $50M');
       addToHistory('clear          - Clear terminal');
       if (isBanAdmin) {
         addToHistory('');
@@ -525,6 +526,26 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       } else {
         addToHistory('✅ Click history cleared');
       }
+    }
+    // Ability test command - gives Heavens pickaxe (ID 17) + money
+    else if (trimmed === 'ability') {
+      // Give pickaxes 1-17 (Heavens has first ability)
+      for (let i = 1; i <= 17; i++) {
+        buyPickaxe(i);
+      }
+      equipPickaxe(17);
+      addMoney(50000000); // $50M to use abilities
+      addToHistory('✨ ABILITY TEST MODE:');
+      addToHistory('   Got Heavens pickaxe (ID 17)');
+      addToHistory('   +$50M for ability costs');
+      addToHistory('');
+      addToHistory('📋 Pickaxes with abilities:');
+      addToHistory('   17: Heavens - Divine Speed (+50% miners)');
+      addToHistory('   18: Demon - Demon Rage (3x damage)');
+      addToHistory('   19: Nuclear - Instant break');
+      addToHistory('   21: Nightmare - +15% everything');
+      addToHistory('');
+      addToHistory('Use "pcx 18/19/21" to switch pickaxes');
     }
     // Ban commands
     else if (trimmed.startsWith('ban ')) {

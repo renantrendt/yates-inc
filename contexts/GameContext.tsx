@@ -13,7 +13,7 @@ import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
 import { useAuth } from './AuthContext';
 import { useClient } from './ClientContext';
-import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData, savePurchase } from '@/lib/userDataSync';
+import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData, savePurchase, forceImmediateSave } from '@/lib/userDataSync';
 import { supabase } from '@/lib/supabase';
 
 // Helper to add product sale contribution to active budget (50% of sale)
@@ -57,7 +57,6 @@ async function addProductSaleToBudget(amount: number, productName: string): Prom
         created_by: 'system',
       });
 
-      console.log(`📈 Active budget increased by $${contribution} from ${productName} sale`);
     }
   } catch (err) {
     console.error('Error adding product sale to budget:', err);
@@ -118,6 +117,11 @@ interface GameContextType {
   addPrestigeTokens: (amount: number) => void;
   giveTrinket: (trinketId: string) => boolean;
   setTotalClicks: (clicks: number) => void;
+  // Pickaxe ability functions
+  activateAbility: () => boolean;
+  getAbilityCooldownRemaining: () => number;
+  isAbilityActive: () => boolean;
+  getActiveAbilityTimeRemaining: () => number;
 }
 
 const defaultGameState: GameState = {
@@ -157,6 +161,9 @@ const defaultGameState: GameState = {
   ownedPrestigeUpgradeIds: [],
   // Auto-prestige
   autoPrestigeEnabled: false,
+  // Pickaxe active abilities
+  activeAbility: null,
+  abilityCooldowns: {},
 };
 
 const STORAGE_KEY_PREFIX = 'yates-mining-game';
@@ -246,6 +253,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   
   // Ref to track if we're still loading initial data (prevent saves during load)
   const isLoadingRef = useRef(true);
+  
+  // Ref to track the highest prestige count seen - prevents stale saves from overwriting
+  const highestPrestigeRef = useRef(0);
+  // Ref to track when last prestige happened - cooldown for localStorage saves
+  const lastPrestigeTimeRef = useRef(0);
 
   // Check if click rate exceeds threshold and trigger warning if needed
   const checkClickRate = useCallback((): boolean => {
@@ -267,11 +279,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const clickCount = window._clickTimestamps.length;
     
     // Debug logging EVERY click now
-    console.log(`🔍 Clicks in window: ${clickCount} (before filter: ${beforeFilter}, threshold: ${threshold})`);
+    // Debug logging removed for performance
 
     // Check if over threshold
     if (clickCount > threshold) {
-      console.log(`🚨 VIOLATION! ${clickCount} > ${threshold}`);
       return true; // Violation detected
     }
     return false;
@@ -281,7 +292,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const triggerAntiCheatWarning = useCallback(() => {
     setGameState((prev) => {
       const newWarnings = prev.antiCheatWarnings + 1;
-      console.log(`⚠️ Anti-cheat warning ${newWarnings}/3 triggered!`);
       return {
         ...prev,
         antiCheatWarnings: newWarnings,
@@ -319,6 +329,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(saved);
         setGameState({ ...defaultGameState, ...parsed });
         
+        // Track highest prestige from localStorage
+        if (parsed.prestigeCount && parsed.prestigeCount > highestPrestigeRef.current) {
+          highestPrestigeRef.current = parsed.prestigeCount;
+          console.log('📊 Loaded highest prestige from localStorage:', parsed.prestigeCount);
+        }
+        
         if (parsed.shopStock) {
           const timeSinceRestock = Date.now() - parsed.shopStock.lastRestockTime;
           if (timeSinceRestock >= SHOP_RESTOCK_INTERVAL) {
@@ -339,7 +355,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const loadSupabaseData = async () => {
       // Safety timeout - ensure game loads even if Supabase hangs
       const timeoutId = setTimeout(() => {
-        console.warn('⏱️ Supabase load timeout - game already working with localStorage');
+        // Timeout reached - game continues with localStorage
       }, 5000); // 5 second timeout
 
       try {
@@ -364,7 +380,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
               }));
               setIsBanned(true);
               setBanReason(banData.ban_reason || 'No reason provided');
-              console.log('🚫 User is BANNED:', banData.ban_reason);
               setIsLoaded(true);
               clearTimeout(timeoutId);
               return; // Don't load game data for banned users
@@ -374,13 +389,41 @@ export function GameProvider({ children }: { children: ReactNode }) {
             const supabaseData = await fetchUserGameData(userId);
             if (supabaseData) {
               setGameState(prev => {
-                // Smart merge: Keep whichever data has more progress (higher totalClicks)
-                // This prevents old Supabase data from overwriting newer localStorage progress
+                // Smart merge: Prioritize prestigeCount first, then totalClicks as tiebreaker
+                // After prestige, totalClicks resets to 0 but prestigeCount increases
+                // So we must compare prestige first to avoid old data overwriting new prestige
+                const localPrestige = prev.prestigeCount || 0;
+                const supabasePrestige = supabaseData.prestige_count || 0;
                 const localClicks = prev.totalClicks || 0;
                 const supabaseClicks = supabaseData.total_clicks || 0;
-                const useSupabase = supabaseClicks >= localClicks;
                 
-                console.log(`📊 Merge decision: ${useSupabase ? 'Supabase' : 'LocalStorage'} has more progress (${useSupabase ? supabaseClicks : localClicks} clicks)`);
+                // ALSO check against highestPrestigeRef - NEVER go below this
+                const highestKnown = highestPrestigeRef.current;
+                
+                // Use Supabase only if: higher prestige than BOTH local AND highestKnown
+                const useSupabase = supabasePrestige > localPrestige && 
+                  supabasePrestige >= highestKnown;
+                
+                // If neither source has the highest prestige, keep local (don't regress)
+                if (supabasePrestige < highestKnown && localPrestige < highestKnown) {
+                  console.log('🚫 MERGE BLOCKED: Both sources have lower prestige than highest known', {
+                    localPrestige,
+                    supabasePrestige,
+                    highestKnown,
+                  });
+                  return prev; // Keep current state, don't merge anything
+                }
+                
+                console.log('🔀 MERGE DECISION:', {
+                  localPrestige,
+                  supabasePrestige,
+                  highestKnown,
+                  localClicks,
+                  supabaseClicks,
+                  useSupabase,
+                  localDollars: prev.yatesDollars,
+                  supabaseDollars: supabaseData.yates_dollars,
+                });
                 
                 return {
                 ...prev,
@@ -427,21 +470,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 autoPrestigeEnabled: useSupabase ? (supabaseData.auto_prestige_enabled ?? prev.autoPrestigeEnabled) : prev.autoPrestigeEnabled,
               };
               });
-              console.log('📦 Loaded game data from Supabase (merged with localStorage)');
-            } else {
-              // Supabase failed, but we already loaded from localStorage above
-              console.log('⚠️ Supabase load failed, using localStorage data');
             }
-          } catch (err) {
+          } catch {
             // If anything fails, just use localStorage (already loaded above)
-            console.warn('⚠️ Error loading from Supabase, using localStorage:', err);
           }
         }
 
-        clearTimeout(timeoutId); // Clear timeout
-      } catch (err) {
-        // Ultimate fallback - if everything fails, game still works with localStorage
-        console.error('💥 Error loading Supabase data (game still works):', err);
+        clearTimeout(timeoutId);
+      } catch {
         clearTimeout(timeoutId);
       } finally {
         // Mark loading as complete - now saves can happen
@@ -515,8 +551,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setGameState(prev => {
         if (prev.minerCount <= 0 || prev.isBlocked) return prev;
         
+        // Check for active ability bonuses
+        let minerSpeedBonus = 0;
+        let allBonus = 0;
+        if (prev.activeAbility) {
+          const { startTime, duration, pickaxeId } = prev.activeAbility;
+          const isActive = duration === 0 ? false : Date.now() < startTime + duration;
+          if (isActive) {
+            const pickaxe = getPickaxeById(pickaxeId);
+            const ability = pickaxe?.activeAbility;
+            if (ability?.effect.type === 'miner_speed') {
+              minerSpeedBonus = ability.effect.value;
+            } else if (ability?.effect.type === 'all_boost') {
+              allBonus = ability.effect.value;
+            }
+          }
+        }
+        
         const rock = getRockById(prev.currentRockId) || ROCKS[0];
-        const damage = prev.minerCount * MINER_BASE_DAMAGE; // 5 damage per miner per second
+        // Apply miner speed bonus as extra damage
+        const damage = Math.ceil(prev.minerCount * MINER_BASE_DAMAGE * (1 + minerSpeedBonus + allBonus));
         const newHP = prev.currentRockHP - damage;
         
         // Always add miner damage to totalClicks (for rock unlock progress)
@@ -531,8 +585,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           };
         }
         
-        // Rock broke! Get money
-        const money = Math.ceil(rock.moneyPerBreak * prev.prestigeMultiplier);
+        // Rock broke! Get money (also apply all_boost)
+        const money = Math.ceil(rock.moneyPerBreak * prev.prestigeMultiplier * (1 + allBonus));
         
         // Check for rock upgrade
         const highestUnlocked = getHighestUnlockedRock(newTotalClicks);
@@ -595,7 +649,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ownedTrinketIds: ownsTotem ? prev.ownedTrinketIds.filter(id => id !== 'totem') : prev.ownedTrinketIds,
           equippedTrinketIds: ownsTotem ? prev.equippedTrinketIds.filter(id => id !== 'totem') : prev.equippedTrinketIds,
         }));
-        console.log(`🤖 Auto-prestige! Level ${newPrestigeCount}${ownsTotem ? ' (Totem used!)' : ''}`);
       }
     }, 5000); // Check every 5 seconds
     
@@ -668,11 +721,35 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return;
     }
     
+    // Track highest prestige seen
+    if (gameState.prestigeCount > highestPrestigeRef.current) {
+      highestPrestigeRef.current = gameState.prestigeCount;
+    }
+    
+    // Block saves with LOWER prestige count (stale data from old useEffect closures)
+    if (gameState.prestigeCount < highestPrestigeRef.current) {
+      console.log('🚫 LOCALSTORAGE SAVE BLOCKED: Stale prestige data', {
+        stalePrestige: gameState.prestigeCount,
+        highestPrestige: highestPrestigeRef.current,
+      });
+      return;
+    }
+    
+    // Block saves during prestige cooldown (30 seconds)
+    const timeSincePrestige = Date.now() - lastPrestigeTimeRef.current;
+    if (lastPrestigeTimeRef.current > 0 && timeSincePrestige < 30000 && gameState.totalClicks > 1000) {
+      // Only block if clicks > 1000 (clearly stale data from before prestige)
+      console.log('🚫 LOCALSTORAGE SAVE BLOCKED: Prestige cooldown, stale clicks', {
+        timeSincePrestige,
+        clicks: gameState.totalClicks,
+      });
+      return;
+    }
+    
     try {
       // Always save to localStorage immediately (user-specific key)
       const storageKey = getStorageKey(userId);
       localStorage.setItem(storageKey, JSON.stringify({ ...gameState, shopStock }));
-      console.log('💾 Saved to localStorage:', { yatesDollars: gameState.yatesDollars, totalClicks: gameState.totalClicks });
 
       // If logged in, also sync to Supabase (debounced)
       if (userId && userType) {
@@ -714,7 +791,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
           // Auto-prestige
           auto_prestige_enabled: gameState.autoPrestigeEnabled,
         });
-        console.log('💾 Queued save to Supabase');
       }
     } catch (err) {
       console.error('❌ Error saving game data:', err);
@@ -750,78 +826,159 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Employees have numeric string IDs, clients have UUIDs
   const isEmployee = userId ? /^\d+$/.test(userId) : false;
 
+  // Auto-clear any blocks for employees (they're immune to anti-cheat)
+  useEffect(() => {
+    if (isEmployee && (gameState.isBlocked || gameState.antiCheatWarnings > 0)) {
+      setGameState(prev => ({
+        ...prev,
+        isBlocked: false,
+        antiCheatWarnings: 0,
+        appealPending: false,
+      }));
+    }
+  }, [isEmployee, gameState.isBlocked, gameState.antiCheatWarnings]);
+
   const currentPickaxe = getPickaxeById(gameState.currentPickaxeId) || PICKAXES[0];
   const currentRock = getRockById(gameState.currentRockId) || ROCKS[0];
 
-  const mineRock = useCallback(() => {
-    console.log('⛏️ mineRock called!');
+  // Helper to get active ability bonuses (needs to be before mineRock)
+  const getActiveAbilityBonuses = useCallback(() => {
+    const bonuses = {
+      damageMultiplier: 1,
+      minerSpeedBonus: 0,
+      allBonus: 0,
+    };
+
+    if (!gameState.activeAbility) return bonuses;
     
-    // Anti-cheat: If blocked, don't process clicks
-    if (gameState.isBlocked || gameState.appealPending) {
-      console.log('🚫 Blocked or appeal pending');
-      return { brokeRock: false, earnedMoney: 0, couponDrop: null };
+    // Check if ability is still active
+    const { startTime, duration, pickaxeId } = gameState.activeAbility;
+    if (duration === 0) return bonuses; // instant abilities don't give ongoing bonuses
+    const isActive = Date.now() < startTime + duration;
+    if (!isActive) return bonuses;
+
+    const pickaxe = getPickaxeById(pickaxeId);
+    const ability = pickaxe?.activeAbility;
+    if (!ability) return bonuses;
+
+    switch (ability.effect.type) {
+      case 'damage_boost':
+        bonuses.damageMultiplier = ability.effect.value;
+        break;
+      case 'miner_speed':
+        bonuses.minerSpeedBonus = ability.effect.value;
+        break;
+      case 'all_boost':
+        bonuses.allBonus = ability.effect.value;
+        break;
     }
 
-    // Anti-cheat: Check click rate (skip ONLY for purchased autoclicker when enabled)
-    const isViolation = checkClickRate();
-    const hasAutoclickerWhitelist = gameState.hasAutoclicker && gameState.autoclickerEnabled;
+    return bonuses;
+  }, [gameState.activeAbility]);
+
+  // Use a ref to always have fresh gameState for mineRock
+  const gameStateRef = useRef(gameState);
+  gameStateRef.current = gameState;
+
+  const mineRock = useCallback(() => {
+    const state = gameStateRef.current;
     
-    if (isViolation) {
-      console.log(`🚨 Violation detected! Whitelist: ${hasAutoclickerWhitelist}`);
-      if (!hasAutoclickerWhitelist) {
-        console.log(`🔨 BLOCKING USER - triggering warning!`);
+    // Employees bypass ALL anti-cheat (they have terminal access anyway)
+    if (!isEmployee) {
+      // Anti-cheat: If blocked, don't process clicks
+      if (state.isBlocked || state.appealPending) {
+        return { brokeRock: false, earnedMoney: 0, couponDrop: null };
+      }
+
+      // Anti-cheat: Check click rate (skip for purchased autoclicker when enabled)
+      const isViolation = checkClickRate();
+      const hasAutoclickerWhitelist = state.hasAutoclicker && state.autoclickerEnabled;
+
+      if (isViolation && !hasAutoclickerWhitelist) {
         triggerAntiCheatWarning();
         return { brokeRock: false, earnedMoney: 0, couponDrop: null };
       }
     }
 
-    const pickaxe = getPickaxeById(gameState.currentPickaxeId) || PICKAXES[0];
-    const rock = getRockById(gameState.currentRockId) || ROCKS[0];
-    
-    // Get total bonuses from trinkets and prestige upgrades
-    const bonuses = calculateTotalBonuses();
-    
+    // Results to return (will be set inside setGameState)
     let brokeRock = false;
     let earnedMoney = 0;
     let couponDrop: string | null = null;
 
-    // Calculate click power with rock damage bonus
-    let clickPower = pickaxe.name === 'Plasma' ? rock.clicksToBreak : pickaxe.clickPower;
-    clickPower = Math.ceil(clickPower * (1 + bonuses.rockDamageBonus));
-    const newHP = Math.max(0, gameState.currentRockHP - clickPower);
-
-    // Check if this click breaks the rock
-    const willBreak = newHP <= 0;
-
-    // Money earned = moneyPerClick (always) + moneyPerBreak (only when breaking)
-    earnedMoney = rock.moneyPerClick;
-    
-    if (willBreak) {
-      earnedMoney += rock.moneyPerBreak;
-    }
-
-    // Apply money multipliers
-    if (pickaxe.moneyMultiplier) {
-      earnedMoney *= pickaxe.moneyMultiplier;
-    }
-
-    // Apply prestige multiplier
-    earnedMoney *= gameState.prestigeMultiplier;
-    
-    // Apply trinket money bonus
-    earnedMoney *= (1 + bonuses.moneyBonus);
-
-    earnedMoney = Math.ceil(earnedMoney);
-
     setGameState((prev) => {
-      // Click power counts towards total clicks (for rock unlocking)
+      // Use FRESH state from prev, not stale closure
+      const pickaxe = getPickaxeById(prev.currentPickaxeId) || PICKAXES[0];
+      const rock = getRockById(prev.currentRockId) || ROCKS[0];
+      
+      // Calculate bonuses inline to avoid stale closures
+      let rockDamageBonus = 0;
+      let moneyBonus = 0;
+      let couponBonus = 0;
+      
+      // Trinket bonuses
+      for (const trinketId of prev.equippedTrinketIds) {
+        const trinket = TRINKETS.find(t => t.id === trinketId);
+        if (trinket) {
+          const e = trinket.effects;
+          rockDamageBonus += (e.rockDamageBonus || 0) + (e.allBonus || 0);
+          moneyBonus += (e.moneyBonus || 0) + (e.allBonus || 0) + (e.minerMoneyBonus || 0);
+          couponBonus += (e.couponBonus || 0) + (e.couponLuckBonus || 0) + (e.allBonus || 0);
+        }
+      }
+      
+      // Prestige upgrade bonuses
+      for (const upgradeId of prev.ownedPrestigeUpgradeIds) {
+        const upgrade = PRESTIGE_UPGRADES.find(u => u.id === upgradeId);
+        if (upgrade) {
+          rockDamageBonus += upgrade.effects.rockDamageBonus || 0;
+          moneyBonus += upgrade.effects.moneyBonus || 0;
+          couponBonus += upgrade.effects.couponBonus || 0;
+        }
+      }
+      
+      // Active ability bonuses
+      let damageMultiplier = 1;
+      let allBonus = 0;
+      if (prev.activeAbility) {
+        const { startTime, duration, pickaxeId } = prev.activeAbility;
+        if (duration > 0 && Date.now() < startTime + duration) {
+          const abilityPickaxe = getPickaxeById(pickaxeId);
+          const ability = abilityPickaxe?.activeAbility;
+          if (ability) {
+            if (ability.effect.type === 'damage_boost') damageMultiplier = ability.effect.value;
+            if (ability.effect.type === 'all_boost') allBonus = ability.effect.value;
+          }
+        }
+      }
+
+      // Calculate click power
+      let clickPower = pickaxe.name === 'Plasma' ? rock.clicksToBreak : pickaxe.clickPower;
+      clickPower = Math.ceil(clickPower * (1 + rockDamageBonus + allBonus) * damageMultiplier);
+      clickPower = Math.max(1, clickPower); // Ensure at least 1 damage
+      
+      const newHP = Math.max(0, prev.currentRockHP - clickPower);
+      const willBreak = newHP <= 0;
+
+      // Calculate money earned
+      earnedMoney = rock.moneyPerClick;
+      if (willBreak) {
+        earnedMoney += rock.moneyPerBreak;
+      }
+      if (pickaxe.moneyMultiplier) {
+        earnedMoney *= pickaxe.moneyMultiplier;
+      }
+      earnedMoney *= prev.prestigeMultiplier;
+      earnedMoney *= (1 + moneyBonus + allBonus);
+      earnedMoney = Math.ceil(earnedMoney);
+
+      // Update totals
       const newTotalClicks = prev.totalClicks + clickPower;
       let newRockHP = newHP;
       let newRocksMinedCount = prev.rocksMinedCount;
       let newCurrentRockId = prev.currentRockId;
 
       // Check if rock broke
-      if (newHP <= 0) {
+      if (willBreak) {
         brokeRock = true;
         newRocksMinedCount += 1;
         
@@ -831,19 +988,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
           newCurrentRockId = highestUnlocked.id;
         }
         
-        // Reset HP for new/same rock
+        // Reset HP for new rock
         const nextRock = getRockById(newCurrentRockId) || rock;
         newRockHP = nextRock.clicksToBreak;
       }
 
-      // Check for coupon drop (only if requirements met)
+      // Check for coupon drop
       const meetsRequirements = 
         prev.currentRockId >= COUPON_REQUIREMENTS.minRockId &&
         prev.currentPickaxeId >= COUPON_REQUIREMENTS.minPickaxeId;
 
       let newCoupons = { ...prev.coupons };
       if (meetsRequirements) {
-        const luckBonus = (pickaxe.couponLuckBonus || 0) + bonuses.couponBonus;
+        const luckBonus = (pickaxe.couponLuckBonus || 0) + couponBonus;
         const rand = Math.random();
         
         if (rand < COUPON_DROP_RATES.discount100 * (1 + luckBonus)) {
@@ -870,7 +1027,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
 
     return { earnedMoney, brokeRock, couponDrop };
-  }, [gameState.currentPickaxeId, gameState.currentRockId, gameState.currentRockHP]);
+  }, [isEmployee, checkClickRate, triggerAntiCheatWarning]);
 
   const canAffordPickaxe = useCallback((pickaxeId: number) => {
     const pickaxe = getPickaxeById(pickaxeId);
@@ -1045,6 +1202,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Totem protection also keeps money (but consumes the protection)
   const prestige = useCallback(() => {
     if (!canPrestige()) return null;
+    
+    // Set prestige cooldown BEFORE state update to block stale saves
+    lastPrestigeTimeRef.current = Date.now();
 
     const isYates = userId === YATES_ACCOUNT_ID;
     // Check if player owns the totem trinket (not just the flag - the flag can get out of sync)
@@ -1057,6 +1217,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Calculate new multiplier: starts at 1.1, +0.1 per prestige
     const newPrestigeCount = gameState.prestigeCount + 1;
     const newMultiplier = 1.0 + (newPrestigeCount * 0.1);
+    
+    // Update highest prestige ref BEFORE state update
+    highestPrestigeRef.current = newPrestigeCount;
 
     setGameState((prev) => ({
       ...prev,
@@ -1087,11 +1250,37 @@ export function GameProvider({ children }: { children: ReactNode }) {
       hasTotemProtection: false,
     }));
 
-    const reason = isYates ? ' (Yates: kept all money!)' : hasProtection ? ' (Totem protected your money!)' : '';
-    console.log(`🌟 PRESTIGE ${newPrestigeCount}! Multiplier: ${newMultiplier}x, +${PRESTIGE_TOKENS_PER_PRESTIGE} tokens${reason}`);
+    // Force immediate save to Supabase after prestige (bypass debounce)
+    // This prevents the merge logic from restoring old pre-prestige data on refresh
+    if (userId && userType) {
+      console.log('🎯 PRESTIGE: Force saving to Supabase...', { newPrestigeCount, keepsMoney });
+      const rock = ROCKS[0];
+      forceImmediateSave({
+        user_id: userId,
+        user_type: userType,
+        yates_dollars: keepsMoney ? currentMoney : 0,
+        total_clicks: 0,
+        current_pickaxe_id: 1,
+        current_rock_id: 1,
+        current_rock_hp: rock.clicksToBreak,
+        rocks_mined_count: 0,
+        owned_pickaxe_ids: [1],
+        miner_count: 0,
+        prestige_count: newPrestigeCount,
+        prestige_multiplier: newMultiplier,
+        prestige_tokens: gameState.prestigeTokens + PRESTIGE_TOKENS_PER_PRESTIGE,
+        has_totem_protection: false,
+        owned_trinket_ids: hasProtection 
+          ? gameState.ownedTrinketIds.filter(id => id !== 'totem')
+          : gameState.ownedTrinketIds,
+        equipped_trinket_ids: hasProtection
+          ? gameState.equippedTrinketIds.filter(id => id !== 'totem')
+          : gameState.equippedTrinketIds,
+      });
+    }
 
     return { amountToCompany, newMultiplier };
-  }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, gameState.ownedTrinketIds, userId]);
+  }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, gameState.ownedTrinketIds, gameState.equippedTrinketIds, gameState.prestigeTokens, userId, userType]);
 
   // =====================
   // TRINKET FUNCTIONS
@@ -1126,7 +1315,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       trinketShopItems: prev.trinketShopItems.filter(id => id !== trinketId),
       }));
 
-    console.log(`💎 Bought trinket: ${trinket.name}`);
       return true;
   }, [gameState.ownedTrinketIds, gameState.yatesDollars]);
   
@@ -1188,7 +1376,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       minerCount: prev.minerCount + 1,
     }));
     
-    console.log(`⛏️ Hired miner #${gameState.minerCount + 1}!`);
     return true;
   }, [gameState.minerCount, gameState.yatesDollars]);
 
@@ -1212,7 +1399,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
       ownedPrestigeUpgradeIds: [...prev.ownedPrestigeUpgradeIds, upgradeId],
     }));
 
-    console.log(`🌟 Bought prestige upgrade: ${upgrade.name}`);
     return true;
   }, [gameState.ownedPrestigeUpgradeIds, gameState.prestigeTokens]);
 
@@ -1222,8 +1408,111 @@ export function GameProvider({ children }: { children: ReactNode }) {
       ...prev,
       autoPrestigeEnabled: !prev.autoPrestigeEnabled,
     }));
-    console.log(`🤖 Auto-prestige: ${!gameState.autoPrestigeEnabled ? 'ON' : 'OFF'}`);
   }, [gameState.autoPrestigeEnabled]);
+
+  // =====================
+  // PICKAXE ABILITY FUNCTIONS
+  // =====================
+
+  // Check if current pickaxe has an active ability available
+  const getCurrentPickaxeAbility = useCallback(() => {
+    const pickaxe = getPickaxeById(gameState.currentPickaxeId);
+    return pickaxe?.activeAbility || null;
+  }, [gameState.currentPickaxeId]);
+
+  // Get remaining cooldown time for current pickaxe's ability
+  const getAbilityCooldownRemaining = useCallback(() => {
+    const ability = getCurrentPickaxeAbility();
+    if (!ability) return 0;
+    const cooldownEnd = gameState.abilityCooldowns[ability.id] || 0;
+    return Math.max(0, cooldownEnd - Date.now());
+  }, [gameState.abilityCooldowns, getCurrentPickaxeAbility]);
+
+  // Check if an ability is currently active
+  const isAbilityActive = useCallback(() => {
+    if (!gameState.activeAbility) return false;
+    const { startTime, duration } = gameState.activeAbility;
+    if (duration === 0) return false; // instant abilities are never "active"
+    return Date.now() < startTime + duration;
+  }, [gameState.activeAbility]);
+
+  // Get remaining time for active ability
+  const getActiveAbilityTimeRemaining = useCallback(() => {
+    if (!gameState.activeAbility) return 0;
+    const { startTime, duration } = gameState.activeAbility;
+    if (duration === 0) return 0;
+    return Math.max(0, (startTime + duration) - Date.now());
+  }, [gameState.activeAbility]);
+
+  // Activate the current pickaxe's ability
+  const activateAbility = useCallback(() => {
+    const ability = getCurrentPickaxeAbility();
+    if (!ability) return false;
+
+    // Check cooldown
+    const cooldownEnd = gameState.abilityCooldowns[ability.id] || 0;
+    if (Date.now() < cooldownEnd) return false;
+
+    // Check cost
+    if (gameState.yatesDollars < ability.cost) return false;
+
+    // Handle instant break ability specially
+    if (ability.effect.type === 'instant_break') {
+      const rock = getRockById(gameState.currentRockId) || ROCKS[0];
+      const money = Math.ceil(rock.moneyPerBreak * gameState.prestigeMultiplier);
+      
+      setGameState(prev => ({
+        ...prev,
+        yatesDollars: prev.yatesDollars - ability.cost + money,
+        currentRockHP: rock.clicksToBreak, // Reset to full HP (new rock)
+        rocksMinedCount: prev.rocksMinedCount + 1,
+        abilityCooldowns: {
+          ...prev.abilityCooldowns,
+          [ability.id]: Date.now() + ability.cooldown,
+        },
+      }));
+      return true;
+    }
+
+    // For duration-based abilities
+    setGameState(prev => ({
+      ...prev,
+      yatesDollars: prev.yatesDollars - ability.cost,
+      activeAbility: {
+        pickaxeId: prev.currentPickaxeId,
+        abilityId: ability.id,
+        startTime: Date.now(),
+        duration: ability.duration,
+      },
+      abilityCooldowns: {
+        ...prev.abilityCooldowns,
+        [ability.id]: Date.now() + ability.cooldown,
+      },
+    }));
+
+    return true;
+  }, [gameState.currentPickaxeId, gameState.abilityCooldowns, gameState.yatesDollars, gameState.currentRockId, gameState.prestigeMultiplier, getCurrentPickaxeAbility]);
+
+  // Clear expired ability
+  useEffect(() => {
+    if (!gameState.activeAbility) return;
+    
+    const { startTime, duration } = gameState.activeAbility;
+    if (duration === 0) return; // instant abilities don't need cleanup
+    
+    const timeLeft = (startTime + duration) - Date.now();
+    if (timeLeft <= 0) {
+      setGameState(prev => ({ ...prev, activeAbility: null }));
+      return;
+    }
+
+    // Set timer to clear when it expires
+    const timeout = setTimeout(() => {
+      setGameState(prev => ({ ...prev, activeAbility: null }));
+    }, timeLeft);
+
+    return () => clearTimeout(timeout);
+  }, [gameState.activeAbility]);
 
   // Submit appeal for anti-cheat violation
   const submitAppeal = useCallback(async (reason: string): Promise<boolean> => {
@@ -1276,7 +1565,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
         isBlocked: true,
       }));
 
-      console.log('📨 Appeal submitted and sent to admins');
       return true;
     } catch (err) {
       console.error('Error submitting appeal:', err);
@@ -1379,6 +1667,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         addPrestigeTokens,
         giveTrinket,
         setTotalClicks,
+        // Pickaxe ability functions
+        activateAbility,
+        getAbilityCooldownRemaining,
+        isAbilityActive,
+        getActiveAbilityTimeRemaining,
       }}
     >
       {children}

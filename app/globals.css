@@ -58,6 +58,13 @@ button, a, input[type="button"], input[type="submit"] {
   -ms-touch-action: manipulation;
 }
 
+/* Allow scrolling inside scrollable containers (modals, dropdowns) */
+.scrollable-touch {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
 /* Prevent white gaps on overscroll */
 body::before {
   content: '';

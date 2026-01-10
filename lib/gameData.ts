@@ -127,6 +127,16 @@ export const PICKAXES: Pickaxe[] = [
     price: 600000000,
     clickPower: 12000,
     specialAbility: '+50% miner speed (10min cooldown)',
+    activeAbility: {
+      id: 'heavens_boost',
+      name: 'Divine Speed',
+      description: '+50% miner speed for 2 min',
+      icon: '👼',
+      duration: 2 * 60 * 1000, // 2 minutes
+      cooldown: 10 * 60 * 1000, // 10 minutes
+      cost: 5000000, // $5M
+      effect: { type: 'miner_speed', value: 0.5 },
+    },
   },
   {
     id: 18,
@@ -135,6 +145,16 @@ export const PICKAXES: Pickaxe[] = [
     price: 1200000000,
     clickPower: 18000,
     specialAbility: '200% pickaxe damage for 1 minute',
+    activeAbility: {
+      id: 'demon_rage',
+      name: 'Demon Rage',
+      description: '3x pickaxe damage for 1 min',
+      icon: '😈',
+      duration: 60 * 1000, // 1 minute
+      cooldown: 5 * 60 * 1000, // 5 minutes
+      cost: 10000000, // $10M
+      effect: { type: 'damage_boost', value: 3 },
+    },
   },
   {
     id: 19,
@@ -143,6 +163,16 @@ export const PICKAXES: Pickaxe[] = [
     price: 2500000000,
     clickPower: 25000,
     specialAbility: '6 second charge, instant break',
+    activeAbility: {
+      id: 'nuclear_blast',
+      name: 'Nuclear Blast',
+      description: 'Instant break current rock',
+      icon: '☢️',
+      duration: 0, // instant
+      cooldown: 30 * 1000, // 30 seconds
+      cost: 2000000, // $2M
+      effect: { type: 'instant_break', value: 1 },
+    },
   },
   {
     id: 20,
@@ -158,6 +188,16 @@ export const PICKAXES: Pickaxe[] = [
     price: 10000000000,
     clickPower: 50000,
     specialAbility: '+15% everything for 30s (5min cooldown)',
+    activeAbility: {
+      id: 'nightmare_aura',
+      name: 'Nightmare Aura',
+      description: '+15% to everything for 30s',
+      icon: '🌙',
+      duration: 30 * 1000, // 30 seconds
+      cooldown: 5 * 60 * 1000, // 5 minutes
+      cost: 25000000, // $25M
+      effect: { type: 'all_boost', value: 0.15 },
+    },
   },
   {
     id: 22,

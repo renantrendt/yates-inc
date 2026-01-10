@@ -95,7 +95,7 @@ export default function TrinketSlot() {
           {ownedTrinkets.length === 0 ? (
             <p className="text-gray-500 text-xs">No trinkets owned. Buy some from the shop!</p>
           ) : (
-            <div className="space-y-1 max-h-48 overflow-y-auto">
+            <div className="space-y-1 max-h-48 overflow-y-auto scrollable-touch">
               {ownedTrinkets.map(trinket => {
                 const isEquipped = gameState.equippedTrinketIds.includes(trinket.id);
                 const rarityColor = RARITY_COLORS[trinket.rarity];
