@@ -38,6 +38,8 @@ export interface UserGameData {
   prestige_tokens?: number;
   owned_prestige_upgrade_ids?: string[];
   auto_prestige_enabled?: boolean;
+  // Achievements
+  unlocked_achievement_ids?: string[];
 }
 
 export interface UserPurchase {
@@ -114,6 +116,7 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       prestige_tokens: data.prestige_tokens,
       owned_prestige_upgrade_ids: data.owned_prestige_upgrade_ids,
       auto_prestige_enabled: data.auto_prestige_enabled,
+      unlocked_achievement_ids: data.unlocked_achievement_ids,
     };
 
     // FINAL CHECK: If version was provided and has changed, skip this save (a force save happened)
@@ -322,4 +325,3 @@ export async function forceImmediateSave(data: Partial<UserGameData> & { user_id
     return false;
   }
 }
-
