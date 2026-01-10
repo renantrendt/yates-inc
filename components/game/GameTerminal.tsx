@@ -421,6 +421,101 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     }
   }, [isBanAdmin, addToHistory]);
 
+  // Give items to another player
+  const giveToPlayer = useCallback(async (username: string, type: string, amount: number) => {
+    if (!isBanAdmin) {
+      addToHistory('❌ ACCESS DENIED - Only Bernardo/Logan can give items');
+      return;
+    }
+
+    try {
+      // Find user by username (case insensitive)
+      const { data: clientData, error: clientErr } = await supabase
+        .from('clients')
+        .select('id, username')
+        .ilike('username', username)
+        .maybeSingle();
+
+      // Also check employees
+      const { data: employeeData, error: employeeErr } = await supabase
+        .from('employees')
+        .select('id, name')
+        .ilike('name', username)
+        .maybeSingle();
+
+      const targetUser = clientData || employeeData;
+      const targetName = clientData?.username || employeeData?.name;
+      const targetId = targetUser?.id;
+
+      if (!targetUser || !targetId) {
+        addToHistory(`❌ User "${username}" not found`);
+        return;
+      }
+
+      // Fetch their game data
+      const { data: gameData, error: gameErr } = await supabase
+        .from('user_game_data')
+        .select('*')
+        .eq('user_id', targetId)
+        .maybeSingle();
+
+      if (gameErr) {
+        addToHistory(`❌ Error fetching game data: ${gameErr.message}`);
+        return;
+      }
+
+      if (!gameData) {
+        addToHistory(`❌ No game data for ${targetName}. They need to play first.`);
+        return;
+      }
+
+      // Update based on type
+      let updateData: Record<string, unknown> = {};
+      let successMsg = '';
+
+      switch (type.toLowerCase()) {
+        case 'money':
+          updateData.yates_dollars = (gameData.yates_dollars || 0) + amount;
+          successMsg = `💰 Gave $${amount.toLocaleString()} to ${targetName}!`;
+          break;
+        case 'tokens':
+          updateData.prestige_tokens = (gameData.prestige_tokens || 0) + amount;
+          successMsg = `✨ Gave ${amount} prestige tokens to ${targetName}!`;
+          break;
+        case 'miners':
+          updateData.miner_count = Math.min(360, (gameData.miner_count || 0) + amount);
+          successMsg = `👷 Gave ${amount} miners to ${targetName}!`;
+          break;
+        default:
+          addToHistory(`❌ Unknown type: ${type}. Use: money, tokens, miners`);
+          return;
+      }
+
+      // Save to Supabase
+      const { error: updateErr } = await supabase
+        .from('user_game_data')
+        .update(updateData)
+        .eq('user_id', targetId);
+
+      if (updateErr) {
+        addToHistory(`❌ Update failed: ${updateErr.message}`);
+        return;
+      }
+
+      addToHistory(successMsg);
+      addToHistory(`📊 ${targetName}'s new balance:`);
+      if (type.toLowerCase() === 'money') {
+        addToHistory(`   💵 $${(updateData.yates_dollars as number).toLocaleString()}`);
+      } else if (type.toLowerCase() === 'tokens') {
+        addToHistory(`   ✨ ${updateData.prestige_tokens} tokens`);
+      } else if (type.toLowerCase() === 'miners') {
+        addToHistory(`   👷 ${updateData.miner_count} miners`);
+      }
+    } catch (err) {
+      addToHistory(`❌ Error: ${err}`);
+    }
+  }, [isBanAdmin, addToHistory]);
+
   const executeCommand = useCallback((cmd: string) => {
     const trimmed = cmd.trim();
     addToHistory(`> ${trimmed}`);
@@ -453,9 +548,12 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('clear          - Clear terminal');
       if (isBanAdmin) {
         addToHistory('');
-        addToHistory('🔨 BAN COMMANDS (Admin only):');
-        addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        addToHistory('🔨 ADMIN COMMANDS (Bernardo/Logan only):');
+        addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         addToHistory('users                  - List all clients');
+        addToHistory('give [user] [type] [amt]');
+        addToHistory('                       - Give items to player');
+        addToHistory('                       - Types: money, tokens, miners');
         addToHistory('ban [id/email/name] [reason]');
         addToHistory('                       - Ban by ID, email, or username');
         addToHistory('unban [id]             - Unban a user');
@@ -565,6 +663,23 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     else if (trimmed === 'users') {
       listUsers();
     }
+    // Give command - give items to other players
+    else if (trimmed.startsWith('give ')) {
+      const parts = trimmed.slice(5).trim().split(' ');
+      if (parts.length < 3) {
+        addToHistory('❌ Usage: give [username] [type] [amount]');
+        addToHistory('   Types: money, tokens, miners');
+        addToHistory('   Example: give Logan money 1000000');
+      } else {
+        const [username, type, amtStr] = parts;
+        const amount = parseInt(amtStr, 10);
+        if (isNaN(amount) || amount <= 0) {
+          addToHistory('❌ Invalid amount. Must be a positive number.');
+        } else {
+          giveToPlayer(username, type, amount);
+        }
+      }
+    }
     else if (trimmed === 'clear' || trimmed === 'clear()') {
       setHistory(['🔒 ADMIN TERMINAL', 'Type help for commands', '']);
     }
@@ -627,7 +742,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory(`❌ Unknown command: ${trimmed}`);
       addToHistory('Type help for available commands');
     }
-  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, prestige, toggleAutoPrestige, gameState.autoPrestigeEnabled, gameState.isBlocked, dismissWarning, clearClickHistory]);
+  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers, giveToPlayer, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, prestige, toggleAutoPrestige, gameState.autoPrestigeEnabled, gameState.isBlocked, dismissWarning, clearClickHistory, givePickaxe]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

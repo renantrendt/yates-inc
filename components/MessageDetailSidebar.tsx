@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useMail } from '@/contexts/MailContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useClient } from '@/contexts/ClientContext';
 import { Conversation } from '@/types';
 
 interface MessageDetailSidebarProps {
@@ -13,18 +14,23 @@ interface MessageDetailSidebarProps {
 export default function MessageDetailSidebar({ conversation, onClose }: MessageDetailSidebarProps) {
   const { messages, fetchMessages, sendMessage } = useMail();
   const { employee } = useAuth();
+  const { client } = useClient();
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  
+  // Get current user (employee or client)
+  const currentUserId = employee?.id || client?.id || '';
+  const currentUserName = employee?.name || client?.username || '';
 
   useEffect(() => {
     fetchMessages(conversation.id);
   }, [conversation.id]);
 
   const handleSend = async () => {
-    if (!newMessage.trim() || !employee || isSending) return;
+    if (!newMessage.trim() || !currentUserId || isSending) return;
 
     setIsSending(true);
-    await sendMessage(conversation.id, newMessage, employee.id);
+    await sendMessage(conversation.id, newMessage, currentUserId);
     setNewMessage('');
     setIsSending(false);
   };
@@ -61,7 +67,7 @@ export default function MessageDetailSidebar({ conversation, onClose }: MessageD
           </div>
           <div className="text-xs text-gray-600 dark:text-gray-400">
             <p className="truncate">
-              <strong>To:</strong> {conversation.participant_names.filter(name => name !== employee?.name).join(', ')}
+              <strong>To:</strong> {conversation.participant_names.filter(name => name !== currentUserName).join(', ')}
             </p>
           </div>
         </div>
@@ -71,7 +77,7 @@ export default function MessageDetailSidebar({ conversation, onClose }: MessageD
           {messages
             .filter((msg) => msg.conversation_id === conversation.id)
             .map((msg) => {
-              const isSentByMe = msg.sender_id === employee?.id;
+              const isSentByMe = msg.sender_id === currentUserId;
               return (
                 <div
                   key={msg.id}
@@ -93,8 +99,13 @@ export default function MessageDetailSidebar({ conversation, onClose }: MessageD
                       )}
                     </div>
                     <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
-                    <div className="text-xs mt-1 opacity-70">
-                      {new Date(msg.created_at).toLocaleString()}
+                    <div className="text-xs mt-1 opacity-70 flex items-center justify-end gap-1">
+                      <span>{new Date(msg.created_at).toLocaleString()}</span>
+                      {isSentByMe && (
+                        <span className={`ml-1 ${msg.is_read ? 'text-blue-300' : 'text-gray-300'}`}>
+                          {msg.is_read ? '✓✓' : '✓'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
