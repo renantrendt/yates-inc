@@ -95,6 +95,8 @@ export interface GameState {
   abilityCooldowns: Record<string, number>; // ability id -> cooldown end timestamp
   // Achievements (permanently unlocked, persists across prestiges)
   unlockedAchievementIds: string[];
+  // Timestamp for sync conflict resolution
+  localUpdatedAt: number;
 }
 
 // Prestige requirements (Rock 19 = Titanium Quartz, Pickaxe 16 = Pin)
@@ -106,8 +108,8 @@ export const PRESTIGE_REQUIREMENTS = {
 // Yates special account (hidden admin - keeps money on prestige)
 export const YATES_ACCOUNT_ID = '000000';
 
-export const AUTOCLICKER_COST = 7000000; // $7M
-export const AUTOCLICKER_CPS = 13; // 13 clicks per second
+export const AUTOCLICKER_COST = 100000000; // $100M
+export const AUTOCLICKER_CPS = 10; // 10 clicks per second
 
 export interface CouponDrop {
   type: 'discount30' | 'discount50' | 'discount100';

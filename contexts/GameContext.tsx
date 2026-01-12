@@ -168,6 +168,8 @@ const defaultGameState: GameState = {
   abilityCooldowns: {},
   // Achievements (permanently unlocked)
   unlockedAchievementIds: [],
+  // Timestamp for sync conflict resolution
+  localUpdatedAt: Date.now(),
 };
 
 const STORAGE_KEY_PREFIX = 'yates-mining-game';
@@ -382,17 +384,46 @@ export function GameProvider({ children }: { children: ReactNode }) {
             const supabaseData = await fetchUserGameData(userId);
             if (supabaseData) {
               setGameState(prev => {
-                // Smart merge: Prioritize prestigeCount first, then totalClicks as tiebreaker
-                // After prestige, totalClicks resets to 0 but prestigeCount increases
-                // So we must compare prestige first to avoid old data overwriting new prestige
+                // Smart merge using timestamps as primary comparison
+                // Supabase stores updated_at as ISO string, localStorage has localUpdatedAt as timestamp
+                const localTime = prev.localUpdatedAt || 0;
+                const supabaseTime = supabaseData.updated_at 
+                  ? new Date(supabaseData.updated_at).getTime() 
+                  : 0;
+                
+                // Also get prestige/clicks for tiebreaker
                 const localPrestige = prev.prestigeCount || 0;
                 const supabasePrestige = supabaseData.prestige_count || 0;
                 const localClicks = prev.totalClicks || 0;
                 const supabaseClicks = supabaseData.total_clicks || 0;
                 
-                // Use Supabase data if it has higher prestige, or same prestige with more clicks
-                const useSupabase = supabasePrestige > localPrestige || 
-                  (supabasePrestige === localPrestige && supabaseClicks > localClicks);
+                // Determine which source to use
+                let useSupabase: boolean;
+                const timeDiff = Math.abs(localTime - supabaseTime);
+                
+                if (timeDiff < 10000) {
+                  // Timestamps within 10 seconds - use prestige then clicks as tiebreaker
+                  useSupabase = supabasePrestige > localPrestige || 
+                    (supabasePrestige === localPrestige && supabaseClicks > localClicks);
+                  console.log('🔄 SYNC: Timestamps close, using prestige/clicks tiebreaker', {
+                    localTime: new Date(localTime).toISOString(),
+                    supabaseTime: new Date(supabaseTime).toISOString(),
+                    timeDiff,
+                    localPrestige, supabasePrestige,
+                    localClicks, supabaseClicks,
+                    useSupabase
+                  });
+                } else {
+                  // Clear winner by timestamp
+                  useSupabase = supabaseTime > localTime;
+                  console.log('🔄 SYNC: Using timestamp comparison', {
+                    localTime: new Date(localTime).toISOString(),
+                    supabaseTime: new Date(supabaseTime).toISOString(),
+                    timeDiff,
+                    useSupabase,
+                    source: useSupabase ? 'SUPABASE' : 'LOCALSTORAGE'
+                  });
+                }
                 
                 return {
                 ...prev,
@@ -441,6 +472,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 unlockedAchievementIds: supabaseData.unlocked_achievement_ids?.length 
                   ? supabaseData.unlocked_achievement_ids 
                   : prev.unlockedAchievementIds,
+                // Keep whichever timestamp is newer (for future syncs)
+                localUpdatedAt: useSupabase ? supabaseTime : localTime,
               };
               });
             }
@@ -783,7 +816,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     try {
       // Always save to localStorage immediately (user-specific key)
       const storageKey = getStorageKey(userId);
-      localStorage.setItem(storageKey, JSON.stringify({ ...gameState, shopStock }));
+      const now = Date.now();
+      localStorage.setItem(storageKey, JSON.stringify({ ...gameState, localUpdatedAt: now, shopStock }));
 
       // If logged in, also sync to Supabase (debounced)
       // The debounce system has a cooldown after forceImmediateSave to prevent

@@ -40,6 +40,8 @@ export interface UserGameData {
   auto_prestige_enabled?: boolean;
   // Achievements
   unlocked_achievement_ids?: string[];
+  // Timestamp (set by Supabase)
+  updated_at?: string;
 }
 
 export interface UserPurchase {
