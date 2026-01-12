@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useClient } from '@/contexts/ClientContext';
 import { PICKAXES, ROCKS } from '@/lib/gameData';
 import { supabase } from '@/lib/supabase';
-import { TRINKETS } from '@/types/game';
+import { TRINKETS, TITLES, ACHIEVEMENTS } from '@/types/game';
 
 // Admin IDs that can ban users (only Bernardo and Logan)
 const BAN_ADMIN_IDS = ['123456', '000001'];
@@ -21,10 +21,18 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([
     '🔒 ADMIN TERMINAL',
+    '💀 Sup lil cheaters?',
     'Type help for commands',
     '',
   ]);
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  // Load command history from localStorage
+  const [commandHistory, setCommandHistory] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('yates-terminal-history');
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [cmActive, setCmActive] = useState(false);
   
@@ -33,7 +41,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const terminalRef = useRef<HTMLDivElement>(null);
   const cmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory, addMoney, addMiners, addPrestigeTokens, giveTrinket, givePickaxe, setTotalClicks, toggleAutoPrestige } = useGame();
+  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory, addMoney, addMiners, addPrestigeTokens, giveTrinket, givePickaxe, setTotalClicks, toggleAutoPrestige, giveTitle, equipTitle, unlockAllAchievements } = useGame();
   const { employee } = useAuth();
   const { client } = useClient();
   
@@ -529,23 +537,27 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     // Parse command
     if (trimmed === 'help') {
       addToHistory('');
-      addToHistory('⛏️ EMPLOYEE COMMANDS:');
-      addToHistory('━━━━━━━━━━━━━━━━━━━━━');
-      addToHistory('reset          - Reset your progress');
-      addToHistory(`pcx [id]       - Give pickaxe (1-${PICKAXES.length})`);
-      addToHistory('allpcx         - Unlock all pickaxes');
-      addToHistory(`allrocks       - Unlock all rocks (${ROCKS.length})`);
-      addToHistory('money [amt]    - Add Yates Dollars');
-      addToHistory('miners [amt]   - Add miners');
-      addToHistory('trinket [id]   - Give trinket');
-      addToHistory('trinkets       - List all trinkets');
-      addToHistory('tokens [amt]   - Add prestige tokens');
-      addToHistory('prestige       - Force prestige');
-      addToHistory('autoprestige   - Toggle auto-prestige');
-      addToHistory('cm             - Toggle auto-clicker (no autoprestige)');
-      addToHistory('unblock        - Clear anti-cheat block');
-      addToHistory('ability        - Get pcx with ability + $50M');
-      addToHistory('clear          - Clear terminal');
+      addToHistory('⛏️ EMPLOYEE CHEAT CODES (shhh 🤫):');
+      addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      addToHistory('reset          - Nuke your progress lmao');
+      addToHistory(`pcx [id]       - Yoink a pickaxe (1-${PICKAXES.length})`);
+      addToHistory('allpcx         - Give me ALL the pickaxes 😈');
+      addToHistory(`allrocks       - Unlock all ${ROCKS.length} rocks (lazy mode)`);
+      addToHistory('money [amt]    - Money printer go brrrr 💸');
+      addToHistory('miners [amt]   - Hire some homies');
+      addToHistory('trinket [id]   - Steal a trinket');
+      addToHistory('trinkets       - List the goods');
+      addToHistory('tokens [amt]   - Free prestige tokens!');
+      addToHistory('prestige       - Skip the grind 😎');
+      addToHistory('autoprestige   - AFK mode activated');
+      addToHistory('cm             - Cheat Mode™ (auto-click + auto-buy)');
+      addToHistory('unblock        - Get out of jail free card');
+      addToHistory('ability        - Test ability pickaxes + $50M');
+      addToHistory('clear          - Clean up your crimes');
+      addToHistory('clearhistory   - Wipe command history (↑↓)');
+      addToHistory('allachv        - Unlock ALL achievements + titles');
+      addToHistory('titles         - List all Pro Player titles');
+      addToHistory('title [id]     - Give yourself a title');
       if (isBanAdmin) {
         addToHistory('');
         addToHistory('🔨 ADMIN COMMANDS (Bernardo/Logan only):');
@@ -563,7 +575,8 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     } 
     else if (trimmed === 'reset') {
       resetGame();
-      addToHistory('🎮 Progress reset! Refresh the page.');
+      addToHistory('💀 RIP your progress. Gone. Reduced to atoms.');
+      addToHistory('   Refresh to complete the ritual.');
     }
     else if (trimmed.startsWith('pcx ')) {
       const idStr = trimmed.slice(4).trim();
@@ -582,7 +595,8 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         givePickaxe(p.id);
       });
       equipPickaxe(PICKAXES[PICKAXES.length - 1].id);
-      addToHistory(`⛏️ Unlocked ALL pickaxes! (${PICKAXES.length} total)`);
+      addToHistory(`⛏️ ALL ${PICKAXES.length} pickaxes acquired!`);
+      addToHistory('   You absolute menace 😈');
     }
     // All rocks command
     else if (trimmed === 'allrocks') {
@@ -599,10 +613,11 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       const amtStr = trimmed.slice(6).trim();
       const amt = parseInt(amtStr, 10);
       if (isNaN(amt)) {
-        addToHistory('❌ Invalid amount');
+        addToHistory('❌ Bro that\'s not a number');
       } else {
         addMoney(amt);
-        addToHistory(`💰 Added $${amt.toLocaleString()} Yates Dollars!`);
+        addToHistory(`💸 MONEY PRINTER GO BRRRR`);
+        addToHistory(`   +$${amt.toLocaleString()} deposited into your totally legit account`);
       }
     }
     // CM toggle
@@ -613,7 +628,14 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       if (gameState.isBlocked) {
         dismissWarning();
       }
-      addToHistory(cmActive ? '🛑 CM mode DEACTIVATED' : '🤫 CM mode ACTIVATED');
+      if (cmActive) {
+        addToHistory('🛑 Cheat Mode™ DEACTIVATED');
+        addToHistory('   Back to being a normie...');
+      } else {
+        addToHistory('🤫 Cheat Mode™ ACTIVATED');
+        addToHistory('   7 clicks/sec + auto-buy pickaxes');
+        addToHistory('   You didn\'t see anything 👀');
+      }
     }
     // Unblock command
     else if (trimmed === 'unblock') {
@@ -681,7 +703,63 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       }
     }
     else if (trimmed === 'clear' || trimmed === 'clear()') {
-      setHistory(['🔒 ADMIN TERMINAL', 'Type help for commands', '']);
+      setHistory(['🔒 ADMIN TERMINAL', '💀 Evidence destroyed. You\'re welcome.', '']);
+    }
+    // Clear command history from localStorage
+    else if (trimmed === 'clearhistory') {
+      setCommandHistory([]);
+      localStorage.removeItem('yates-terminal-history');
+      addToHistory('🧹 Command history wiped. No witnesses.');
+    }
+    // List all titles
+    else if (trimmed === 'titles') {
+      addToHistory('');
+      addToHistory('👑 PRO PLAYER TITLES:');
+      addToHistory('━━━━━━━━━━━━━━━━━━━━━━━');
+      TITLES.forEach(t => {
+        const owned = gameState.ownedTitleIds?.includes(t.id) ? '✅' : '❌';
+        addToHistory(`${owned} ${t.id} - ${t.name} (${t.category})`);
+      });
+      addToHistory('');
+      addToHistory('Use: title [id] to yoink one');
+    }
+    // Give a specific title
+    else if (trimmed.startsWith('title ')) {
+      const titleId = trimmed.slice(6).trim();
+      const title = TITLES.find(t => t.id === titleId);
+      if (!title) {
+        addToHistory(`❌ Unknown title: ${titleId}`);
+        addToHistory('Use "titles" to see available IDs');
+      } else {
+        giveTitle(titleId);
+        equipTitle(titleId);
+        addToHistory(`👑 You are now: ${title.name}`);
+        addToHistory(`   ${title.icon} ${title.description}`);
+        addToHistory('   Check Achievements panel to see it!');
+      }
+    }
+    // Give ALL achievements and titles
+    else if (trimmed === 'allachv') {
+      // Give all achievements
+      unlockAllAchievements();
+      
+      // Give all titles
+      TITLES.forEach(t => {
+        giveTitle(t.id);
+      });
+      
+      // Equip the coolest one
+      equipTitle('da_goat');
+      
+      addToHistory('');
+      addToHistory('🏆 ALL ACHIEVEMENTS UNLOCKED');
+      addToHistory(`   ${ACHIEVEMENTS.length} achievements acquired`);
+      addToHistory('');
+      addToHistory('👑 ALL TITLES UNLOCKED');
+      addToHistory(`   ${TITLES.length} titles acquired`);
+      addToHistory('   Equipped: Da Goat 🐐');
+      addToHistory('');
+      addToHistory('You absolute legend 😎');
     }
     // Miners command
     else if (trimmed.startsWith('miners ')) {
@@ -747,8 +825,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim()) {
-      // Add to command history
-      setCommandHistory(prev => [...prev, input.trim()]);
+      // Add to command history and save to localStorage
+      const newHistory = [...commandHistory, input.trim()].slice(-50); // Keep last 50 commands
+      setCommandHistory(newHistory);
+      localStorage.setItem('yates-terminal-history', JSON.stringify(newHistory));
       setHistoryIndex(-1);
       executeCommand(input);
       setInput('');

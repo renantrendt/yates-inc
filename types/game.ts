@@ -95,6 +95,14 @@ export interface GameState {
   abilityCooldowns: Record<string, number>; // ability id -> cooldown end timestamp
   // Achievements (permanently unlocked, persists across prestiges)
   unlockedAchievementIds: string[];
+  // Ranking system tracking
+  totalMoneyEarned: number;           // All-time money earned (never resets except for ranking period)
+  gameStartTime: number;              // Timestamp when game started (for speed ranking)
+  fastestPrestigeTime: number | null; // Fastest time to first prestige in ms
+  // Pro Player Titles
+  ownedTitleIds: string[];            // Titles earned from rankings
+  equippedTitleIds: string[];         // Currently equipped titles (max 1, or 2 with Title Master)
+  titleWinCounts: Record<string, number>; // How many times each title was won (for Da Goat)
   // Timestamp for sync conflict resolution
   localUpdatedAt: number;
 }
@@ -518,9 +526,128 @@ export const PRESTIGE_UPGRADES: PrestigeUpgrade[] = [
     description: '+50% to ALL stats',
     maxPurchases: 1,
   },
+  // Title Master - equip 2 titles at once
+  {
+    id: 'title_master',
+    name: 'Title Master',
+    cost: 30,
+    effects: {},
+    description: 'Equip 2 Pro Player titles at once',
+    maxPurchases: 1,
+  },
 ];
 
 export const PRESTIGE_TOKENS_PER_PRESTIGE = 2;
+
+// =====================
+// PRO PLAYER TITLES SYSTEM
+// =====================
+
+export type TitleNameStyle = 'normal' | 'gold' | 'silver' | 'diamond';
+
+export interface TitleBuffs {
+  moneyBonus?: number;           // % extra money
+  allBonus?: number;             // % to everything
+  speedBonus?: number;           // % faster (clicks, miners, etc.)
+  pcxDiscount?: number;          // % discount on pickaxes
+  prestigeMoneyRetention?: number; // % of money kept on prestige
+}
+
+export interface Title {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: 'money' | 'speed' | 'prestige' | 'secret';
+  placement: 1 | 2 | 'secret';   // 1st place, 2nd place, or secret
+  buffs: TitleBuffs;
+  nameStyle: TitleNameStyle;
+}
+
+export const TITLES: Title[] = [
+  // Money category
+  {
+    id: 'money_greedy',
+    name: 'Money Greedy',
+    description: '1st place in Money ranking',
+    icon: '💰',
+    category: 'money',
+    placement: 1,
+    buffs: { moneyBonus: 0.60 },
+    nameStyle: 'gold',
+  },
+  {
+    id: 'almost_there',
+    name: 'Almost There',
+    description: '2nd place in Money ranking',
+    icon: '💵',
+    category: 'money',
+    placement: 2,
+    buffs: { moneyBonus: 0.20 },
+    nameStyle: 'normal',
+  },
+  // Speed category
+  {
+    id: 'speedrunner',
+    name: 'Speedrunner',
+    description: '1st place in Speed ranking',
+    icon: '⚡',
+    category: 'speed',
+    placement: 1,
+    buffs: { speedBonus: 0.30, pcxDiscount: 0.40 },
+    nameStyle: 'diamond',
+  },
+  {
+    id: 'just_2_seconds',
+    name: 'Just 2 more seconds',
+    description: '2nd place in Speed ranking',
+    icon: '⏱️',
+    category: 'speed',
+    placement: 2,
+    buffs: { speedBonus: 0.10 },
+    nameStyle: 'normal',
+  },
+  // Prestige category
+  {
+    id: 'game_grinder',
+    name: 'Game Grinder',
+    description: '1st place in Prestige ranking',
+    icon: '🎮',
+    category: 'prestige',
+    placement: 1,
+    buffs: { allBonus: 0.40, prestigeMoneyRetention: 0.20 },
+    nameStyle: 'gold',
+  },
+  {
+    id: 'how_many_hours',
+    name: 'How many hours??',
+    description: '2nd place in Prestige ranking',
+    icon: '⏰',
+    category: 'prestige',
+    placement: 2,
+    buffs: { allBonus: 0.20 },
+    nameStyle: 'silver',
+  },
+  // Secret title - get any title 3+ times
+  {
+    id: 'da_goat',
+    name: 'Da Goat',
+    description: 'Win any title 3+ times',
+    icon: '🐐',
+    category: 'secret',
+    placement: 'secret',
+    buffs: { allBonus: 0.56 },
+    nameStyle: 'diamond',
+  },
+];
+
+export const TITLE_NAME_STYLES: Record<TitleNameStyle, string> = {
+  normal: 'text-white',
+  gold: 'text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]',
+  silver: 'text-gray-300 drop-shadow-[0_0_8px_rgba(209,213,219,0.4)]',
+  diamond: 'bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent animate-pulse drop-shadow-[0_0_12px_rgba(96,165,250,0.6)]',
+};
+
 // =====================
 // ACHIEVEMENTS SYSTEM
 // =====================
@@ -565,6 +692,20 @@ export const ACHIEVEMENTS: Achievement[] = [
     icon: '💰',
     category: 'money',
   },
+  {
+    id: 'money_1b',
+    name: 'Billionaire',
+    description: 'Earn $1,000,000,000',
+    icon: '💎',
+    category: 'money',
+  },
+  {
+    id: 'money_1t',
+    name: 'Trillionaire',
+    description: 'Earn $1,000,000,000,000',
+    icon: '👑',
+    category: 'money',
+  },
   // Prestige achievements
   {
     id: 'prestige_1',
@@ -599,6 +740,34 @@ export const ACHIEVEMENTS: Achievement[] = [
     name: 'Prestige Master',
     description: 'Prestige 10 times',
     icon: '👑',
+    category: 'prestige',
+  },
+  {
+    id: 'prestige_15',
+    name: 'Prestige Expert',
+    description: 'Prestige 15 times',
+    icon: '🔥',
+    category: 'prestige',
+  },
+  {
+    id: 'prestige_20',
+    name: 'Prestige Champion',
+    description: 'Prestige 20 times',
+    icon: '💪',
+    category: 'prestige',
+  },
+  {
+    id: 'prestige_27',
+    name: 'Prestige Overlord',
+    description: 'Prestige 27 times',
+    icon: '⚡',
+    category: 'prestige',
+  },
+  {
+    id: 'prestige_30',
+    name: 'Prestige Legend',
+    description: 'Prestige 30 times',
+    icon: '🏆',
     category: 'prestige',
   },
   // Miner achievements
@@ -652,6 +821,13 @@ export const ACHIEVEMENTS: Achievement[] = [
     icon: '🗿',
     category: 'trinket',
   },
+  {
+    id: 'trinket_all',
+    name: 'Trinket Hoarder',
+    description: 'Own all trinkets',
+    icon: '✨',
+    category: 'trinket',
+  },
 ];
 
 // Achievement checking functions - returns true if permanently unlocked OR currently meets criteria
@@ -667,11 +843,17 @@ export function checkAchievementUnlocked(achievement: Achievement, state: GameSt
     case 'max_rock': return state.currentRockId >= 29; // 29 total rocks
     case 'money_1m': return state.yatesDollars >= 1000000;
     case 'money_100m': return state.yatesDollars >= 100000000;
+    case 'money_1b': return state.yatesDollars >= 1000000000;
+    case 'money_1t': return state.yatesDollars >= 1000000000000;
     case 'prestige_1': return state.prestigeCount >= 1;
     case 'prestige_3': return state.prestigeCount >= 3;
     case 'prestige_5': return state.prestigeCount >= 5;
     case 'prestige_7': return state.prestigeCount >= 7;
     case 'prestige_10': return state.prestigeCount >= 10;
+    case 'prestige_15': return state.prestigeCount >= 15;
+    case 'prestige_20': return state.prestigeCount >= 20;
+    case 'prestige_27': return state.prestigeCount >= 27;
+    case 'prestige_30': return state.prestigeCount >= 30;
     case 'miner_1': return state.minerCount >= 1;
     case 'miner_10': return state.minerCount >= 10;
     case 'miner_100': return state.minerCount >= 100;
@@ -679,6 +861,7 @@ export function checkAchievementUnlocked(achievement: Achievement, state: GameSt
     case 'trinket_1': return state.ownedTrinketIds.length >= 1;
     case 'trinket_5': return state.ownedTrinketIds.length >= 5;
     case 'trinket_yates': return state.ownedTrinketIds.includes('yates_totem');
+    case 'trinket_all': return state.ownedTrinketIds.length >= TRINKETS.length;
     default: return false;
   }
 }
@@ -690,11 +873,17 @@ export function shouldUnlockAchievement(achievement: Achievement, state: GameSta
     case 'max_rock': return state.currentRockId >= 29;
     case 'money_1m': return state.yatesDollars >= 1000000;
     case 'money_100m': return state.yatesDollars >= 100000000;
+    case 'money_1b': return state.yatesDollars >= 1000000000;
+    case 'money_1t': return state.yatesDollars >= 1000000000000;
     case 'prestige_1': return state.prestigeCount >= 1;
     case 'prestige_3': return state.prestigeCount >= 3;
     case 'prestige_5': return state.prestigeCount >= 5;
     case 'prestige_7': return state.prestigeCount >= 7;
     case 'prestige_10': return state.prestigeCount >= 10;
+    case 'prestige_15': return state.prestigeCount >= 15;
+    case 'prestige_20': return state.prestigeCount >= 20;
+    case 'prestige_27': return state.prestigeCount >= 27;
+    case 'prestige_30': return state.prestigeCount >= 30;
     case 'miner_1': return state.minerCount >= 1;
     case 'miner_10': return state.minerCount >= 10;
     case 'miner_100': return state.minerCount >= 100;
@@ -702,6 +891,7 @@ export function shouldUnlockAchievement(achievement: Achievement, state: GameSta
     case 'trinket_1': return state.ownedTrinketIds.length >= 1;
     case 'trinket_5': return state.ownedTrinketIds.length >= 5;
     case 'trinket_yates': return state.ownedTrinketIds.includes('yates_totem');
+    case 'trinket_all': return state.ownedTrinketIds.length >= TRINKETS.length;
     default: return false;
   }
 }

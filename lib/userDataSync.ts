@@ -40,6 +40,14 @@ export interface UserGameData {
   auto_prestige_enabled?: boolean;
   // Achievements
   unlocked_achievement_ids?: string[];
+  // Ranking system
+  total_money_earned?: number;
+  game_start_time?: number;
+  fastest_prestige_time?: number | null;
+  // Pro Player Titles
+  owned_title_ids?: string[];
+  equipped_title_ids?: string[];
+  title_win_counts?: Record<string, number>;
   // Timestamp (set by Supabase)
   updated_at?: string;
 }
@@ -119,6 +127,12 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       owned_prestige_upgrade_ids: data.owned_prestige_upgrade_ids,
       auto_prestige_enabled: data.auto_prestige_enabled,
       unlocked_achievement_ids: data.unlocked_achievement_ids,
+      total_money_earned: data.total_money_earned,
+      game_start_time: data.game_start_time,
+      fastest_prestige_time: data.fastest_prestige_time,
+      owned_title_ids: data.owned_title_ids,
+      equipped_title_ids: data.equipped_title_ids,
+      title_win_counts: data.title_win_counts,
     };
 
     // FINAL CHECK: If version was provided and has changed, skip this save (a force save happened)

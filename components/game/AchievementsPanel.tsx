@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useGame } from '@/contexts/GameContext';
-import { ACHIEVEMENTS, checkAchievementUnlocked, TRINKETS } from '@/types/game';
+import { ACHIEVEMENTS, checkAchievementUnlocked, TRINKETS, TITLES, TITLE_NAME_STYLES, PRESTIGE_UPGRADES } from '@/types/game';
 
 interface AchievementsPanelProps {
   isTrinketIndexOpen: boolean;
@@ -11,7 +11,7 @@ interface AchievementsPanelProps {
 }
 
 export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketIndexOpen }: AchievementsPanelProps) {
-  const { gameState } = useGame();
+  const { gameState, equipTitle, unequipTitle } = useGame();
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -84,6 +84,78 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
                 style={{ width: `${(unlockedCount / totalCount) * 100}%` }}
               />
             </div>
+
+            {/* Pro Player Section - Only shows if player has titles */}
+            {gameState.ownedTitleIds && gameState.ownedTitleIds.length > 0 && (
+              <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-2 border-purple-500/50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-bold text-purple-300 flex items-center gap-2">
+                    <span>👑</span> Pro Player Titles
+                  </h3>
+                  {/* Show equipped count */}
+                  <div className="text-xs text-gray-400">
+                    {gameState.equippedTitleIds?.length || 0} / {gameState.ownedPrestigeUpgradeIds?.includes('title_master') ? 2 : 1} equipped
+                    {gameState.ownedPrestigeUpgradeIds?.includes('title_master') && (
+                      <span className="ml-1 text-purple-400">✨ Title Master</span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mb-3">Click to equip/unequip titles</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {TITLES.filter(title => gameState.ownedTitleIds?.includes(title.id)).map(title => {
+                    const isEquipped = gameState.equippedTitleIds?.includes(title.id);
+                    const hasTitleMaster = gameState.ownedPrestigeUpgradeIds?.includes('title_master');
+                    const maxEquipped = hasTitleMaster ? 2 : 1;
+                    const canEquip = !isEquipped && (gameState.equippedTitleIds?.length || 0) < maxEquipped;
+                    
+                    return (
+                      <button
+                        key={title.id}
+                        onClick={() => {
+                          if (isEquipped) {
+                            unequipTitle(title.id);
+                          } else {
+                            equipTitle(title.id);
+                          }
+                        }}
+                        className={`p-3 rounded-xl border-2 transition-all text-left ${
+                          isEquipped 
+                            ? 'bg-purple-600/30 border-purple-400 shadow-lg shadow-purple-500/30' 
+                            : canEquip
+                              ? 'bg-gray-800/50 border-gray-600 hover:border-purple-500/50 hover:bg-purple-900/20'
+                              : 'bg-gray-800/50 border-gray-600 opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">{title.icon}</span>
+                          <div className="flex-1">
+                            <p className={`font-bold ${TITLE_NAME_STYLES[title.nameStyle]}`}>
+                              {title.name}
+                            </p>
+                            <p className="text-xs text-gray-400">{title.description}</p>
+                            {/* Show buffs */}
+                            <div className="text-xs text-green-400 mt-1">
+                              {title.buffs.moneyBonus && `+${Math.round(title.buffs.moneyBonus * 100)}% money `}
+                              {title.buffs.allBonus && `+${Math.round(title.buffs.allBonus * 100)}% all `}
+                              {title.buffs.speedBonus && `+${Math.round(title.buffs.speedBonus * 100)}% speed `}
+                              {title.buffs.pcxDiscount && `${Math.round(title.buffs.pcxDiscount * 100)}% pcx discount `}
+                              {title.buffs.prestigeMoneyRetention && `keep ${Math.round(title.buffs.prestigeMoneyRetention * 100)}% on prestige`}
+                            </div>
+                          </div>
+                          {isEquipped ? (
+                            <span className="text-purple-400 text-xs font-bold px-2 py-1 bg-purple-500/20 rounded">EQUIPPED</span>
+                          ) : canEquip ? (
+                            <span className="text-gray-500 text-xs">Click to equip</span>
+                          ) : (
+                            <span className="text-gray-600 text-xs">Slot full</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Achievements by category */}
             {categoryOrder.map(category => {

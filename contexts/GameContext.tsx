@@ -8,7 +8,7 @@ import {
   TRINKETS, Trinket, TRINKET_SHOP_REFRESH_INTERVAL, TRINKET_SHOP_MIN_ITEMS, TRINKET_SHOP_MAX_ITEMS,
   MINER_TICK_INTERVAL, MINER_BASE_DAMAGE, MINER_MAX_COUNT, getMinerCost,
   PRESTIGE_UPGRADES, PrestigeUpgrade, PRESTIGE_TOKENS_PER_PRESTIGE, RARITY_COLORS,
-  ACHIEVEMENTS, shouldUnlockAchievement
+  ACHIEVEMENTS, shouldUnlockAchievement, TITLES
 } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
@@ -119,6 +119,13 @@ interface GameContextType {
   giveTrinket: (trinketId: string) => boolean;
   givePickaxe: (pickaxeId: number) => void;
   setTotalClicks: (clicks: number) => void;
+  unlockAllAchievements: () => void;
+  // Title functions
+  giveTitle: (titleId: string) => boolean;
+  equipTitle: (titleId: string) => boolean;
+  unequipTitle: (titleId: string) => void;
+  ownsTitle: (titleId: string) => boolean;
+  getTitleBonuses: () => { moneyBonus: number; allBonus: number; speedBonus: number; pcxDiscount: number; prestigeMoneyRetention: number };
   // Pickaxe ability functions
   activateAbility: () => boolean;
   getAbilityCooldownRemaining: () => number;
@@ -168,6 +175,14 @@ const defaultGameState: GameState = {
   abilityCooldowns: {},
   // Achievements (permanently unlocked)
   unlockedAchievementIds: [],
+  // Ranking system tracking
+  totalMoneyEarned: 0,
+  gameStartTime: Date.now(),
+  fastestPrestigeTime: null,
+  // Pro Player Titles
+  ownedTitleIds: [],
+  equippedTitleIds: [],
+  titleWinCounts: {},
   // Timestamp for sync conflict resolution
   localUpdatedAt: Date.now(),
 };
@@ -472,6 +487,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 unlockedAchievementIds: supabaseData.unlocked_achievement_ids?.length 
                   ? supabaseData.unlocked_achievement_ids 
                   : prev.unlockedAchievementIds,
+                // Ranking system (always use max values)
+                totalMoneyEarned: Math.max(
+                  prev.totalMoneyEarned || 0, 
+                  supabaseData.total_money_earned || 0
+                ),
+                gameStartTime: prev.gameStartTime || supabaseData.game_start_time || Date.now(),
+                fastestPrestigeTime: supabaseData.fastest_prestige_time ?? prev.fastestPrestigeTime,
+                // Pro Player Titles (merge - keep all owned)
+                ownedTitleIds: [...new Set([
+                  ...(prev.ownedTitleIds || []),
+                  ...(supabaseData.owned_title_ids || [])
+                ])],
+                equippedTitleIds: useSupabase 
+                  ? (supabaseData.equipped_title_ids || prev.equippedTitleIds || [])
+                  : (prev.equippedTitleIds || []),
+                titleWinCounts: {
+                  ...(prev.titleWinCounts || {}),
+                  ...(supabaseData.title_win_counts || {}),
+                },
                 // Keep whichever timestamp is newer (for future syncs)
                 localUpdatedAt: useSupabase ? supabaseTime : localTime,
               };
@@ -661,6 +695,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           currentRockId: newCurrentRockId,
           rocksMinedCount: prev.rocksMinedCount + totalRocksBroken,
           yatesDollars: prev.yatesDollars + totalMoney,
+          totalMoneyEarned: (prev.totalMoneyEarned || 0) + totalMoney,
           totalClicks: newTotalClicks,
           lastMinerEarnings: totalMoney,
         };
@@ -802,9 +837,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
         bonuses.minerDamageBonus += (e.minerDamageBonus || 0) + allB;
       }
     }
+
+    // Add bonuses from equipped titles (Pro Player system)
+    for (const titleId of (gameState.equippedTitleIds || [])) {
+      const title = TITLES.find(t => t.id === titleId);
+      if (title) {
+        const allB = title.buffs.allBonus || 0;
+        const speedB = title.buffs.speedBonus || 0;
+        bonuses.moneyBonus += (title.buffs.moneyBonus || 0) + allB;
+        bonuses.rockDamageBonus += allB;
+        bonuses.clickSpeedBonus += allB + speedB;
+        bonuses.couponBonus += allB;
+        bonuses.minerSpeedBonus += allB + speedB;
+        bonuses.minerDamageBonus += allB;
+      }
+    }
     
     return bonuses;
-  }, [gameState.equippedTrinketIds, gameState.ownedPrestigeUpgradeIds]);
+  }, [gameState.equippedTrinketIds, gameState.ownedPrestigeUpgradeIds, gameState.equippedTitleIds]);
 
   // Save to localStorage and Supabase whenever state changes
   useEffect(() => {
@@ -864,6 +914,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
           auto_prestige_enabled: gameState.autoPrestigeEnabled,
           // Achievements
           unlocked_achievement_ids: gameState.unlockedAchievementIds,
+          // Ranking system
+          total_money_earned: gameState.totalMoneyEarned,
+          game_start_time: gameState.gameStartTime,
+          fastest_prestige_time: gameState.fastestPrestigeTime,
+          // Pro Player Titles
+          owned_title_ids: gameState.ownedTitleIds,
+          equipped_title_ids: gameState.equippedTitleIds,
+          title_win_counts: gameState.titleWinCounts,
         });
       }
     } catch (err) {
@@ -1104,6 +1162,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return {
         ...prev,
         yatesDollars: prev.yatesDollars + earnedMoney,
+        totalMoneyEarned: (prev.totalMoneyEarned || 0) + earnedMoney,
         totalClicks: newTotalClicks,
         currentRockHP: newRockHP,
         currentRockId: newCurrentRockId,
@@ -1306,6 +1365,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Calculate new multiplier: starts at 1.1, +0.1 per prestige
     const newPrestigeCount = gameState.prestigeCount + 1;
     const newMultiplier = 1.0 + (newPrestigeCount * 0.1);
+    
+    // Track fastest prestige time (for ranking)
+    const prestigeTime = Date.now() - (gameState.gameStartTime || Date.now());
+    const newFastestTime = gameState.fastestPrestigeTime === null 
+      ? prestigeTime 
+      : Math.min(gameState.fastestPrestigeTime, prestigeTime);
 
     setGameState((prev) => ({
       ...prev,
@@ -1334,6 +1399,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       prestigeTokens: prev.prestigeTokens + PRESTIGE_TOKENS_PER_PRESTIGE,
       // Consume totem protection if it was used
       hasTotemProtection: false,
+      // Ranking: track fastest prestige time and reset game start
+      fastestPrestigeTime: newFastestTime,
+      gameStartTime: Date.now(), // Reset for next prestige attempt
     }));
 
     // Force immediate save to Supabase after prestige (bypass debounce)
@@ -1361,11 +1429,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
         equipped_trinket_ids: hasProtection
           ? gameState.equippedTrinketIds.filter(id => id !== 'totem')
           : gameState.equippedTrinketIds,
+        // Ranking system
+        fastest_prestige_time: newFastestTime,
+        game_start_time: Date.now(),
+        total_money_earned: gameState.totalMoneyEarned,
       });
     }
 
     return { amountToCompany, newMultiplier };
-  }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, gameState.ownedTrinketIds, gameState.equippedTrinketIds, gameState.prestigeTokens, userId, userType]);
+  }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, gameState.ownedTrinketIds, gameState.equippedTrinketIds, gameState.prestigeTokens, gameState.gameStartTime, gameState.fastestPrestigeTime, gameState.totalMoneyEarned, userId, userType]);
 
   // =====================
   // TRINKET FUNCTIONS
@@ -1703,6 +1775,89 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  // Unlock all achievements (for terminal command)
+  const unlockAllAchievements = useCallback(() => {
+    const allIds = ACHIEVEMENTS.map(a => a.id);
+    setGameState(prev => ({
+      ...prev,
+      unlockedAchievementIds: [...new Set([...(prev.unlockedAchievementIds || []), ...allIds])],
+    }));
+  }, []);
+
+  // =====================
+  // TITLE FUNCTIONS
+  // =====================
+
+  const ownsTitle = useCallback((titleId: string) => {
+    return gameState.ownedTitleIds?.includes(titleId) || false;
+  }, [gameState.ownedTitleIds]);
+
+  const giveTitle = useCallback((titleId: string) => {
+    const title = TITLES.find(t => t.id === titleId);
+    if (!title) return false;
+    setGameState(prev => ({
+      ...prev,
+      ownedTitleIds: [...new Set([...(prev.ownedTitleIds || []), titleId])],
+      // Track win counts for Da Goat
+      titleWinCounts: {
+        ...(prev.titleWinCounts || {}),
+        [titleId]: ((prev.titleWinCounts || {})[titleId] || 0) + 1,
+      },
+    }));
+    return true;
+  }, []);
+
+  const equipTitle = useCallback((titleId: string) => {
+    if (!gameState.ownedTitleIds?.includes(titleId)) return false;
+    if (gameState.equippedTitleIds?.includes(titleId)) return false;
+    
+    // Check if player has Title Master upgrade (allows 2 titles)
+    const hasTitleMaster = gameState.ownedPrestigeUpgradeIds?.includes('title_master');
+    const maxEquipped = hasTitleMaster ? 2 : 1;
+
+    setGameState(prev => {
+      let newEquipped = [...(prev.equippedTitleIds || []), titleId];
+      // If over limit, remove oldest
+      if (newEquipped.length > maxEquipped) {
+        newEquipped = newEquipped.slice(-maxEquipped);
+      }
+      return { ...prev, equippedTitleIds: newEquipped };
+    });
+
+    return true;
+  }, [gameState.ownedTitleIds, gameState.equippedTitleIds, gameState.ownedPrestigeUpgradeIds]);
+
+  const unequipTitle = useCallback((titleId: string) => {
+    setGameState(prev => ({
+      ...prev,
+      equippedTitleIds: (prev.equippedTitleIds || []).filter(id => id !== titleId),
+    }));
+  }, []);
+
+  // Calculate bonuses from equipped titles
+  const getTitleBonuses = useCallback(() => {
+    const bonuses = {
+      moneyBonus: 0,
+      allBonus: 0,
+      speedBonus: 0,
+      pcxDiscount: 0,
+      prestigeMoneyRetention: 0,
+    };
+
+    for (const titleId of (gameState.equippedTitleIds || [])) {
+      const title = TITLES.find(t => t.id === titleId);
+      if (title) {
+        bonuses.moneyBonus += title.buffs.moneyBonus || 0;
+        bonuses.allBonus += title.buffs.allBonus || 0;
+        bonuses.speedBonus += title.buffs.speedBonus || 0;
+        bonuses.pcxDiscount += title.buffs.pcxDiscount || 0;
+        bonuses.prestigeMoneyRetention += title.buffs.prestigeMoneyRetention || 0;
+      }
+    }
+
+    return bonuses;
+  }, [gameState.equippedTitleIds]);
+
   // Always render - game will work with default state while data loads
 
   return (
@@ -1760,6 +1915,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         giveTrinket,
         givePickaxe,
         setTotalClicks,
+        unlockAllAchievements,
+        // Title functions
+        giveTitle,
+        equipTitle,
+        unequipTitle,
+        ownsTitle,
+        getTitleBonuses,
         // Pickaxe ability functions
         activateAbility,
         getAbilityCooldownRemaining,

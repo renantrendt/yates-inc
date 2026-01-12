@@ -16,6 +16,7 @@ import PrestigeStore from './PrestigeStore';
 import AchievementsPanel from './AchievementsPanel';
 import AbilityButton from './AbilityButton';
 import TrinketIndex from './TrinketIndex';
+import RankingPanel from './RankingPanel';
 import { MINER_BASE_DAMAGE } from '@/types/game';
 import { ROCKS, getRockById } from '@/lib/gameData';
 
@@ -69,6 +70,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const [showRockSelector, setShowRockSelector] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const [showTrinketIndex, setShowTrinketIndex] = useState(false);
+  const [showRanking, setShowRanking] = useState(false);
   const [displayProgress, setDisplayProgress] = useState(0);
   const [rockBroken, setRockBroken] = useState(false);
 
@@ -238,6 +240,11 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       // 'I' key toggles terminal
       if (e.key === 'i' || e.key === 'I') {
         setShowTerminal(prev => !prev);
+      }
+
+      // 'R' key toggles ranking panel
+      if (e.key === 'r' || e.key === 'R') {
+        setShowRanking(prev => !prev);
       }
 
       // '+' key to mine (sneaky mode)
@@ -461,13 +468,22 @@ export default function MiningGame({ onExit }: MiningGameProps) {
           <TrinketSlot />
         </div>
 
-        {/* Shop Button + Notification */}
+        {/* Shop Button + Notification + Ranking */}
         <div className="flex flex-col items-end gap-1 sm:gap-2">
           <button
             onClick={() => setShowShop(true)}
             className="bg-gradient-to-br from-amber-600 to-amber-800 hover:from-amber-500 hover:to-amber-700 active:from-amber-700 active:to-amber-900 text-white font-bold py-2 sm:py-3 px-3 sm:px-6 rounded-lg sm:rounded-xl text-sm sm:text-lg transition-all shadow-lg hover:scale-105 active:scale-95 border border-amber-400/30 touch-manipulation"
           >
             🛒 <span className="hidden xs:inline">SHOP</span>
+          </button>
+
+          {/* Ranking Button */}
+          <button
+            onClick={() => setShowRanking(true)}
+            className="bg-gradient-to-br from-cyan-600 to-cyan-800 hover:from-cyan-500 hover:to-cyan-700 active:from-cyan-700 active:to-cyan-900 text-white font-bold py-1.5 sm:py-2 px-3 sm:px-4 rounded-lg sm:rounded-xl text-xs sm:text-sm transition-all shadow-lg hover:scale-105 active:scale-95 border border-cyan-400/30 touch-manipulation"
+          >
+            🏆 <span className="hidden xs:inline">RANKING</span>
+            <span className="hidden md:inline text-cyan-300 text-xs ml-1">(R)</span>
           </button>
 
           {/* New Pickaxe Available Notification */}
@@ -660,6 +676,9 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
       {/* Rock Selector Modal */}
       {showRockSelector && <RockSelector onClose={() => setShowRockSelector(false)} />}
+
+      {/* Ranking Panel */}
+      <RankingPanel isOpen={showRanking} onClose={() => setShowRanking(false)} />
 
       {/* Miner Sprites - positioned at bottom of screen */}
       <MinerSprites />
