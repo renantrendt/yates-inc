@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from './supabase';
 
 export interface UserGameData {
   user_id: string;
@@ -207,9 +207,11 @@ export async function savePurchase(purchase: UserPurchase): Promise<boolean> {
 }
 
 // Throttled save - saves at most every SAVE_INTERVAL ms
-const SAVE_INTERVAL = 5000; // Save every 5 seconds max (reduced network spam)
-const FORCE_SAVE_COOLDOWN = 5000; // Block regular saves for 5s after force save (just enough to clear stale React closures)
+const SAVE_INTERVAL = 3000; // Save every 3 seconds max (balanced reliability vs network)
+const FORCE_SAVE_COOLDOWN = 3000; // Block regular saves for 3s after force save (match interval)
+const IDLE_SAVE_DELAY = 2000; // Save after 2s of no state changes
 let saveTimeout: NodeJS.Timeout | null = null;
+let idleSaveTimeout: NodeJS.Timeout | null = null; // For idle save mechanism
 let pendingData: (Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }) | null = null;
 let lastSaveTime = 0;
 let isSaving = false;
@@ -246,6 +248,19 @@ export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_i
       }
     }, timeUntilNextSave);
   }
+  
+  // IDLE SAVE: Schedule a save that fires if no new changes come in for 2 seconds
+  // This ensures data is saved even when user stops playing
+  if (idleSaveTimeout) {
+    clearTimeout(idleSaveTimeout);
+  }
+  idleSaveTimeout = setTimeout(() => {
+    if (pendingData && !isSaving) {
+      console.log('💤 IDLE SAVE: No activity for 2s, saving pending data...');
+      executeSave();
+    }
+    idleSaveTimeout = null;
+  }, IDLE_SAVE_DELAY);
 }
 
 async function executeSave(): Promise<void> {
@@ -269,9 +284,14 @@ async function executeSave(): Promise<void> {
   pendingData = null;
   lastSaveTime = Date.now();
   
+  // Clear both timeouts when executing save
   if (saveTimeout) {
     clearTimeout(saveTimeout);
     saveTimeout = null;
+  }
+  if (idleSaveTimeout) {
+    clearTimeout(idleSaveTimeout);
+    idleSaveTimeout = null;
   }
   
   try {
@@ -292,9 +312,14 @@ async function executeSave(): Promise<void> {
 
 // Force immediate save (call on logout or page unload)
 export async function flushPendingData(): Promise<void> {
+  // Clear all timeouts
   if (saveTimeout) {
     clearTimeout(saveTimeout);
     saveTimeout = null;
+  }
+  if (idleSaveTimeout) {
+    clearTimeout(idleSaveTimeout);
+    idleSaveTimeout = null;
   }
   
   if (pendingData && !isSaving) {
@@ -321,12 +346,16 @@ export async function forceImmediateSave(data: Partial<UserGameData> & { user_id
   saveVersion++;
   // Set cooldown to block stale saves from useEffects that captured old state
   lastForceSaveTime = Date.now();
-  console.log('⚡ FORCE SAVE: Invalidated old saves, version now:', saveVersion, '+ 2s cooldown active');
+  console.log('⚡ FORCE SAVE: Invalidated old saves, version now:', saveVersion, '+ 3s cooldown active');
   
-  // Clear any pending debounced save
+  // Clear any pending debounced saves and idle saves
   if (saveTimeout) {
     clearTimeout(saveTimeout);
     saveTimeout = null;
+  }
+  if (idleSaveTimeout) {
+    clearTimeout(idleSaveTimeout);
+    idleSaveTimeout = null;
   }
   pendingData = null;
   
@@ -340,4 +369,80 @@ export async function forceImmediateSave(data: Partial<UserGameData> & { user_id
     console.error('⚡ FORCE SAVE EXCEPTION:', err);
     return false;
   }
+}
+
+// Fire-and-forget save using fetch with keepalive
+// This survives page unload better than regular async requests
+// Used as fallback when beforeunload fires
+export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }): void {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('❌ KEEPALIVE SAVE: Missing Supabase config');
+    return;
+  }
+
+  const fullData = {
+    user_id: data.user_id,
+    user_type: data.user_type,
+    yates_dollars: data.yates_dollars,
+    total_clicks: data.total_clicks,
+    current_pickaxe_id: data.current_pickaxe_id,
+    current_rock_id: data.current_rock_id,
+    current_rock_hp: data.current_rock_hp,
+    rocks_mined_count: data.rocks_mined_count,
+    owned_pickaxe_ids: data.owned_pickaxe_ids,
+    coupons_30: data.coupons_30,
+    coupons_50: data.coupons_50,
+    coupons_100: data.coupons_100,
+    has_seen_cutscene: data.has_seen_cutscene,
+    updated_at: new Date().toISOString(),
+    has_autoclicker: data.has_autoclicker,
+    autoclicker_enabled: data.autoclicker_enabled,
+    prestige_count: data.prestige_count,
+    prestige_multiplier: data.prestige_multiplier,
+    anti_cheat_warnings: data.anti_cheat_warnings,
+    is_on_watchlist: data.is_on_watchlist,
+    is_blocked: data.is_blocked,
+    appeal_pending: data.appeal_pending,
+    owned_trinket_ids: data.owned_trinket_ids,
+    equipped_trinket_ids: data.equipped_trinket_ids,
+    trinket_shop_items: data.trinket_shop_items,
+    trinket_shop_last_refresh: data.trinket_shop_last_refresh,
+    has_totem_protection: data.has_totem_protection,
+    miner_count: data.miner_count,
+    miner_last_tick: data.miner_last_tick,
+    prestige_tokens: data.prestige_tokens,
+    owned_prestige_upgrade_ids: data.owned_prestige_upgrade_ids,
+    auto_prestige_enabled: data.auto_prestige_enabled,
+    unlocked_achievement_ids: data.unlocked_achievement_ids,
+    total_money_earned: data.total_money_earned,
+    game_start_time: data.game_start_time,
+    fastest_prestige_time: data.fastest_prestige_time,
+    owned_title_ids: data.owned_title_ids,
+    equipped_title_ids: data.equipped_title_ids,
+    title_win_counts: data.title_win_counts,
+  };
+
+  const url = `${supabaseUrl}/rest/v1/user_game_data?on_conflict=user_id`;
+  
+  console.log('🚀 KEEPALIVE SAVE: Firing save before page unload...', { prestige: data.prestige_count });
+  
+  // Use fetch with keepalive - this survives page unload
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'Prefer': 'resolution=merge-duplicates',
+    },
+    body: JSON.stringify(fullData),
+    keepalive: true, // This is the key - survives page unload
+  }).catch(() => {
+    // Fire and forget - we can't do anything with errors during page unload
+  });
+}
+
+// Get the current pending data (for use in keepalive save)
+export function getPendingData(): (Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }) | null {
+  return pendingData;
 }

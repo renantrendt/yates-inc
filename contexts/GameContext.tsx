@@ -14,7 +14,7 @@ import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
 import { useAuth } from './AuthContext';
 import { useClient } from './ClientContext';
-import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData, savePurchase, forceImmediateSave } from '@/lib/userDataSync';
+import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData, savePurchase, forceImmediateSave, keepaliveSave, getPendingData } from '@/lib/userDataSync';
 import { supabase } from '@/lib/supabase';
 
 // Helper to add product sale contribution to active budget (50% of sale)
@@ -274,6 +274,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   
   // Ref to track if we're still loading initial data (prevent saves during load)
   const isLoadingRef = useRef(true);
+  
+  // Ref for unload handler to access latest gameState (avoids stale closures)
+  const unloadGameStateRef = useRef(gameState);
+  unloadGameStateRef.current = gameState;
 
   // Check if click rate exceeds threshold and trigger warning if needed
   const checkClickRate = useCallback((): boolean => {
@@ -366,6 +370,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // Safety timeout - ensure game loads even if Supabase hangs
       const timeoutId = setTimeout(() => {
         // Timeout reached - game continues with localStorage
+        // Make sure saves can happen even if Supabase never responds
+        if (isLoadingRef.current) {
+          console.log('⚠️ Supabase load timeout - enabling saves with localStorage data');
+          isLoadingRef.current = false;
+        }
       }, 5000); // 5 second timeout
 
       try {
@@ -392,6 +401,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
               setBanReason(banData.ban_reason || 'No reason provided');
               setIsLoaded(true);
               clearTimeout(timeoutId);
+              isLoadingRef.current = false; // IMPORTANT: Allow saves even for banned users
               return; // Don't load game data for banned users
             }
 
@@ -935,12 +945,74 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
+        // Try async flush first
         flushPendingData();
+        // Also fire keepalive save as backup with current state
+        const state = unloadGameStateRef.current;
+        keepaliveSave({
+          user_id: userId,
+          user_type: userType,
+          yates_dollars: state.yatesDollars,
+          total_clicks: state.totalClicks,
+          current_pickaxe_id: state.currentPickaxeId,
+          current_rock_id: state.currentRockId,
+          current_rock_hp: state.currentRockHP,
+          rocks_mined_count: state.rocksMinedCount,
+          owned_pickaxe_ids: state.ownedPickaxeIds,
+          coupons_30: state.coupons.discount30,
+          coupons_50: state.coupons.discount50,
+          coupons_100: state.coupons.discount100,
+          has_seen_cutscene: state.hasSeenCutscene,
+          has_autoclicker: state.hasAutoclicker,
+          autoclicker_enabled: state.autoclickerEnabled,
+          prestige_count: state.prestigeCount,
+          prestige_multiplier: state.prestigeMultiplier,
+          miner_count: state.minerCount,
+          prestige_tokens: state.prestigeTokens,
+          owned_prestige_upgrade_ids: state.ownedPrestigeUpgradeIds,
+          owned_trinket_ids: state.ownedTrinketIds,
+          equipped_trinket_ids: state.equippedTrinketIds,
+          total_money_earned: state.totalMoneyEarned,
+          unlocked_achievement_ids: state.unlockedAchievementIds,
+          owned_title_ids: state.ownedTitleIds,
+          equipped_title_ids: state.equippedTitleIds,
+        });
       }
     };
 
     const handleBeforeUnload = () => {
+      // Try async flush (may not complete)
       flushPendingData();
+      // Fire keepalive save - this survives page unload
+      const state = unloadGameStateRef.current;
+      keepaliveSave({
+        user_id: userId,
+        user_type: userType,
+        yates_dollars: state.yatesDollars,
+        total_clicks: state.totalClicks,
+        current_pickaxe_id: state.currentPickaxeId,
+        current_rock_id: state.currentRockId,
+        current_rock_hp: state.currentRockHP,
+        rocks_mined_count: state.rocksMinedCount,
+        owned_pickaxe_ids: state.ownedPickaxeIds,
+        coupons_30: state.coupons.discount30,
+        coupons_50: state.coupons.discount50,
+        coupons_100: state.coupons.discount100,
+        has_seen_cutscene: state.hasSeenCutscene,
+        has_autoclicker: state.hasAutoclicker,
+        autoclicker_enabled: state.autoclickerEnabled,
+        prestige_count: state.prestigeCount,
+        prestige_multiplier: state.prestigeMultiplier,
+        miner_count: state.minerCount,
+        prestige_tokens: state.prestigeTokens,
+        owned_prestige_upgrade_ids: state.ownedPrestigeUpgradeIds,
+        owned_trinket_ids: state.ownedTrinketIds,
+        equipped_trinket_ids: state.equippedTrinketIds,
+        total_money_earned: state.totalMoneyEarned,
+        unlocked_achievement_ids: state.unlockedAchievementIds,
+        owned_title_ids: state.ownedTitleIds,
+        equipped_title_ids: state.equippedTitleIds,
+      });
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
