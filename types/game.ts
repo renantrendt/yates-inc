@@ -77,6 +77,7 @@ export interface GameState {
   trinketShopItems: string[];      // IDs of trinkets currently in shop
   trinketShopLastRefresh: number;  // timestamp
   hasTotemProtection: boolean;     // Totem active for next prestige
+  hasStocksUnlocked: boolean;      // Stock market unlocked (persists across prestige)
   // Miners
   minerCount: number;
   minerLastTick: number;           // timestamp of last miner tick

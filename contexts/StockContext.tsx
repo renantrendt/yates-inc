@@ -13,9 +13,9 @@ const PRICE_UPDATE_INTERVAL = 15 * 60 * 1000; // 15 minutes in ms
 const INITIAL_PRICE = 1000000; // Start at 1M
 const MAX_PRICE_HISTORY = 100; // Keep last 100 price points
 
-// Unlock requirements
+// Unlock requirements (rock 16 + pickaxe ID 12)
 const REQUIRED_ROCK_ID = 16;
-const REQUIRED_PICKAXE_COUNT = 12;
+const REQUIRED_PICKAXE_ID = 12;
 
 // Employee monthly bonus
 const EMPLOYEE_MONTHLY_STOCKS = 4;
@@ -243,9 +243,12 @@ export function StockProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isLoaded, employee]);
 
-  // Check if user can access stock market
-  const canBuyStocks = useCallback((currentRockId: number, ownedPickaxeIds: number[]) => {
-    return currentRockId >= REQUIRED_ROCK_ID && ownedPickaxeIds.length >= REQUIRED_PICKAXE_COUNT;
+  // Check if user can access stock market (persists once unlocked)
+  const canBuyStocks = useCallback((currentRockId: number, ownedPickaxeIds: number[], hasStocksUnlocked: boolean = false) => {
+    // If already unlocked permanently, always allow access
+    if (hasStocksUnlocked) return true;
+    // Otherwise check requirements: rock 16 AND pickaxe ID 12
+    return currentRockId >= REQUIRED_ROCK_ID && ownedPickaxeIds.includes(REQUIRED_PICKAXE_ID);
   }, []);
 
   // Buy stocks using game money

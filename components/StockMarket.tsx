@@ -29,7 +29,7 @@ export default function StockMarket({ isOpen, onClose }: StockMarketProps) {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const isUnlocked = canBuyStocks(gameState.currentRockId, gameState.ownedPickaxeIds);
+  const isUnlocked = canBuyStocks(gameState.currentRockId, gameState.ownedPickaxeIds, gameState.hasStocksUnlocked);
   const isEmployee = !!employee;
 
   // Calculate price change

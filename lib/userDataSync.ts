@@ -31,6 +31,7 @@ export interface UserGameData {
   trinket_shop_items?: unknown[];
   trinket_shop_last_refresh?: number;
   has_totem_protection?: boolean;
+  has_stocks_unlocked?: boolean;
   // Miners
   miner_count?: number;
   miner_last_tick?: number;
@@ -121,6 +122,7 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       trinket_shop_items: data.trinket_shop_items,
       trinket_shop_last_refresh: data.trinket_shop_last_refresh,
       has_totem_protection: data.has_totem_protection,
+      has_stocks_unlocked: data.has_stocks_unlocked,
       miner_count: data.miner_count,
       miner_last_tick: data.miner_last_tick,
       prestige_tokens: data.prestige_tokens,
@@ -408,6 +410,7 @@ export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; u
     trinket_shop_items: data.trinket_shop_items,
     trinket_shop_last_refresh: data.trinket_shop_last_refresh,
     has_totem_protection: data.has_totem_protection,
+    has_stocks_unlocked: data.has_stocks_unlocked,
     miner_count: data.miner_count,
     miner_last_tick: data.miner_last_tick,
     prestige_tokens: data.prestige_tokens,

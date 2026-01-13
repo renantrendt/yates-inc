@@ -86,17 +86,22 @@ export function PaycheckProvider({ children }: { children: React.ReactNode }) {
     ? paychecks.find((p) => p.employee_id === employee.id) || null
     : null;
 
-  // Update salary for an employee (CEO only)
+  // Update salary for an employee (CEO only) - max $1B
+  const MAX_SALARY = 1000000000; // $1B cap
+  
   const updateSalary = async (
     employeeId: string,
     amount: number,
     currency: 'yates' | 'walters'
   ) => {
+    // Cap salary at $1B
+    const cappedAmount = Math.min(amount, MAX_SALARY);
+    
     try {
       const { error } = await supabase
         .from('employee_paychecks')
         .update({
-          salary_amount: amount,
+          salary_amount: cappedAmount,
           salary_currency: currency,
           updated_at: new Date().toISOString(),
         })

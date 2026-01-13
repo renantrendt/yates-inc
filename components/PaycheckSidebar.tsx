@@ -40,7 +40,9 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
 
   const handleSave = async (employeeId: string) => {
     setSaving(true);
-    await updateSalary(employeeId, parseFloat(editAmount) || 0, editCurrency);
+    // Cap at $1B
+    const amount = Math.min(parseFloat(editAmount) || 0, 1000000000);
+    await updateSalary(employeeId, amount, editCurrency);
     const newInterval = parseInt(editInterval) || 5;
     if (newInterval > 0) {
       await updatePayInterval(employeeId, newInterval);
@@ -168,8 +170,9 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
                           onChange={(e) => setEditAmount(e.target.value)}
                           onKeyDown={(e) => handleKeyDown(e, paycheck.employee_id)}
                           className="flex-1 px-3 py-2 border rounded dark:bg-gray-600 dark:border-gray-500 dark:text-white text-sm"
-                          placeholder="Amount"
+                          placeholder="Amount (max $1B)"
                           min="0"
+                          max="1000000000"
                           step="0.01"
                           autoFocus
                         />

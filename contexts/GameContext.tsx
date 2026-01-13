@@ -162,6 +162,7 @@ const defaultGameState: GameState = {
   trinketShopItems: [],
   trinketShopLastRefresh: 0,
   hasTotemProtection: false,
+  hasStocksUnlocked: false,
   // Miners
   minerCount: 0,
   minerLastTick: Date.now(),
@@ -485,6 +486,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
                   : prev.trinketShopItems,
                 trinketShopLastRefresh: supabaseData.trinket_shop_last_refresh ?? prev.trinketShopLastRefresh,
                 hasTotemProtection: useSupabase ? (supabaseData.has_totem_protection ?? prev.hasTotemProtection) : prev.hasTotemProtection,
+                hasStocksUnlocked: useSupabase ? (supabaseData.has_stocks_unlocked ?? prev.hasStocksUnlocked) : prev.hasStocksUnlocked,
                 // Miners
                 minerCount: useSupabase ? (supabaseData.miner_count ?? prev.minerCount) : prev.minerCount,
                 minerLastTick: useSupabase ? (supabaseData.miner_last_tick ?? prev.minerLastTick) : prev.minerLastTick,
@@ -770,6 +772,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [gameState.autoPrestigeEnabled, gameState.currentRockId, gameState.ownedPickaxeIds, gameState.prestigeCount, gameState.prestigeMultiplier, userId, gameState.ownedTrinketIds, gameState.yatesDollars]);
 
+  // Stock market unlock tracking - permanently unlock when requirements first met
+  useEffect(() => {
+    // Skip if already unlocked
+    if (gameState.hasStocksUnlocked) return;
+    
+    // Check requirements: rock 16 AND pickaxe ID 12
+    const meetsRequirements = gameState.currentRockId >= 16 && gameState.ownedPickaxeIds.includes(12);
+    
+    if (meetsRequirements) {
+      console.log('📈 Stock market permanently unlocked!');
+      setGameState(prev => ({
+        ...prev,
+        hasStocksUnlocked: true,
+      }));
+    }
+  }, [gameState.currentRockId, gameState.ownedPickaxeIds, gameState.hasStocksUnlocked]);
+
   // Achievement tracking - permanently unlock achievements when criteria met
   useEffect(() => {
     const newUnlocks: string[] = [];
@@ -923,6 +942,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           trinket_shop_items: gameState.trinketShopItems,
           trinket_shop_last_refresh: gameState.trinketShopLastRefresh,
           has_totem_protection: gameState.hasTotemProtection,
+          has_stocks_unlocked: gameState.hasStocksUnlocked,
           // Miners
           miner_count: gameState.minerCount,
           miner_last_tick: gameState.minerLastTick,
@@ -986,6 +1006,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           unlocked_achievement_ids: state.unlockedAchievementIds,
           owned_title_ids: state.ownedTitleIds,
           equipped_title_ids: state.equippedTitleIds,
+          has_stocks_unlocked: state.hasStocksUnlocked,
         });
       }
     };
@@ -1022,6 +1043,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         unlocked_achievement_ids: state.unlockedAchievementIds,
         owned_title_ids: state.ownedTitleIds,
         equipped_title_ids: state.equippedTitleIds,
+        has_stocks_unlocked: state.hasStocksUnlocked,
       });
     };
 
@@ -1532,11 +1554,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         fastest_prestige_time: newFastestTime,
         game_start_time: Date.now(),
         total_money_earned: gameState.totalMoneyEarned,
+        // Persist stocks unlock across prestige
+        has_stocks_unlocked: gameState.hasStocksUnlocked,
       });
     }
 
     return { amountToCompany, newMultiplier };
-  }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, gameState.prestigeMultiplier, gameState.ownedTrinketIds, gameState.equippedTrinketIds, gameState.prestigeTokens, gameState.gameStartTime, gameState.fastestPrestigeTime, gameState.totalMoneyEarned, userId, userType]);
+  }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, gameState.prestigeMultiplier, gameState.ownedTrinketIds, gameState.equippedTrinketIds, gameState.prestigeTokens, gameState.gameStartTime, gameState.fastestPrestigeTime, gameState.totalMoneyEarned, gameState.hasStocksUnlocked, userId, userType]);
 
   // =====================
   // TRINKET FUNCTIONS
