@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { PICKAXES } from '@/lib/gameData';
 import { products } from '@/utils/products';
-import { SHOP_UNLOCK_REQUIREMENTS } from '@/types/game';
+import { SHOP_UNLOCK_REQUIREMENTS, getPrestigePriceMultiplier } from '@/types/game';
 
 interface GameShopProps {
   onClose: () => void;
@@ -159,6 +159,8 @@ export default function GameShop({ onClose }: GameShopProps) {
                 const owned = ownsPickaxe(pickaxe.id);
                 const equipped = currentPickaxe.id === pickaxe.id;
                 const canAfford = canAffordPickaxe(pickaxe.id);
+                // Calculate scaled price (10% increase every 5 prestiges)
+                const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
                 
                 // Sequential purchase: can only buy if you own the previous one
                 const highestOwnedId = Math.max(...gameState.ownedPickaxeIds);
@@ -255,7 +257,7 @@ export default function GameShop({ onClose }: GameShopProps) {
                                 : 'bg-gray-700 text-gray-500 cursor-not-allowed'
                           }`}
                         >
-                          {pickaxe.price === 0 ? 'FREE' : `$${formatNumber(pickaxe.price)}`}
+                          {scaledPrice === 0 ? 'FREE' : `$${formatNumber(scaledPrice)}`}
                         </button>
                       )}
                     </div>

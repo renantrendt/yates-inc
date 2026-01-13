@@ -111,7 +111,30 @@ export interface GameState {
 export const PRESTIGE_REQUIREMENTS = {
   minRockId: 19,
   minPickaxeId: 16,
+  maxRockId: 29,      // Lotus Crystal
+  maxPickaxeId: 25,   // Galaxy
+  baseMoneyRequired: 1000000000, // $1B base money requirement
 };
+
+// Max prestige level where buffs stop
+export const MAX_PRESTIGE_WITH_BUFFS = 230;
+
+// Get prestige money requirement (5% increase per prestige)
+export function getPrestigeMoneyRequirement(prestigeCount: number): number {
+  return Math.floor(PRESTIGE_REQUIREMENTS.baseMoneyRequired * Math.pow(1.05, prestigeCount));
+}
+
+// Get scaled prestige rock requirement (increases by 1 every 5 prestiges until max)
+export function getPrestigeRockRequirement(prestigeCount: number): number {
+  const increase = Math.floor(prestigeCount / 5);
+  return Math.min(PRESTIGE_REQUIREMENTS.maxRockId, PRESTIGE_REQUIREMENTS.minRockId + increase);
+}
+
+// Get scaled prestige pickaxe requirement (increases by 1 every 5 prestiges until max)
+export function getPrestigePickaxeRequirement(prestigeCount: number): number {
+  const increase = Math.floor(prestigeCount / 5);
+  return Math.min(PRESTIGE_REQUIREMENTS.maxPickaxeId, PRESTIGE_REQUIREMENTS.minPickaxeId + increase);
+}
 
 // Yates special account (hidden admin - keeps money on prestige)
 export const YATES_ACCOUNT_ID = '000000';
@@ -323,15 +346,22 @@ export const RARITY_COLORS: Record<TrinketRarity, string> = {
 // MINER SYSTEM
 // =====================
 
-export const MINER_BASE_COST = 250; // $250 for first miner
-export const MINER_COST_MULTIPLIER = 1.042; // Each miner costs 4.2% more - caps around $500M for miner 360
-export const MINER_MAX_COUNT = 360;
+export const MINER_BASE_COST = 1000; // $1k for first miner
+export const MINER_COST_MULTIPLIER = 1.0395; // Scales to ~$10B for miner 420
+export const MINER_MAX_COUNT = 420;
 export const MINER_TICK_INTERVAL = 1000; // 1 second between miner ticks
-export const MINER_BASE_DAMAGE = 15; // Base damage per miner per tick (beefy bois)
+export const MINER_BASE_DAMAGE = 1190; // ~500k total damage at 420 miners (500k/420 ≈ 1190)
 export const MINER_VISIBLE_MAX = 100; // Max visible sprites
 
-export function getMinerCost(currentMinerCount: number): number {
-  return Math.floor(MINER_BASE_COST * Math.pow(MINER_COST_MULTIPLIER, currentMinerCount));
+// Get prestige price multiplier (10% increase every 5 prestiges)
+export function getPrestigePriceMultiplier(prestigeCount: number): number {
+  return Math.pow(1.10, Math.floor(prestigeCount / 5));
+}
+
+// Get miner cost with prestige scaling (10% increase every 5 prestiges)
+export function getMinerCost(currentMinerCount: number, prestigeCount: number = 0): number {
+  const baseCost = Math.floor(MINER_BASE_COST * Math.pow(MINER_COST_MULTIPLIER, currentMinerCount));
+  return Math.floor(baseCost * getPrestigePriceMultiplier(prestigeCount));
 }
 
 // =====================
@@ -793,9 +823,9 @@ export const ACHIEVEMENTS: Achievement[] = [
     category: 'miner',
   },
   {
-    id: 'miner_360',
+    id: 'miner_420',
     name: 'Full Capacity',
-    description: 'Hire all 360 miners',
+    description: 'Hire all 420 miners',
     icon: '🏆',
     category: 'miner',
   },
@@ -857,7 +887,7 @@ export function checkAchievementUnlocked(achievement: Achievement, state: GameSt
     case 'miner_1': return state.minerCount >= 1;
     case 'miner_10': return state.minerCount >= 10;
     case 'miner_100': return state.minerCount >= 100;
-    case 'miner_360': return state.minerCount >= 360;
+    case 'miner_420': return state.minerCount >= 420;
     case 'trinket_1': return state.ownedTrinketIds.length >= 1;
     case 'trinket_5': return state.ownedTrinketIds.length >= 5;
     case 'trinket_yates': return state.ownedTrinketIds.includes('yates_totem');
@@ -887,7 +917,7 @@ export function shouldUnlockAchievement(achievement: Achievement, state: GameSta
     case 'miner_1': return state.minerCount >= 1;
     case 'miner_10': return state.minerCount >= 10;
     case 'miner_100': return state.minerCount >= 100;
-    case 'miner_360': return state.minerCount >= 360;
+    case 'miner_420': return state.minerCount >= 420;
     case 'trinket_1': return state.ownedTrinketIds.length >= 1;
     case 'trinket_5': return state.ownedTrinketIds.length >= 5;
     case 'trinket_yates': return state.ownedTrinketIds.includes('yates_totem');

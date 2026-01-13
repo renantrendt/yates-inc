@@ -491,7 +491,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
           successMsg = `✨ Gave ${amount} prestige tokens to ${targetName}!`;
           break;
         case 'miners':
-          updateData.miner_count = Math.min(360, (gameData.miner_count || 0) + amount);
+          updateData.miner_count = Math.min(420, (gameData.miner_count || 0) + amount);
           successMsg = `👷 Gave ${amount} miners to ${targetName}!`;
           break;
         default:

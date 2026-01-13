@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { PICKAXES, getNextRockUnlockInfo } from '@/lib/gameData';
-import { AUTOCLICKER_COST, AUTOCLICKER_CPS } from '@/types/game';
+import { AUTOCLICKER_COST, AUTOCLICKER_CPS, getPrestigePriceMultiplier } from '@/types/game';
 import GameShop from './GameShop';
 import RockSelector from './RockSelector';
 import GameTerminal from './GameTerminal';
@@ -60,6 +60,9 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     banReason,
     getTotalBonuses,
   } = useGame();
+
+  // Calculate scaled autoclicker cost (10% increase every 5 prestiges)
+  const scaledAutoclickerCost = Math.floor(AUTOCLICKER_COST * getPrestigePriceMultiplier(gameState.prestigeCount));
 
   const [moneyPopups, setMoneyPopups] = useState<MoneyPopup[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
@@ -433,8 +436,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
           ) : (
             <button
               onClick={buyAutoclicker}
-              disabled={gameState.yatesDollars < AUTOCLICKER_COST}
-              className={`bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border shadow-lg transition-all touch-manipulation ${gameState.yatesDollars >= AUTOCLICKER_COST
+              disabled={gameState.yatesDollars < scaledAutoclickerCost}
+              className={`bg-black/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 border shadow-lg transition-all touch-manipulation ${gameState.yatesDollars >= scaledAutoclickerCost
                 ? 'border-cyan-500/50 hover:border-cyan-400 hover:bg-cyan-900/30 cursor-pointer'
                 : 'border-gray-600/30 opacity-60 cursor-not-allowed'
                 }`}
@@ -442,8 +445,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <span className="text-gray-400">🤖</span>
                 <span className="text-[10px] sm:text-xs text-gray-300 font-bold">AUTOCLICKER</span>
-                <span className={`text-[10px] sm:text-xs font-bold ${gameState.yatesDollars >= AUTOCLICKER_COST ? 'text-cyan-400' : 'text-gray-500'}`}>
-                  ${formatNumber(AUTOCLICKER_COST)}
+                <span className={`text-[10px] sm:text-xs font-bold ${gameState.yatesDollars >= scaledAutoclickerCost ? 'text-cyan-400' : 'text-gray-500'}`}>
+                  ${formatNumber(scaledAutoclickerCost)}
                 </span>
               </div>
             </button>

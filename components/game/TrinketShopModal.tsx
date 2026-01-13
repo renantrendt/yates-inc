@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
-import { RARITY_COLORS, Trinket } from '@/types/game';
+import { RARITY_COLORS, Trinket, getPrestigePriceMultiplier } from '@/types/game';
 
 interface TrinketShopModalProps {
   isOpen: boolean;
@@ -19,11 +19,12 @@ function formatMoney(amount: number): string {
   return amount.toString();
 }
 
-function TrinketCard({ trinket, onBuy, owned, canAfford }: { 
+function TrinketCard({ trinket, onBuy, owned, canAfford, scaledCost }: { 
   trinket: Trinket; 
   onBuy: () => void; 
   owned: boolean;
   canAfford: boolean;
+  scaledCost: number;
 }) {
   const rarityColor = RARITY_COLORS[trinket.rarity];
   
@@ -63,7 +64,7 @@ function TrinketCard({ trinket, onBuy, owned, canAfford }: {
       {/* Price & Buy Button */}
       <div className="flex items-center justify-between">
         <span className="text-yellow-400 font-bold">
-          ${formatMoney(trinket.cost)}
+          ${formatMoney(scaledCost)}
         </span>
         
         {owned ? (
@@ -153,15 +154,19 @@ export default function TrinketShopModal({ isOpen, onClose }: TrinketShopModalPr
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {trinketShopItems.map(trinket => (
-              <TrinketCard
-                key={trinket.id}
-                trinket={trinket}
-                onBuy={() => buyTrinket(trinket.id)}
-                owned={ownsTrinket(trinket.id)}
-                canAfford={gameState.yatesDollars >= trinket.cost}
-              />
-            ))}
+            {trinketShopItems.map(trinket => {
+              const scaledCost = Math.floor(trinket.cost * getPrestigePriceMultiplier(gameState.prestigeCount));
+              return (
+                <TrinketCard
+                  key={trinket.id}
+                  trinket={trinket}
+                  onBuy={() => buyTrinket(trinket.id)}
+                  owned={ownsTrinket(trinket.id)}
+                  canAfford={gameState.yatesDollars >= scaledCost}
+                  scaledCost={scaledCost}
+                />
+              );
+            })}
           </div>
         )}
         

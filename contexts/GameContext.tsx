@@ -4,9 +4,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { 
   GameState, COUPON_DROP_RATES, COUPON_REQUIREMENTS, ShopStock, 
   SHOP_RESTOCK_INTERVAL, SHOP_MIN_ITEMS, SHOP_MAX_ITEMS, SHOP_MIN_QUANTITY, SHOP_MAX_QUANTITY, 
-  AUTOCLICKER_COST, PRESTIGE_REQUIREMENTS, YATES_ACCOUNT_ID,
+  AUTOCLICKER_COST, PRESTIGE_REQUIREMENTS, YATES_ACCOUNT_ID, getPrestigeMoneyRequirement, getPrestigeRockRequirement, getPrestigePickaxeRequirement, MAX_PRESTIGE_WITH_BUFFS,
   TRINKETS, Trinket, TRINKET_SHOP_REFRESH_INTERVAL, TRINKET_SHOP_MIN_ITEMS, TRINKET_SHOP_MAX_ITEMS,
-  MINER_TICK_INTERVAL, MINER_BASE_DAMAGE, MINER_MAX_COUNT, getMinerCost,
+  MINER_TICK_INTERVAL, MINER_BASE_DAMAGE, MINER_MAX_COUNT, getMinerCost, getPrestigePriceMultiplier,
   PRESTIGE_UPGRADES, PrestigeUpgrade, PRESTIGE_TOKENS_PER_PRESTIGE, RARITY_COLORS,
   ACHIEVEMENTS, shouldUnlockAchievement, TITLES
 } from '@/types/game';
@@ -725,14 +725,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!gameState.autoPrestigeEnabled) return;
     
     const interval = setInterval(() => {
-      const canDo = gameState.currentRockId >= PRESTIGE_REQUIREMENTS.minRockId &&
-        gameState.ownedPickaxeIds.includes(PRESTIGE_REQUIREMENTS.minPickaxeId);
+      const moneyRequired = getPrestigeMoneyRequirement(gameState.prestigeCount);
+      const rockRequired = getPrestigeRockRequirement(gameState.prestigeCount);
+      const pickaxeRequired = getPrestigePickaxeRequirement(gameState.prestigeCount);
+      const canDo = gameState.currentRockId >= rockRequired &&
+        gameState.ownedPickaxeIds.includes(pickaxeRequired) &&
+        gameState.yatesDollars >= moneyRequired;
       
       if (canDo) {
         // Trigger prestige
         const isYates = userId === YATES_ACCOUNT_ID;
         const newPrestigeCount = gameState.prestigeCount + 1;
-        const newMultiplier = 1.0 + (newPrestigeCount * 0.1);
+        const isPastMaxPrestige = gameState.prestigeCount >= MAX_PRESTIGE_WITH_BUFFS;
+        // After max prestige (230), no more multiplier increases
+        const newMultiplier = isPastMaxPrestige 
+          ? gameState.prestigeMultiplier 
+          : 1.0 + (newPrestigeCount * 0.1);
+        // No tokens after max prestige
+        const tokensToAdd = isPastMaxPrestige ? 0 : PRESTIGE_TOKENS_PER_PRESTIGE;
         // Check if player owns totem (not the flag - can get out of sync)
         const ownsTotem = gameState.ownedTrinketIds.includes('totem');
         
@@ -748,7 +758,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           yatesDollars: (isYates || ownsTotem) ? prev.yatesDollars : 0,
           prestigeCount: newPrestigeCount,
           prestigeMultiplier: newMultiplier,
-          prestigeTokens: prev.prestigeTokens + PRESTIGE_TOKENS_PER_PRESTIGE,
+          prestigeTokens: prev.prestigeTokens + tokensToAdd,
           hasTotemProtection: false,
           // Remove totem from inventory if used
           ownedTrinketIds: ownsTotem ? prev.ownedTrinketIds.filter(id => id !== 'totem') : prev.ownedTrinketIds,
@@ -758,7 +768,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }, 1000); // Check every 1 second
     
     return () => clearInterval(interval);
-  }, [gameState.autoPrestigeEnabled, gameState.currentRockId, gameState.ownedPickaxeIds, gameState.prestigeCount, userId, gameState.ownedTrinketIds]);
+  }, [gameState.autoPrestigeEnabled, gameState.currentRockId, gameState.ownedPickaxeIds, gameState.prestigeCount, gameState.prestigeMultiplier, userId, gameState.ownedTrinketIds, gameState.yatesDollars]);
 
   // Achievement tracking - permanently unlock achievements when criteria met
   useEffect(() => {
@@ -1249,8 +1259,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const canAffordPickaxe = useCallback((pickaxeId: number) => {
     const pickaxe = getPickaxeById(pickaxeId);
     if (!pickaxe) return false;
-    return gameState.yatesDollars >= pickaxe.price;
-  }, [gameState.yatesDollars]);
+    const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
+    return gameState.yatesDollars >= scaledPrice;
+  }, [gameState.yatesDollars, gameState.prestigeCount]);
 
   const ownsPickaxe = useCallback((pickaxeId: number) => {
     return gameState.ownedPickaxeIds.includes(pickaxeId);
@@ -1260,14 +1271,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const pickaxe = getPickaxeById(pickaxeId);
     if (!pickaxe) return false;
     if (gameState.ownedPickaxeIds.includes(pickaxeId)) return false;
-    if (gameState.yatesDollars < pickaxe.price) return false;
+    const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
+    if (gameState.yatesDollars < scaledPrice) return false;
 
     // Clear click history to prevent anti-cheat false positives from rapid purchases
     window._clickTimestamps = [];
 
     setGameState((prev) => ({
       ...prev,
-      yatesDollars: prev.yatesDollars - pickaxe.price,
+      yatesDollars: prev.yatesDollars - scaledPrice,
       ownedPickaxeIds: [...prev.ownedPickaxeIds, pickaxeId],
       currentPickaxeId: pickaxeId, // Auto-equip after purchase
       // Reset anti-cheat block if not from appeal (user clearly has money = legitimate play)
@@ -1275,7 +1287,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
 
     return true;
-  }, [gameState.ownedPickaxeIds, gameState.yatesDollars]);
+  }, [gameState.ownedPickaxeIds, gameState.yatesDollars, gameState.prestigeCount]);
 
   const equipPickaxe = useCallback((pickaxeId: number) => {
     if (!gameState.ownedPickaxeIds.includes(pickaxeId)) return;
@@ -1390,17 +1402,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const buyAutoclicker = useCallback(() => {
     if (gameState.hasAutoclicker) return false;
-    if (gameState.yatesDollars < AUTOCLICKER_COST) return false;
-    
+    const scaledCost = Math.floor(AUTOCLICKER_COST * getPrestigePriceMultiplier(gameState.prestigeCount));
+    if (gameState.yatesDollars < scaledCost) return false;
+
     setGameState((prev) => ({
       ...prev,
-      yatesDollars: prev.yatesDollars - AUTOCLICKER_COST,
+      yatesDollars: prev.yatesDollars - scaledCost,
       hasAutoclicker: true,
       autoclickerEnabled: true,
     }));
-    
+
     return true;
-  }, [gameState.hasAutoclicker, gameState.yatesDollars]);
+  }, [gameState.hasAutoclicker, gameState.yatesDollars, gameState.prestigeCount]);
 
   const toggleAutoclicker = useCallback(() => {
     if (!gameState.hasAutoclicker) return;
@@ -1411,17 +1424,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, [gameState.hasAutoclicker]);
 
-  // Check if user can prestige (requires rock 17 + pickaxe 13)
+  // Check if user can prestige (requirements scale with prestige count)
   const canPrestige = useCallback(() => {
+    const moneyRequired = getPrestigeMoneyRequirement(gameState.prestigeCount);
+    const rockRequired = getPrestigeRockRequirement(gameState.prestigeCount);
+    const pickaxeRequired = getPrestigePickaxeRequirement(gameState.prestigeCount);
     return (
-      gameState.currentRockId >= PRESTIGE_REQUIREMENTS.minRockId &&
-      gameState.ownedPickaxeIds.includes(PRESTIGE_REQUIREMENTS.minPickaxeId)
+      gameState.currentRockId >= rockRequired &&
+      gameState.ownedPickaxeIds.includes(pickaxeRequired) &&
+      gameState.yatesDollars >= moneyRequired
     );
-  }, [gameState.currentRockId, gameState.ownedPickaxeIds]);
+  }, [gameState.currentRockId, gameState.ownedPickaxeIds, gameState.yatesDollars, gameState.prestigeCount]);
 
   // Perform prestige - reset progress, gain multiplier
   // Yates (000000) keeps all money, others get 1/32 sent to company budget
   // Totem protection also keeps money (but consumes the protection)
+  // After MAX_PRESTIGE_WITH_BUFFS (230), can still prestige but no buffs/tokens/company money
   // force=true bypasses requirements (for terminal command)
   const prestige = useCallback((force: boolean = false) => {
     if (!force && !canPrestige()) return null;
@@ -1432,11 +1450,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const hasProtection = ownsTotem;
     const currentMoney = gameState.yatesDollars;
     const keepsMoney = isYates || hasProtection;
-    const amountToCompany = keepsMoney ? 0 : Math.floor(currentMoney / 32);
     
-    // Calculate new multiplier: starts at 1.1, +0.1 per prestige
+    // Check if past max prestige - no company money after 230
+    const isPastMaxPrestige = gameState.prestigeCount >= MAX_PRESTIGE_WITH_BUFFS;
+    const amountToCompany = (keepsMoney || isPastMaxPrestige) ? 0 : Math.floor(currentMoney / 32);
+    
+    // Calculate new multiplier: starts at 1.1, +0.1 per prestige (caps at 230)
     const newPrestigeCount = gameState.prestigeCount + 1;
-    const newMultiplier = 1.0 + (newPrestigeCount * 0.1);
+    // After max prestige, multiplier stays at the max value (1.0 + 230 * 0.1 = 24.0)
+    const newMultiplier = isPastMaxPrestige 
+      ? gameState.prestigeMultiplier  // Keep current multiplier, no increase
+      : 1.0 + (newPrestigeCount * 0.1);
+    
+    // Tokens only given up to max prestige
+    const tokensToAdd = isPastMaxPrestige ? 0 : PRESTIGE_TOKENS_PER_PRESTIGE;
     
     // Track fastest prestige time (for ranking)
     const prestigeTime = Date.now() - (gameState.gameStartTime || Date.now());
@@ -1465,10 +1492,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       equippedTrinketIds: hasProtection
         ? prev.equippedTrinketIds.filter(id => id !== 'totem')
         : prev.equippedTrinketIds,
-      // Update prestige stats and give tokens
+      // Update prestige stats and give tokens (no buffs after max)
       prestigeCount: newPrestigeCount,
       prestigeMultiplier: newMultiplier,
-      prestigeTokens: prev.prestigeTokens + PRESTIGE_TOKENS_PER_PRESTIGE,
+      prestigeTokens: prev.prestigeTokens + tokensToAdd,
       // Consume totem protection if it was used
       hasTotemProtection: false,
       // Ranking: track fastest prestige time and reset game start
@@ -1493,7 +1520,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         miner_count: 0,
         prestige_count: newPrestigeCount,
         prestige_multiplier: newMultiplier,
-        prestige_tokens: gameState.prestigeTokens + PRESTIGE_TOKENS_PER_PRESTIGE,
+        prestige_tokens: gameState.prestigeTokens + tokensToAdd,
         has_totem_protection: false,
         owned_trinket_ids: hasProtection 
           ? gameState.ownedTrinketIds.filter(id => id !== 'totem')
@@ -1509,7 +1536,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
 
     return { amountToCompany, newMultiplier };
-  }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, gameState.ownedTrinketIds, gameState.equippedTrinketIds, gameState.prestigeTokens, gameState.gameStartTime, gameState.fastestPrestigeTime, gameState.totalMoneyEarned, userId, userType]);
+  }, [canPrestige, gameState.yatesDollars, gameState.prestigeCount, gameState.prestigeMultiplier, gameState.ownedTrinketIds, gameState.equippedTrinketIds, gameState.prestigeTokens, gameState.gameStartTime, gameState.fastestPrestigeTime, gameState.totalMoneyEarned, userId, userType]);
 
   // =====================
   // TRINKET FUNCTIONS
@@ -1532,11 +1559,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const trinket = TRINKETS.find(t => t.id === trinketId);
     if (!trinket) return false;
     if (gameState.ownedTrinketIds.includes(trinketId)) return false;
-    if (gameState.yatesDollars < trinket.cost) return false;
+    const scaledCost = Math.floor(trinket.cost * getPrestigePriceMultiplier(gameState.prestigeCount));
+    if (gameState.yatesDollars < scaledCost) return false;
     
     setGameState(prev => ({
         ...prev,
-      yatesDollars: prev.yatesDollars - trinket.cost,
+      yatesDollars: prev.yatesDollars - scaledCost,
       ownedTrinketIds: [...prev.ownedTrinketIds, trinketId],
       // If it's the totem, activate protection
       hasTotemProtection: trinket.effects.prestigeProtection ? true : prev.hasTotemProtection,
@@ -1545,7 +1573,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }));
 
       return true;
-  }, [gameState.ownedTrinketIds, gameState.yatesDollars]);
+  }, [gameState.ownedTrinketIds, gameState.yatesDollars, gameState.prestigeCount]);
   
   const canEquipDualTrinkets = useCallback(() => {
     return gameState.ownedPrestigeUpgradeIds.includes('dual_trinkets');
@@ -1591,12 +1619,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // =====================
   
   const getMinerCostFn = useCallback(() => {
-    return getMinerCost(gameState.minerCount);
-  }, [gameState.minerCount]);
+    return getMinerCost(gameState.minerCount, gameState.prestigeCount);
+  }, [gameState.minerCount, gameState.prestigeCount]);
 
   const buyMiner = useCallback(() => {
     if (gameState.minerCount >= MINER_MAX_COUNT) return false;
-    const cost = getMinerCost(gameState.minerCount);
+    const cost = getMinerCost(gameState.minerCount, gameState.prestigeCount);
     if (gameState.yatesDollars < cost) return false;
     
     setGameState(prev => ({
@@ -1812,7 +1840,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const addMiners = useCallback((amount: number) => {
     setGameState(prev => ({
       ...prev,
-      minerCount: Math.min(360, prev.minerCount + amount),
+      minerCount: Math.min(MINER_MAX_COUNT, prev.minerCount + amount),
     }));
   }, []);
 

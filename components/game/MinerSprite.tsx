@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
-import { MINER_VISIBLE_MAX } from '@/types/game';
+import { MINER_VISIBLE_MAX, MINER_MAX_COUNT } from '@/types/game';
 import { ROCKS, getRockById } from '@/lib/gameData';
 
 interface FloatingMoney {
@@ -116,7 +116,7 @@ export function MinerPurchaseButton() {
   const { gameState, buyMiner, getMinerCost } = useGame();
   const cost = getMinerCost();
   const canAfford = gameState.yatesDollars >= cost;
-  const atMax = gameState.minerCount >= 360;
+  const atMax = gameState.minerCount >= MINER_MAX_COUNT;
 
   const formatCost = (amount: number) => {
     if (amount >= 1000000000000) return `${(amount / 1000000000000).toFixed(1)}T`;
@@ -139,11 +139,11 @@ export function MinerPurchaseButton() {
       <div className="text-left">
         <p className="text-sm">Hire Miner</p>
         <p className="text-xs opacity-80">
-          {atMax ? 'MAX (360)' : `$${formatCost(cost)}`}
+          {atMax ? `MAX (${MINER_MAX_COUNT})` : `$${formatCost(cost)}`}
         </p>
       </div>
       <span className="text-xs bg-black/30 px-2 py-0.5 rounded">
-        {gameState.minerCount}/360
+        {gameState.minerCount}/{MINER_MAX_COUNT}
       </span>
     </button>
   );
