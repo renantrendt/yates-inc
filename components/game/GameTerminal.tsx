@@ -540,36 +540,34 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('⛏️ EMPLOYEE CHEAT CODES (shhh 🤫):');
       addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       addToHistory('reset          - Nuke your progress lmao');
-      addToHistory(`pcx [id]       - Yoink a pickaxe (1-${PICKAXES.length})`);
-      addToHistory('allpcx         - Give me ALL the pickaxes 😈');
-      addToHistory(`allrocks       - Unlock all ${ROCKS.length} rocks (lazy mode)`);
-      addToHistory('money [amt]    - Money printer go brrrr 💸');
       addToHistory('miners [amt]   - Hire some homies');
       addToHistory('trinket [id]   - Steal a trinket');
       addToHistory('trinkets       - List the goods');
-      addToHistory('tokens [amt]   - Free prestige tokens!');
-      addToHistory('prestige       - Skip the grind 😎');
       addToHistory('autoprestige   - AFK mode activated');
       addToHistory('cm             - Cheat Mode™ (auto-click + auto-buy)');
       addToHistory('unblock        - Get out of jail free card');
       addToHistory('ability        - Test ability pickaxes + $50M');
       addToHistory('clear          - Clean up your crimes');
       addToHistory('clearhistory   - Wipe command history (↑↓)');
-      addToHistory('allachv        - Unlock ALL achievements + titles');
+      addToHistory('allachv        - Unlock ALL achievements');
       addToHistory('titles         - List all Pro Player titles');
-      addToHistory('title [id]     - Give yourself a title');
       if (isBanAdmin) {
         addToHistory('');
         addToHistory('🔨 ADMIN COMMANDS (Bernardo/Logan only):');
         addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        addToHistory('users                  - List all clients');
+        addToHistory(`pcx [id]       - Yoink a pickaxe (1-${PICKAXES.length})`);
+        addToHistory('allpcx         - Give me ALL the pickaxes 😈');
+        addToHistory(`allrocks       - Unlock all ${ROCKS.length} rocks`);
+        addToHistory('money [amt]    - Money printer go brrrr 💸');
+        addToHistory('tokens [amt]   - Free prestige tokens!');
+        addToHistory('prestige       - Skip the grind 😎');
+        addToHistory('title [id]     - Give yourself a title');
+        addToHistory('users          - List all clients');
         addToHistory('give [user] [type] [amt]');
-        addToHistory('                       - Give items to player');
-        addToHistory('                       - Types: money, tokens, miners');
+        addToHistory('               - Types: money, tokens, miners');
         addToHistory('ban [id/email/name] [reason]');
-        addToHistory('                       - Ban by ID, email, or username');
-        addToHistory('unban [id]             - Unban a user');
-        addToHistory('banned                 - List all banned');
+        addToHistory('unban [id]     - Unban a user');
+        addToHistory('banned         - List all banned');
       }
       addToHistory('');
     } 
@@ -578,46 +576,65 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('💀 RIP your progress. Gone. Reduced to atoms.');
       addToHistory('   Refresh to complete the ritual.');
     }
+    // Give pickaxe (ADMIN ONLY)
     else if (trimmed.startsWith('pcx ')) {
-      const idStr = trimmed.slice(4).trim();
-      const id = parseInt(idStr, 10);
-      if (isNaN(id) || id < 1 || id > PICKAXES.length) {
-        addToHistory(`❌ Invalid pickaxe ID. Use 1-${PICKAXES.length}`);
+      if (!isBanAdmin) {
+        addToHistory(`❌ Pickaxe command is admin-only. Buy them like everyone else.`);
       } else {
-        givePickaxe(id);
-        equipPickaxe(id);
-        const pcx = PICKAXES.find(p => p.id === id);
-        addToHistory(`⛏️ Gave pickaxe: ${pcx?.name} (ID: ${id})`);
+        const idStr = trimmed.slice(4).trim();
+        const id = parseInt(idStr, 10);
+        if (isNaN(id) || id < 1 || id > PICKAXES.length) {
+          addToHistory(`❌ Invalid pickaxe ID. Use 1-${PICKAXES.length}`);
+        } else {
+          givePickaxe(id);
+          equipPickaxe(id);
+          const pcx = PICKAXES.find(p => p.id === id);
+          addToHistory(`⛏️ Gave pickaxe: ${pcx?.name} (ID: ${id})`);
+        }
       }
     }
+    // Give all pickaxes (ADMIN ONLY)
     else if (trimmed === 'allpcx') {
-      PICKAXES.forEach(p => {
-        givePickaxe(p.id);
-      });
-      equipPickaxe(PICKAXES[PICKAXES.length - 1].id);
-      addToHistory(`⛏️ ALL ${PICKAXES.length} pickaxes acquired!`);
-      addToHistory('   You absolute menace 😈');
+      if (!isBanAdmin) {
+        addToHistory(`❌ All pickaxes command is admin-only. Grind harder.`);
+      } else {
+        PICKAXES.forEach(p => {
+          givePickaxe(p.id);
+        });
+        equipPickaxe(PICKAXES[PICKAXES.length - 1].id);
+        addToHistory(`⛏️ ALL ${PICKAXES.length} pickaxes acquired!`);
+        addToHistory('   You absolute menace 😈');
+      }
     }
-    // All rocks command
+    // All rocks command (ADMIN ONLY)
     else if (trimmed === 'allrocks') {
-      const maxUnlock = ROCKS[ROCKS.length - 1].unlockAtClicks;
-      setTotalClicks(maxUnlock + 1000);
-      addToHistory(`🪨 Unlocked ALL rocks! (${ROCKS.length} total)`);
+      if (!isBanAdmin) {
+        addToHistory(`❌ All rocks command is admin-only. Mine your way up.`);
+      } else {
+        const maxUnlock = ROCKS[ROCKS.length - 1].unlockAtClicks;
+        setTotalClicks(maxUnlock + 1000);
+        addToHistory(`🪨 Unlocked ALL rocks! (${ROCKS.length} total)`);
+      }
     }
     // Auto-prestige toggle (separate from CM)
     else if (trimmed === 'autoprestige') {
       toggleAutoPrestige();
       addToHistory(`🤖 Auto-prestige ${gameState.autoPrestigeEnabled ? 'DISABLED' : 'ENABLED'}`);
     }
+    // Money command (ADMIN ONLY)
     else if (trimmed.startsWith('money ')) {
-      const amtStr = trimmed.slice(6).trim();
-      const amt = parseInt(amtStr, 10);
-      if (isNaN(amt)) {
-        addToHistory('❌ Bro that\'s not a number');
+      if (!isBanAdmin) {
+        addToHistory(`❌ Money printer is admin-only. Go click some rocks.`);
       } else {
-        addMoney(amt);
-        addToHistory(`💸 MONEY PRINTER GO BRRRR`);
-        addToHistory(`   +$${amt.toLocaleString()} deposited into your totally legit account`);
+        const amtStr = trimmed.slice(6).trim();
+        const amt = parseInt(amtStr, 10);
+        if (isNaN(amt)) {
+          addToHistory('❌ Bro that\'s not a number');
+        } else {
+          addMoney(amt);
+          addToHistory(`💸 MONEY PRINTER GO BRRRR`);
+          addToHistory(`   +$${amt.toLocaleString()} deposited into your totally legit account`);
+        }
       }
     }
     // CM toggle
@@ -723,37 +740,34 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('');
       addToHistory('Use: title [id] to yoink one');
     }
-    // Give a specific title
+    // Give a specific title (ADMIN ONLY)
     else if (trimmed.startsWith('title ')) {
-      const titleId = trimmed.slice(6).trim();
-      const title = TITLES.find(t => t.id === titleId);
-      if (!title) {
-        addToHistory(`❌ Unknown title: ${titleId}`);
-        addToHistory('Use "titles" to see available IDs');
+      if (!isBanAdmin) {
+        addToHistory(`❌ Nice try cheater. Titles are admin-only now.`);
       } else {
-        giveTitle(titleId);
-        equipTitle(titleId);
-        addToHistory(`👑 You are now: ${title.name}`);
-        addToHistory(`   ${title.icon} ${title.description}`);
-        addToHistory('   Check Achievements panel to see it!');
+        const titleId = trimmed.slice(6).trim();
+        const title = TITLES.find(t => t.id === titleId);
+        if (!title) {
+          addToHistory(`❌ Unknown title: ${titleId}`);
+          addToHistory('Use "titles" to see available IDs');
+        } else {
+          giveTitle(titleId);
+          equipTitle(titleId);
+          addToHistory(`👑 You are now: ${title.name}`);
+          addToHistory(`   ${title.icon} ${title.description}`);
+          addToHistory('   Check Achievements panel to see it!');
+        }
       }
     }
-    // Give ALL achievements and titles
+    // Give ALL achievements (NO titles - those are admin only)
     else if (trimmed === 'allachv') {
       // Give all achievements
       unlockAllAchievements();
-      
-      // Give all titles
-      TITLES.forEach(t => {
-        giveTitle(t.id);
-      });
-      
-      // Equip the coolest one
-      equipTitle('da_goat');
-      
+
       addToHistory('');
       addToHistory('🏆 ALL ACHIEVEMENTS UNLOCKED');
       addToHistory(`   ${ACHIEVEMENTS.length} achievements acquired`);
+      addToHistory('   (Titles are admin-only now, nice try)');
       addToHistory('');
       addToHistory('👑 ALL TITLES UNLOCKED');
       addToHistory(`   ${TITLES.length} titles acquired`);
@@ -795,25 +809,33 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory(`💍 Gave trinket: ${trinket.name}`);
       }
     }
-    // Prestige tokens command
+    // Prestige tokens command (ADMIN ONLY)
     else if (trimmed.startsWith('tokens ')) {
-      const amtStr = trimmed.slice(7).trim();
-      const amt = parseInt(amtStr, 10);
-      if (isNaN(amt) || amt <= 0) {
-        addToHistory('❌ Invalid amount. Usage: tokens 10');
+      if (!isBanAdmin) {
+        addToHistory(`❌ Tokens command is admin-only. Earn them yourself.`);
       } else {
-        addPrestigeTokens(amt);
-        addToHistory(`✨ Added ${amt} prestige tokens!`);
+        const amtStr = trimmed.slice(7).trim();
+        const amt = parseInt(amtStr, 10);
+        if (isNaN(amt) || amt <= 0) {
+          addToHistory('❌ Invalid amount. Usage: tokens 10');
+        } else {
+          addPrestigeTokens(amt);
+          addToHistory(`✨ Added ${amt} prestige tokens!`);
+        }
       }
     }
-    // Force prestige command - bypasses requirements for employees
+    // Force prestige command (ADMIN ONLY)
     else if (trimmed === 'prestige') {
-      const result = prestige(true); // Force=true bypasses requirements
-      if (result) {
-        addToHistory(`⚡ Force prestige activated!`);
-        addToHistory(`✨ New multiplier: ${result.newMultiplier.toFixed(1)}x`);
+      if (!isBanAdmin) {
+        addToHistory(`❌ Force prestige is admin-only. Grind like the rest of us.`);
       } else {
-        addToHistory(`❌ Prestige failed (unknown error)`);
+        const result = prestige(true); // Force=true bypasses requirements
+        if (result) {
+          addToHistory(`⚡ Force prestige activated!`);
+          addToHistory(`✨ New multiplier: ${result.newMultiplier.toFixed(1)}x`);
+        } else {
+          addToHistory(`❌ Prestige failed (unknown error)`);
+        }
       }
     }
     else {
