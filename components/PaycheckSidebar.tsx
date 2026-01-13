@@ -9,6 +9,14 @@ interface PaycheckSidebarProps {
   onClose: () => void;
 }
 
+// Format money with K, M, B suffixes
+function formatMoney(amount: number): string {
+  if (amount >= 1000000000) return `${(amount / 1000000000).toFixed(2)}B`;
+  if (amount >= 1000000) return `${(amount / 1000000).toFixed(2)}M`;
+  if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K`;
+  return amount.toFixed(2);
+}
+
 export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProps) {
   const { paychecks, updateSalary, updatePayInterval, loading, getPaycheckTaxInfo } = usePaycheck();
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
@@ -147,13 +155,13 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
                   <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded p-2 text-center">
                     <div className="text-xs text-yellow-700 dark:text-yellow-400">Yates $</div>
                     <div className="font-bold text-yellow-800 dark:text-yellow-300">
-                      ${paycheck.yates_balance.toFixed(2)}
+                      ${formatMoney(paycheck.yates_balance)}
                     </div>
                   </div>
                   <div className="bg-purple-50 dark:bg-purple-900/20 rounded p-2 text-center">
                     <div className="text-xs text-purple-700 dark:text-purple-400">Walters $</div>
                     <div className="font-bold text-purple-800 dark:text-purple-300">
-                      ${paycheck.walters_balance.toFixed(2)}
+                      ${formatMoney(paycheck.walters_balance)}
                     </div>
                   </div>
                 </div>
@@ -229,15 +237,13 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
                               ? 'text-yellow-700 dark:text-yellow-400' 
                               : 'text-purple-700 dark:text-purple-400'
                           }`}>
-                            ${paycheck.salary_amount.toFixed(2)} {paycheck.salary_currency === 'yates' ? 'Yates' : 'Walters'}
+                            ${formatMoney(paycheck.salary_amount)} {paycheck.salary_currency === 'yates' ? 'Yates' : 'Walters'}
                           </span>
                         </div>
-                        {/* Hide edit for Logan (CEO) */}
-                        {paycheck.employee_id !== '000001' && (
                         <button
                           onClick={() => handleEdit(
-                            paycheck.employee_id, 
-                            paycheck.salary_amount, 
+                            paycheck.employee_id,
+                            paycheck.salary_amount,
                             paycheck.salary_currency,
                             paycheck.pay_interval
                           )}
@@ -245,7 +251,6 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
                         >
                           Edit
                         </button>
-                        )}
                       </div>
                       {/* Pay Interval Display */}
                       <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -256,11 +261,11 @@ export default function PaycheckSidebar({ isOpen, onClose }: PaycheckSidebarProp
                         <div className="text-xs bg-red-50 dark:bg-red-900/20 rounded px-2 py-1 border border-red-200 dark:border-red-800">
                           <div className="flex justify-between text-red-600 dark:text-red-400">
                             <span>Tax ({getPaycheckTaxInfo(paycheck.salary_amount).taxRateLabel}):</span>
-                            <span>-${getPaycheckTaxInfo(paycheck.salary_amount).taxAmount.toFixed(2)}</span>
+                            <span>-${formatMoney(getPaycheckTaxInfo(paycheck.salary_amount).taxAmount)}</span>
                           </div>
                           <div className="flex justify-between text-green-700 dark:text-green-400 font-semibold mt-0.5">
                             <span>Net Pay:</span>
-                            <span>${getPaycheckTaxInfo(paycheck.salary_amount).finalAmount.toFixed(2)}</span>
+                            <span>${formatMoney(getPaycheckTaxInfo(paycheck.salary_amount).finalAmount)}</span>
                           </div>
                         </div>
                       )}

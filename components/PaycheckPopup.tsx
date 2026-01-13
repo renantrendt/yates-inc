@@ -7,6 +7,14 @@ import { usePaycheck } from '@/contexts/PaycheckContext';
 // Tax rate - because even fake money gets taxed lmao
 const TAX_RATE = 0.15; // 15% taxes
 
+// Format money with K, M, B suffixes
+function formatMoney(amount: number): string {
+  if (amount >= 1000000000) return `${(amount / 1000000000).toFixed(2)}B`;
+  if (amount >= 1000000) return `${(amount / 1000000).toFixed(2)}M`;
+  if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K`;
+  return amount.toFixed(2);
+}
+
 export default function PaycheckPopup() {
   const [show, setShow] = useState(false);
   const [paycheckData, setPaycheckData] = useState<{
@@ -100,7 +108,7 @@ export default function PaycheckPopup() {
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Gross Pay</span>
                 <span className={`text-xl font-bold ${currencyColor}`}>
-                  ${paycheckData.amount.toFixed(2)} {currencySymbol}
+                  ${formatMoney(paycheckData.amount)} {currencySymbol}
                 </span>
               </div>
 
@@ -110,7 +118,7 @@ export default function PaycheckPopup() {
                   <span>Taxes</span>
                   <span className="text-xs text-gray-500">(15%)</span>
                 </span>
-                <span>-${paycheckData.taxes.toFixed(2)}</span>
+                <span>-${formatMoney(paycheckData.taxes)}</span>
               </div>
 
               {/* Divider */}
@@ -120,7 +128,7 @@ export default function PaycheckPopup() {
               <div className="flex justify-between items-center">
                 <span className="text-white font-semibold text-lg">Total</span>
                 <span className={`text-2xl font-bold ${currencyColor}`}>
-                  ${paycheckData.total.toFixed(2)} {currencySymbol}
+                  ${formatMoney(paycheckData.total)} {currencySymbol}
                 </span>
               </div>
             </div>
