@@ -297,9 +297,10 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     // Next pickaxe in sequence
     const nextPickaxe = PICKAXES.find(p => p.id === highestOwnedId + 1);
     if (!nextPickaxe) return false;
-    // Can afford it?
-    return gameState.yatesDollars >= nextPickaxe.price;
-  }, [gameState.ownedPickaxeIds, gameState.yatesDollars]);
+    // Can afford it? (with prestige price scaling)
+    const scaledPrice = Math.floor(nextPickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
+    return gameState.yatesDollars >= scaledPrice;
+  }, [gameState.ownedPickaxeIds, gameState.yatesDollars, gameState.prestigeCount]);
 
   // Get next rock unlock progress
   const nextRockInfo = useMemo(() => {
