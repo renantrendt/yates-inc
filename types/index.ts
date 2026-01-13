@@ -158,7 +158,7 @@ export interface StockContextType {
   buyStock: (quantity: number, gameSpendMoney: (amount: number) => boolean) => boolean;
   sellStock: (quantity: number) => boolean;
   spendStocks: (quantity: number) => boolean;
-  canBuyStocks: (currentRockId: number, ownedPickaxeIds: number[]) => boolean;
+  canBuyStocks: (currentRockId: number, ownedPickaxeIds: number[], hasStocksUnlocked?: boolean) => boolean;
 }
 
 
@@ -222,7 +222,7 @@ export interface StockContextType {
   buyStock: (quantity: number, gameSpendMoney: (amount: number) => boolean) => boolean;
   sellStock: (quantity: number) => boolean;
   spendStocks: (quantity: number) => boolean;
-  canBuyStocks: (currentRockId: number, ownedPickaxeIds: number[]) => boolean;
+  canBuyStocks: (currentRockId: number, ownedPickaxeIds: number[], hasStocksUnlocked?: boolean) => boolean;
 }
 
 
