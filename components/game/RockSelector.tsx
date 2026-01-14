@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { ROCKS } from '@/lib/gameData';
+import { getScaledRockHP } from '@/types/game';
 
 interface RockSelectorProps {
   onClose: () => void;
@@ -108,7 +109,7 @@ export default function RockSelector({ onClose }: RockSelectorProps) {
                     ${formatNumber(rock.moneyPerBreak)}/break
                   </p>
                   <p className="text-gray-500 text-[10px] sm:text-xs text-center">
-                    {formatNumber(rock.clicksToBreak)} HP
+                    {formatNumber(getScaledRockHP(rock.clicksToBreak, gameState.prestigeCount))} HP
                   </p>
                 </button>
               );

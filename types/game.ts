@@ -418,6 +418,14 @@ export const MINER_TICK_INTERVAL = 1000; // 1 second between miner ticks
 export const MINER_BASE_DAMAGE = 1190; // ~500k total damage at 420 miners (500k/420 ≈ 1190)
 export const MINER_VISIBLE_MAX = 100; // Max visible sprites
 
+// Rock health scaling per prestige (23% increase per prestige)
+export const ROCK_HEALTH_PRESTIGE_SCALING = 0.23;
+
+// Get scaled rock HP based on prestige count
+export function getScaledRockHP(baseHP: number, prestigeCount: number): number {
+  return Math.ceil(baseHP * (1 + prestigeCount * ROCK_HEALTH_PRESTIGE_SCALING));
+}
+
 // Get prestige price multiplier (10% increase every 5 prestiges)
 export function getPrestigePriceMultiplier(prestigeCount: number): number {
   return Math.pow(1.10, Math.floor(prestigeCount / 5));

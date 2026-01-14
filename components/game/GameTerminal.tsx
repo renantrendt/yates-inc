@@ -41,7 +41,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const terminalRef = useRef<HTMLDivElement>(null);
   const cmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory, addMoney, addMiners, addPrestigeTokens, giveTrinket, givePickaxe, setTotalClicks, toggleAutoPrestige, giveTitle, equipTitle, unlockAllAchievements } = useGame();
+  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory, addMoney, addMiners, addPrestigeTokens, giveTrinket, givePickaxe, setTotalClicks, toggleAutoPrestige, giveTitle, equipTitle, unlockAllAchievements, selectPath } = useGame();
   const { employee } = useAuth();
   const { client } = useClient();
   
@@ -551,6 +551,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('clearhistory   - Wipe command history (↑↓)');
       addToHistory('allachv        - Unlock ALL achievements');
       addToHistory('titles         - List all Pro Player titles');
+      addToHistory('side [l/d]     - Switch to Light or Darkness');
       if (isBanAdmin) {
         addToHistory('');
         addToHistory('🔨 ADMIN COMMANDS (Bernardo/Logan only):');
@@ -759,6 +760,24 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         }
       }
     }
+    // Change side/path (Light or Darkness) - force=true to allow switching
+    else if (trimmed.startsWith('side ')) {
+      const side = trimmed.slice(5).trim().toLowerCase();
+      if (side === 'l' || side === 'light') {
+        selectPath('light', true); // force=true for admin override
+        addToHistory('☀️ Switched to the LIGHT path!');
+        addToHistory('   +50% trinket effects, +30% money');
+        addToHistory('   Unlocked: Sun pickaxe, Angel rock');
+      } else if (side === 'd' || side === 'dark' || side === 'darkness') {
+        selectPath('darkness', true); // force=true for admin override
+        addToHistory('🌑 Switched to the DARKNESS path!');
+        addToHistory('   Unlocked: Demon, Nightmare, Galaxy pickaxes');
+        addToHistory('   Unlocked: Devil, Moon rocks');
+        addToHistory('   Miner sacrifice & Golden Cookie available!');
+      } else {
+        addToHistory('❌ Invalid side. Use: side l (light) or side d (darkness)');
+      }
+    }
     // Give ALL achievements (NO titles - those are admin only)
     else if (trimmed === 'allachv') {
       // Give all achievements
@@ -842,7 +861,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory(`❌ Unknown command: ${trimmed}`);
       addToHistory('Type help for available commands');
     }
-  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers, giveToPlayer, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, prestige, toggleAutoPrestige, gameState.autoPrestigeEnabled, gameState.isBlocked, dismissWarning, clearClickHistory, givePickaxe]);
+  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers, giveToPlayer, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, prestige, toggleAutoPrestige, gameState.autoPrestigeEnabled, gameState.isBlocked, dismissWarning, clearClickHistory, givePickaxe, selectPath]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

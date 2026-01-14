@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { PICKAXES, getNextRockUnlockInfo } from '@/lib/gameData';
 import { AUTOCLICKER_COST, AUTOCLICKER_CPS, getPrestigePriceMultiplier } from '@/types/game';
 import GameShop from './GameShop';
@@ -19,7 +20,7 @@ import RankingPanel from './RankingPanel';
 import PathSelectionModal from './PathSelectionModal';
 import GoldenCookie from './GoldenCookie';
 import SacrificeModal from './SacrificeModal';
-import { MINER_BASE_DAMAGE } from '@/types/game';
+import { MINER_BASE_DAMAGE, getScaledRockHP } from '@/types/game';
 import { ROCKS, getRockById } from '@/lib/gameData';
 
 interface MiningGameProps {
@@ -63,6 +64,9 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     getTotalBonuses,
     selectPath,
   } = useGame();
+
+  const { employee } = useAuth();
+  const isEmployee = !!employee?.id && /^\d+$/.test(employee.id);
 
   // Calculate scaled autoclicker cost (10% increase every 5 prestiges)
   const scaledAutoclickerCost = Math.floor(AUTOCLICKER_COST * getPrestigePriceMultiplier(gameState.prestigeCount));
@@ -147,7 +151,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       }, 300);
     } else {
       // Update display progress for click feedback, then reset to let actualProgress take over
-      const newProgress = ((currentRock.clicksToBreak - gameState.currentRockHP + 1) / currentRock.clicksToBreak) * 100;
+      const scaledMaxHP = getScaledRockHP(currentRock.clicksToBreak, gameState.prestigeCount);
+      const newProgress = ((scaledMaxHP - gameState.currentRockHP + 1) / scaledMaxHP) * 100;
       setDisplayProgress(Math.min(100, newProgress));
       // Reset displayProgress after animation so miners can update the bar via actualProgress
       setTimeout(() => setDisplayProgress(0), 200);
@@ -244,8 +249,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
         onExit();
       }
 
-      // 'I' key toggles terminal
-      if (e.key === 'i' || e.key === 'I') {
+      // 'I' key toggles terminal (employees only)
+      if ((e.key === 'i' || e.key === 'I') && isEmployee) {
         setShowTerminal(prev => !prev);
       }
 
@@ -282,7 +287,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     }
   };
 
-  const actualProgress = ((currentRock.clicksToBreak - gameState.currentRockHP) / currentRock.clicksToBreak) * 100;
+  const scaledRockMaxHP = getScaledRockHP(currentRock.clicksToBreak, gameState.prestigeCount);
+  const actualProgress = ((scaledRockMaxHP - gameState.currentRockHP) / scaledRockMaxHP) * 100;
   const progressPercent = rockBroken ? 100 : (displayProgress || actualProgress);
   const totalCoupons = gameState.coupons.discount30 + gameState.coupons.discount50 + gameState.coupons.discount100;
 
@@ -609,7 +615,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
               <div className="flex justify-between items-center mb-1">
                 <span className="text-gray-300 font-medium text-xs sm:text-sm">⛏️ Mining: {currentRock.name}</span>
                 <span className="text-gray-400 text-[10px] sm:text-xs">
-                  {formatNumber(gameState.currentRockHP)} / {formatNumber(currentRock.clicksToBreak)} HP
+                  {formatNumber(gameState.currentRockHP)} / {formatNumber(getScaledRockHP(currentRock.clicksToBreak, gameState.prestigeCount))} HP
                 </span>
               </div>
               <div className="w-full h-2 sm:h-3 bg-gray-800 rounded-full overflow-hidden">
@@ -717,12 +723,14 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       {/* Ability Button - bottom right (for pickaxes with active abilities) */}
       <AbilityButton />
 
-      {/* Game Terminal */}
-      <GameTerminal
-        isOpen={showTerminal}
-        onClose={() => setShowTerminal(false)}
-        onMine={handleMine}
-      />
+      {/* Game Terminal (employees only) */}
+      {isEmployee && (
+        <GameTerminal
+          isOpen={showTerminal}
+          onClose={() => setShowTerminal(false)}
+          onMine={handleMine}
+        />
+      )}
 
       {/* CSS Animations */}
       <style jsx global>{`

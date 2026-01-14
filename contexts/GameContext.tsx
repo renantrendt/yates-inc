@@ -11,7 +11,9 @@ import {
   ACHIEVEMENTS, shouldUnlockAchievement, TITLES,
   // Path system
   GamePath, SacrificeBuff, SACRIFICE_BUFF_TIERS,
-  DARKNESS_PICKAXE_IDS, LIGHT_PICKAXE_IDS, YATES_PICKAXE_ID
+  DARKNESS_PICKAXE_IDS, LIGHT_PICKAXE_IDS, YATES_PICKAXE_ID,
+  // Rock health scaling
+  getScaledRockHP
 } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
@@ -138,7 +140,7 @@ interface GameContextType {
   // =====================
   // PATH SYSTEM FUNCTIONS
   // =====================
-  selectPath: (path: GamePath) => void;
+  selectPath: (path: GamePath, force?: boolean) => void;
   canBuyPickaxeForPath: (pickaxeId: number) => boolean;
   canMineRockForPath: (rockId: number) => boolean;
   // Miner sacrifice (Darkness path)
@@ -706,7 +708,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         
         // Rock broke! Calculate how many rocks we break with overkill damage
         const overkillDamage = Math.abs(newHP); // Damage beyond first rock
-        const fullRockHP = rock.clicksToBreak;
+        const fullRockHP = getScaledRockHP(rock.clicksToBreak, prev.prestigeCount);
         
         // First rock + additional rocks from overkill
         const additionalRocks = Math.floor(overkillDamage / fullRockHP);
@@ -727,7 +729,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         
         return {
           ...prev,
-          currentRockHP: newCurrentRockId !== prev.currentRockId ? nextRock.clicksToBreak : finalHP,
+          currentRockHP: newCurrentRockId !== prev.currentRockId ? getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount) : finalHP,
           currentRockId: newCurrentRockId,
           rocksMinedCount: prev.rocksMinedCount + totalRocksBroken,
           yatesDollars: prev.yatesDollars + totalMoney,
@@ -775,7 +777,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setGameState(prev => ({
           ...prev,
           currentRockId: 1,
-          currentRockHP: ROCKS[0].clicksToBreak,
+          currentRockHP: getScaledRockHP(ROCKS[0].clicksToBreak, newPrestigeCount),
           currentPickaxeId: 1,
           ownedPickaxeIds: [1],
           totalClicks: 0,
@@ -1298,9 +1300,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           newCurrentRockId = highestUnlocked.id;
         }
         
-        // Reset HP for new rock
+        // Reset HP for new rock (scaled by prestige)
         const nextRock = getRockById(newCurrentRockId) || rock;
-        newRockHP = nextRock.clicksToBreak;
+        newRockHP = getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount);
       }
 
       // Check for coupon drop
@@ -1389,7 +1391,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameState((prev) => ({
       ...prev,
       currentRockId: rockId,
-      currentRockHP: rock.clicksToBreak,
+      currentRockHP: getScaledRockHP(rock.clicksToBreak, prev.prestigeCount),
     }));
   }, [gameState.totalClicks]);
 
@@ -1557,9 +1559,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     setGameState((prev) => ({
       ...prev,
-      // Reset rocks and pickaxes
+      // Reset rocks and pickaxes (rock HP scaled by new prestige count)
       currentRockId: 1,
-      currentRockHP: ROCKS[0].clicksToBreak,
+      currentRockHP: getScaledRockHP(ROCKS[0].clicksToBreak, newPrestigeCount),
       currentPickaxeId: 1,
       ownedPickaxeIds: [1],
       totalClicks: 0,
@@ -1809,7 +1811,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setGameState(prev => ({
         ...prev,
         yatesDollars: prev.yatesDollars - ability.cost + money,
-        currentRockHP: rock.clicksToBreak, // Reset to full HP (new rock)
+        currentRockHP: getScaledRockHP(rock.clicksToBreak, prev.prestigeCount), // Reset to full scaled HP
         rocksMinedCount: prev.rocksMinedCount + 1,
         abilityCooldowns: {
           ...prev.abilityCooldowns,
@@ -2051,9 +2053,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // =====================
 
   // Select path (Light or Darkness) - called from PathSelectionModal
-  const selectPath = useCallback((path: GamePath) => {
-    if (!path || gameState.chosenPath) return; // Can't change path once chosen
-    
+  // force=true allows admin terminal to override existing path choice
+  const selectPath = useCallback((path: GamePath, force: boolean = false) => {
+    if (!path) return;
+    if (gameState.chosenPath && !force) return; // Can't change path once chosen (unless forced)
+
     setGameState(prev => ({
       ...prev,
       chosenPath: path,
