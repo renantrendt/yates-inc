@@ -47,6 +47,62 @@ export interface ShopStock {
   lastRestockTime: number; // timestamp
 }
 
+// =====================
+// LIGHT VS DARKNESS PATH SYSTEM
+// =====================
+
+export type GamePath = 'light' | 'darkness' | null;
+
+export interface SacrificeBuff {
+  moneyBonus: number;
+  pcxDamageBonus: number;
+  minerDamageBonus: number;
+  allBonus: number;
+  endsAt: number; // timestamp when buff expires
+}
+
+// Miner sacrifice buff tiers (Darkness path only)
+export const SACRIFICE_BUFF_TIERS: { miners: number; buff: Omit<SacrificeBuff, 'endsAt'>; duration: number }[] = [
+  { miners: 1, buff: { moneyBonus: 0.01, pcxDamageBonus: 0, minerDamageBonus: 0, allBonus: 0 }, duration: 2000 },
+  { miners: 10, buff: { moneyBonus: 0.10, pcxDamageBonus: 0, minerDamageBonus: 0, allBonus: 0 }, duration: 10000 },
+  { miners: 50, buff: { moneyBonus: 0.25, pcxDamageBonus: 0, minerDamageBonus: 0, allBonus: 0 }, duration: 25000 },
+  { miners: 75, buff: { moneyBonus: 0.45, pcxDamageBonus: 0, minerDamageBonus: 0, allBonus: 0 }, duration: 40000 },
+  { miners: 100, buff: { moneyBonus: 0.50, pcxDamageBonus: 0, minerDamageBonus: 0, allBonus: 0 }, duration: 50000 },
+  { miners: 125, buff: { moneyBonus: 0.45, pcxDamageBonus: 0.15, minerDamageBonus: 0, allBonus: 0 }, duration: 40000 },
+  { miners: 150, buff: { moneyBonus: 0.54, pcxDamageBonus: 0.30, minerDamageBonus: 0, allBonus: 0 }, duration: 60000 },
+  { miners: 200, buff: { moneyBonus: 0.45, pcxDamageBonus: 0.45, minerDamageBonus: 0.10, allBonus: 0 }, duration: 70000 },
+  { miners: 250, buff: { moneyBonus: 0.45, pcxDamageBonus: 0.45, minerDamageBonus: 0.45, allBonus: 0 }, duration: 80000 },
+  { miners: 300, buff: { moneyBonus: 0, pcxDamageBonus: 0, minerDamageBonus: 0, allBonus: 0.50 }, duration: 30000 },
+];
+
+// Golden Cookie reward probabilities (must sum to 1.0)
+export const GOLDEN_COOKIE_REWARDS = {
+  yatesPickaxe: 0.10,      // 10% - Yates Pickaxe
+  yatesTotem: 0.01,        // 1%  - Yates Totem trinket
+  money12Percent: 0.15,    // 15% - +12% of current money
+  randomTrinket: 0.50,     // 50% - Random trinket (or $1 if owned)
+  money24Percent: 0.22,    // 22% - +24% of current money
+  owoTitle: 0.01,          // 1%  - Secret "OwO" title (+500% everything!)
+  adminCommands: 0.01,     // 1%  - 5min admin commands
+};
+
+// Golden Cookie spawn timing (ms)
+export const GOLDEN_COOKIE_MIN_SPAWN = 120000; // 2 minutes
+export const GOLDEN_COOKIE_MAX_SPAWN = 180000; // 3 minutes
+
+// Miner sacrifice ritual requirements
+export const RITUAL_MONEY_REQUIREMENT = 1000000000000; // 1T$
+export const RITUAL_MINER_SACRIFICE = 420; // Must sacrifice 420 miners
+
+// Path-restricted pickaxes (can only buy/use if on that path)
+export const DARKNESS_PICKAXE_IDS = [18, 21, 25]; // Demon, Nightmare, Galaxy
+export const LIGHT_PICKAXE_IDS = [22]; // Sun
+export const YATES_PICKAXE_ID = 26; // Only from Golden Cookie
+
+// Path-restricted rocks (can only mine if on that path)
+export const DARKNESS_ROCK_IDS = [21, 24]; // Devil, Moon
+export const LIGHT_ROCK_IDS = [20]; // Angel rock
+
 export interface GameState {
   yatesDollars: number;
   totalClicks: number;
@@ -104,6 +160,14 @@ export interface GameState {
   ownedTitleIds: string[];            // Titles earned from rankings
   equippedTitleIds: string[];         // Currently equipped titles (max 1, or 2 with Title Master)
   titleWinCounts: Record<string, number>; // How many times each title was won (for Da Goat)
+  // =====================
+  // LIGHT VS DARKNESS PATH SYSTEM
+  // =====================
+  chosenPath: GamePath;              // Player's chosen path after first prestige
+  goldenCookieRitualActive: boolean; // Has completed the ritual to spawn golden cookies
+  sacrificeBuff: SacrificeBuff | null; // Current active sacrifice buff
+  adminCommandsUntil: number | null; // Timestamp when admin commands expire (from golden cookie)
+  showPathSelection: boolean;        // Flag to show path selection modal
   // Timestamp for sync conflict resolution
   localUpdatedAt: number;
 }
@@ -668,6 +732,17 @@ export const TITLES: Title[] = [
     category: 'secret',
     placement: 'secret',
     buffs: { allBonus: 0.56 },
+    nameStyle: 'diamond',
+  },
+  // Secret title from Golden Cookie (1% chance)
+  {
+    id: 'owo_secret',
+    name: 'OwO',
+    description: 'You are one of the few who have this title!',
+    icon: '👀',
+    category: 'secret',
+    placement: 'secret',
+    buffs: { allBonus: 5.0 }, // +500% to everything!
     nameStyle: 'diamond',
   },
 ];

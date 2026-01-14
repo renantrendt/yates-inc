@@ -8,7 +8,10 @@ import {
   TRINKETS, Trinket, TRINKET_SHOP_REFRESH_INTERVAL, TRINKET_SHOP_MIN_ITEMS, TRINKET_SHOP_MAX_ITEMS,
   MINER_TICK_INTERVAL, MINER_BASE_DAMAGE, MINER_MAX_COUNT, getMinerCost, getPrestigePriceMultiplier,
   PRESTIGE_UPGRADES, PrestigeUpgrade, PRESTIGE_TOKENS_PER_PRESTIGE, RARITY_COLORS,
-  ACHIEVEMENTS, shouldUnlockAchievement, TITLES
+  ACHIEVEMENTS, shouldUnlockAchievement, TITLES,
+  // Path system
+  GamePath, SacrificeBuff, SACRIFICE_BUFF_TIERS,
+  DARKNESS_PICKAXE_IDS, LIGHT_PICKAXE_IDS, YATES_PICKAXE_ID
 } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
@@ -105,6 +108,7 @@ interface GameContextType {
   yatesTotemSpawned: boolean;
   // Miner functions
   buyMiner: () => boolean;
+  buyMiners: (count: number) => number; // Buy multiple miners, returns how many were bought
   getMinerCost: () => number;
   // Prestige upgrade functions
   buyPrestigeUpgrade: (upgradeId: string) => boolean;
@@ -131,6 +135,20 @@ interface GameContextType {
   getAbilityCooldownRemaining: () => number;
   isAbilityActive: () => boolean;
   getActiveAbilityTimeRemaining: () => number;
+  // =====================
+  // PATH SYSTEM FUNCTIONS
+  // =====================
+  selectPath: (path: GamePath) => void;
+  canBuyPickaxeForPath: (pickaxeId: number) => boolean;
+  canMineRockForPath: (rockId: number) => boolean;
+  // Miner sacrifice (Darkness path)
+  sacrificeMiners: (count: number) => boolean;
+  getSacrificeBuffForCount: (count: number) => { buff: SacrificeBuff; duration: number } | null;
+  // Golden Cookie ritual (Darkness path)
+  activateGoldenCookieRitual: () => boolean;
+  canActivateRitual: () => boolean;
+  // Golden Cookie reward claiming
+  claimGoldenCookieReward: () => { type: string; value: number | string } | null;
 }
 
 const defaultGameState: GameState = {
@@ -184,6 +202,12 @@ const defaultGameState: GameState = {
   ownedTitleIds: [],
   equippedTitleIds: [],
   titleWinCounts: {},
+  // Light vs Darkness Path System
+  chosenPath: null,
+  goldenCookieRitualActive: false,
+  sacrificeBuff: null,
+  adminCommandsUntil: null,
+  showPathSelection: false,
   // Timestamp for sync conflict resolution
   localUpdatedAt: Date.now(),
 };
@@ -789,6 +813,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, [gameState.currentRockId, gameState.ownedPickaxeIds, gameState.hasStocksUnlocked]);
 
+  // Path selection - show modal for players who have prestiged but haven't chosen a path
+  useEffect(() => {
+    // Only show if player has prestiged at least once, hasn't chosen a path, and modal isn't already showing
+    if (gameState.prestigeCount >= 1 && !gameState.chosenPath && !gameState.showPathSelection) {
+      setGameState(prev => ({
+        ...prev,
+        showPathSelection: true,
+      }));
+    }
+  }, [gameState.prestigeCount, gameState.chosenPath, gameState.showPathSelection]);
+
   // Achievement tracking - permanently unlock achievements when criteria met
   useEffect(() => {
     const newUnlocks: string[] = [];
@@ -853,6 +888,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         trinketMultiplier += upgrade.effects.trinketBonus;
       }
     }
+
+    // LIGHT PATH BONUS: +50% to all trinket effects
+    if (gameState.chosenPath === 'light') {
+      trinketMultiplier += 0.50;
+    }
     
     // Apply trinket multiplier to all trinket bonuses
     bonuses.moneyBonus *= trinketMultiplier;
@@ -891,9 +931,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
         bonuses.minerDamageBonus += allB;
       }
     }
+
+    // LIGHT PATH BONUS: +30% more money
+    if (gameState.chosenPath === 'light') {
+      bonuses.moneyBonus += 0.30;
+    }
+
+    // SACRIFICE BUFF (Darkness path) - check if active
+    if (gameState.sacrificeBuff && Date.now() < gameState.sacrificeBuff.endsAt) {
+      const buff = gameState.sacrificeBuff;
+      bonuses.moneyBonus += buff.moneyBonus;
+      bonuses.rockDamageBonus += buff.pcxDamageBonus;
+      bonuses.minerDamageBonus += buff.minerDamageBonus;
+      // allBonus applies to everything
+      if (buff.allBonus > 0) {
+        bonuses.moneyBonus += buff.allBonus;
+        bonuses.rockDamageBonus += buff.allBonus;
+        bonuses.clickSpeedBonus += buff.allBonus;
+        bonuses.couponBonus += buff.allBonus;
+        bonuses.minerSpeedBonus += buff.allBonus;
+        bonuses.minerDamageBonus += buff.allBonus;
+      }
+    }
     
     return bonuses;
-  }, [gameState.equippedTrinketIds, gameState.ownedPrestigeUpgradeIds, gameState.equippedTitleIds]);
+  }, [gameState.equippedTrinketIds, gameState.ownedPrestigeUpgradeIds, gameState.equippedTitleIds, gameState.chosenPath, gameState.sacrificeBuff]);
 
   // Save to localStorage and Supabase whenever state changes
   useEffect(() => {
@@ -1508,7 +1570,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       yatesDollars: keepsMoney ? prev.yatesDollars : 0,
       // Keep coupons, autoclicker, cutscene seen, trinkets
       // BUT remove totem from inventory if it was used for protection
-      ownedTrinketIds: hasProtection 
+      ownedTrinketIds: hasProtection
         ? prev.ownedTrinketIds.filter(id => id !== 'totem')
         : prev.ownedTrinketIds,
       equippedTrinketIds: hasProtection
@@ -1523,6 +1585,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // Ranking: track fastest prestige time and reset game start
       fastestPrestigeTime: newFastestTime,
       gameStartTime: Date.now(), // Reset for next prestige attempt
+      // PATH SELECTION: Show modal after first prestige if no path chosen yet
+      showPathSelection: newPrestigeCount === 1 && !prev.chosenPath,
     }));
 
     // Force immediate save to Supabase after prestige (bypass debounce)
@@ -1982,6 +2046,258 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return bonuses;
   }, [gameState.equippedTitleIds]);
 
+  // =====================
+  // PATH SYSTEM FUNCTIONS
+  // =====================
+
+  // Select path (Light or Darkness) - called from PathSelectionModal
+  const selectPath = useCallback((path: GamePath) => {
+    if (!path || gameState.chosenPath) return; // Can't change path once chosen
+    
+    setGameState(prev => ({
+      ...prev,
+      chosenPath: path,
+      showPathSelection: false,
+    }));
+  }, [gameState.chosenPath]);
+
+  // Check if player can buy a pickaxe based on their path
+  const canBuyPickaxeForPath = useCallback((pickaxeId: number): boolean => {
+    // Yates pickaxe cannot be bought - only from Golden Cookie
+    if (pickaxeId === YATES_PICKAXE_ID) return false;
+    
+    // If no path chosen yet, can buy any non-restricted pickaxe
+    if (!gameState.chosenPath) {
+      return !DARKNESS_PICKAXE_IDS.includes(pickaxeId) && !LIGHT_PICKAXE_IDS.includes(pickaxeId);
+    }
+    
+    // Darkness path can buy darkness pickaxes
+    if (gameState.chosenPath === 'darkness') {
+      return !LIGHT_PICKAXE_IDS.includes(pickaxeId);
+    }
+    
+    // Light path can buy light pickaxes
+    if (gameState.chosenPath === 'light') {
+      return !DARKNESS_PICKAXE_IDS.includes(pickaxeId);
+    }
+    
+    return true;
+  }, [gameState.chosenPath]);
+
+  // Check if player can mine a rock based on their path (not implemented as restriction, just for UI)
+  const canMineRockForPath = useCallback((rockId: number): boolean => {
+    // All rocks can be mined regardless of path for now
+    // Path-specific rocks just provide better bonuses for the matching path
+    return true;
+  }, []);
+
+  // Buy multiple miners at once (bulk buy)
+  const buyMiners = useCallback((count: number): number => {
+    let bought = 0;
+    for (let i = 0; i < count; i++) {
+      if (gameState.minerCount + bought >= MINER_MAX_COUNT) break;
+      const cost = getMinerCost(gameState.minerCount + bought, gameState.prestigeCount);
+      if (gameState.yatesDollars < cost) break;
+      
+      setGameState(prev => ({
+        ...prev,
+        yatesDollars: prev.yatesDollars - cost,
+        minerCount: prev.minerCount + 1,
+      }));
+      bought++;
+    }
+    return bought;
+  }, [gameState.minerCount, gameState.yatesDollars, gameState.prestigeCount]);
+
+  // Get what buff would be applied for sacrificing X miners
+  const getSacrificeBuffForCount = useCallback((count: number): { buff: SacrificeBuff; duration: number } | null => {
+    // Find the highest tier that matches
+    let bestTier = null;
+    for (const tier of SACRIFICE_BUFF_TIERS) {
+      if (count >= tier.miners) {
+        bestTier = tier;
+      }
+    }
+    
+    if (!bestTier) return null;
+    
+    return {
+      buff: {
+        ...bestTier.buff,
+        endsAt: Date.now() + bestTier.duration,
+      },
+      duration: bestTier.duration,
+    };
+  }, []);
+
+  // Sacrifice miners for temporary buff (Darkness path only)
+  const sacrificeMiners = useCallback((count: number): boolean => {
+    if (gameState.chosenPath !== 'darkness') return false;
+    if (gameState.minerCount < count) return false;
+    if (count <= 0 || count > 300) return false;
+    
+    const buffInfo = getSacrificeBuffForCount(count);
+    if (!buffInfo) return false;
+    
+    setGameState(prev => ({
+      ...prev,
+      minerCount: prev.minerCount - count,
+      sacrificeBuff: buffInfo.buff,
+    }));
+    
+    return true;
+  }, [gameState.chosenPath, gameState.minerCount, getSacrificeBuffForCount]);
+
+  // Check if player can activate the Golden Cookie ritual
+  const canActivateRitual = useCallback((): boolean => {
+    if (gameState.chosenPath !== 'darkness') return false;
+    if (gameState.goldenCookieRitualActive) return false; // Already active
+    // Need 1T$ AND 420 miners to sacrifice
+    if (gameState.yatesDollars < 1000000000000) return false; // 1T$
+    if (gameState.minerCount < 420) return false;
+    return true;
+  }, [gameState.chosenPath, gameState.goldenCookieRitualActive, gameState.yatesDollars, gameState.minerCount]);
+
+  // Activate the Golden Cookie ritual (sacrifices 420 miners)
+  const activateGoldenCookieRitual = useCallback((): boolean => {
+    if (!canActivateRitual()) return false;
+    
+    setGameState(prev => ({
+      ...prev,
+      minerCount: prev.minerCount - 420, // Sacrifice 420 miners
+      goldenCookieRitualActive: true,
+    }));
+    
+    return true;
+  }, [canActivateRitual]);
+
+  // Claim a reward from clicking the Golden Cookie
+  const claimGoldenCookieReward = useCallback((): { type: string; value: number | string } | null => {
+    if (gameState.chosenPath !== 'darkness' || !gameState.goldenCookieRitualActive) return null;
+    
+    const roll = Math.random();
+    let cumulative = 0;
+    
+    // 10% - Yates Pickaxe
+    cumulative += 0.10;
+    if (roll < cumulative) {
+      if (!gameState.ownedPickaxeIds.includes(YATES_PICKAXE_ID)) {
+        setGameState(prev => ({
+          ...prev,
+          ownedPickaxeIds: [...prev.ownedPickaxeIds, YATES_PICKAXE_ID],
+        }));
+        return { type: 'yates_pickaxe', value: YATES_PICKAXE_ID };
+      }
+      // Already own it, give money instead
+      const bonus = Math.floor(gameState.yatesDollars * 0.24);
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      return { type: 'money', value: bonus };
+    }
+    
+    // 1% - Yates Totem
+    cumulative += 0.01;
+    if (roll < cumulative) {
+      if (!gameState.ownedTrinketIds.includes('yates_totem')) {
+        setGameState(prev => ({
+          ...prev,
+          ownedTrinketIds: [...prev.ownedTrinketIds, 'yates_totem'],
+        }));
+        return { type: 'yates_totem', value: 'yates_totem' };
+      }
+      // Already own it, give $1
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + 1 }));
+      return { type: 'money', value: 1 };
+    }
+    
+    // 15% - +12% of current money
+    cumulative += 0.15;
+    if (roll < cumulative) {
+      const bonus = Math.floor(gameState.yatesDollars * 0.12);
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      return { type: 'money_12', value: bonus };
+    }
+    
+    // 50% - Random trinket (or $1 if owned)
+    cumulative += 0.50;
+    if (roll < cumulative) {
+      const unownedTrinkets = TRINKETS.filter(t => !gameState.ownedTrinketIds.includes(t.id));
+      if (unownedTrinkets.length > 0) {
+        const randomTrinket = unownedTrinkets[Math.floor(Math.random() * unownedTrinkets.length)];
+        setGameState(prev => ({
+          ...prev,
+          ownedTrinketIds: [...prev.ownedTrinketIds, randomTrinket.id],
+        }));
+        return { type: 'trinket', value: randomTrinket.id };
+      }
+      // Own all trinkets, give $1
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + 1 }));
+      return { type: 'money', value: 1 };
+    }
+    
+    // 22% - +24% of current money
+    cumulative += 0.22;
+    if (roll < cumulative) {
+      const bonus = Math.floor(gameState.yatesDollars * 0.24);
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      return { type: 'money_24', value: bonus };
+    }
+    
+    // 1% - Secret "OwO" title (+500% everything!)
+    cumulative += 0.01;
+    if (roll < cumulative) {
+      if (!gameState.ownedTitleIds?.includes('owo_secret')) {
+        setGameState(prev => ({
+          ...prev,
+          ownedTitleIds: [...(prev.ownedTitleIds || []), 'owo_secret'],
+        }));
+        return { type: 'owo_title', value: 'owo_secret' };
+      }
+      // Already have it, give money
+      const bonus = Math.floor(gameState.yatesDollars * 0.24);
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      return { type: 'money', value: bonus };
+    }
+    
+    // 1% - 5min admin commands
+    const adminExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes
+    setGameState(prev => ({ ...prev, adminCommandsUntil: adminExpiry }));
+    return { type: 'admin_commands', value: adminExpiry };
+  }, [gameState.chosenPath, gameState.goldenCookieRitualActive, gameState.yatesDollars, gameState.ownedPickaxeIds, gameState.ownedTrinketIds, gameState.ownedTitleIds]);
+
+  // Clear expired sacrifice buff
+  useEffect(() => {
+    if (!gameState.sacrificeBuff) return;
+    
+    const timeLeft = gameState.sacrificeBuff.endsAt - Date.now();
+    if (timeLeft <= 0) {
+      setGameState(prev => ({ ...prev, sacrificeBuff: null }));
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setGameState(prev => ({ ...prev, sacrificeBuff: null }));
+    }, timeLeft);
+
+    return () => clearTimeout(timeout);
+  }, [gameState.sacrificeBuff]);
+
+  // Clear expired admin commands
+  useEffect(() => {
+    if (!gameState.adminCommandsUntil) return;
+    
+    const timeLeft = gameState.adminCommandsUntil - Date.now();
+    if (timeLeft <= 0) {
+      setGameState(prev => ({ ...prev, adminCommandsUntil: null }));
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setGameState(prev => ({ ...prev, adminCommandsUntil: null }));
+    }, timeLeft);
+
+    return () => clearTimeout(timeout);
+  }, [gameState.adminCommandsUntil]);
+
   // Always render - game will work with default state while data loads
 
   return (
@@ -2025,6 +2341,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         yatesTotemSpawned,
         // Miner functions
         buyMiner,
+        buyMiners,
         getMinerCost: getMinerCostFn,
         // Prestige upgrade functions
         buyPrestigeUpgrade,
@@ -2051,6 +2368,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
         getAbilityCooldownRemaining,
         isAbilityActive,
         getActiveAbilityTimeRemaining,
+        // Path system functions
+        selectPath,
+        canBuyPickaxeForPath,
+        canMineRockForPath,
+        sacrificeMiners,
+        getSacrificeBuffForCount,
+        activateGoldenCookieRitual,
+        canActivateRitual,
+        claimGoldenCookieReward,
       }}
     >
       {children}

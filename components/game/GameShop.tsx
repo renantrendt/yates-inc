@@ -4,8 +4,15 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { PICKAXES } from '@/lib/gameData';
-import { products } from '@/utils/products';
-import { SHOP_UNLOCK_REQUIREMENTS, getPrestigePriceMultiplier } from '@/types/game';
+import { 
+  getPrestigePriceMultiplier, 
+  PRESTIGE_UPGRADES,
+  MINER_MAX_COUNT,
+  getMinerCost,
+  DARKNESS_PICKAXE_IDS,
+  LIGHT_PICKAXE_IDS,
+  YATES_PICKAXE_ID,
+} from '@/types/game';
 
 interface GameShopProps {
   onClose: () => void;
@@ -17,7 +24,7 @@ interface Toast {
   type: 'success' | 'error';
 }
 
-type ShopTab = 'pickaxes' | 'products';
+type ShopTab = 'pickaxes' | 'prestige' | 'miners';
 
 export default function GameShop({ onClose }: GameShopProps) {
   const { 
@@ -27,14 +34,17 @@ export default function GameShop({ onClose }: GameShopProps) {
     ownsPickaxe, 
     equipPickaxe,
     currentPickaxe,
-    shopStock,
-    buyShopProduct,
-    getTimeUntilRestock,
+    canBuyPickaxeForPath,
+    // Prestige store
+    buyPrestigeUpgrade,
+    ownsPrestigeUpgrade,
+    // Miners
+    buyMiners,
   } = useGame();
 
   const [activeTab, setActiveTab] = useState<ShopTab>('pickaxes');
-  const [restockTimer, setRestockTimer] = useState(getTimeUntilRestock());
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [minerBuyAmount, setMinerBuyAmount] = useState(1);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     const id = `toast-${Date.now()}`;
@@ -46,14 +56,6 @@ export default function GameShop({ onClose }: GameShopProps) {
     }, 3000);
   };
 
-  // Update restock timer every second
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setRestockTimer(getTimeUntilRestock());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [getTimeUntilRestock]);
-
   const formatNumber = (num: number): string => {
     if (num >= 1000000000000000) return `${(num / 1000000000000000).toFixed(1)}Q`;
     if (num >= 1000000000000) return `${(num / 1000000000000).toFixed(1)}T`;
@@ -63,32 +65,54 @@ export default function GameShop({ onClose }: GameShopProps) {
     return num.toString();
   };
 
-  const formatTime = (ms: number): string => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
+  const canAccessPrestige = gameState.prestigeCount > 0;
 
-  const canAccessProducts = 
-    gameState.currentRockId >= SHOP_UNLOCK_REQUIREMENTS.productsTab.minRockId &&
-    gameState.ownedPickaxeIds.some(id => id >= SHOP_UNLOCK_REQUIREMENTS.productsTab.minPickaxeId);
-
-  // Product prices in Yates Dollars (15x the real price)
-  const getProductPrice = (priceFloat: number): number => {
-    return Math.floor(priceFloat * 15);
-  };
-
-  const handleBuyProduct = (productId: number, productName: string) => {
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
-    
-    const price = getProductPrice(product.priceFloat);
-    const success = buyShopProduct(productId);
-    if (success) {
-      showToast(`🛒 ${productName} purchased for $${formatNumber(price)} YD!`, 'success');
+  const handleBuyMiners = () => {
+    const bought = buyMiners(minerBuyAmount);
+    if (bought > 0) {
+      showToast(`⛏️ Hired ${bought} miner${bought > 1 ? 's' : ''}!`, 'success');
     }
   };
+
+  // Check if pickaxe should be visible based on path
+  const shouldShowPickaxe = (pickaxeId: number): boolean => {
+    // Never show Yates pickaxe in shop (Golden Cookie only)
+    if (pickaxeId === YATES_PICKAXE_ID) return false;
+    
+    // If no path chosen, don't show path-restricted pickaxes
+    if (!gameState.chosenPath) {
+      if (DARKNESS_PICKAXE_IDS.includes(pickaxeId)) return false;
+      if (LIGHT_PICKAXE_IDS.includes(pickaxeId)) return false;
+    }
+    
+    // If Darkness path, don't show Light pickaxes
+    if (gameState.chosenPath === 'darkness' && LIGHT_PICKAXE_IDS.includes(pickaxeId)) return false;
+    
+    // If Light path, don't show Darkness pickaxes
+    if (gameState.chosenPath === 'light' && DARKNESS_PICKAXE_IDS.includes(pickaxeId)) return false;
+    
+    return true;
+  };
+
+  // Get path restriction label for pickaxe
+  const getPathLabel = (pickaxeId: number): string | null => {
+    if (DARKNESS_PICKAXE_IDS.includes(pickaxeId)) return '🌑 Darkness';
+    if (LIGHT_PICKAXE_IDS.includes(pickaxeId)) return '☀️ Light';
+    return null;
+  };
+
+  // Calculate total cost to buy X miners
+  const calculateMinersCost = (count: number): number => {
+    let total = 0;
+    for (let i = 0; i < count; i++) {
+      if (gameState.minerCount + i >= MINER_MAX_COUNT) break;
+      total += getMinerCost(gameState.minerCount + i, gameState.prestigeCount);
+    }
+    return total;
+  };
+
+  const minersCost = calculateMinersCost(minerBuyAmount);
+  const canAffordMiners = gameState.yatesDollars >= minersCost && gameState.minerCount < MINER_MAX_COUNT;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
@@ -108,6 +132,12 @@ export default function GameShop({ onClose }: GameShopProps) {
               <span className="text-base sm:text-xl">💰</span>
               <span className="text-yellow-300 font-bold text-sm sm:text-base">${formatNumber(gameState.yatesDollars)}</span>
             </div>
+            {canAccessPrestige && (
+              <div className="bg-black/30 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1">
+                <span className="text-sm sm:text-base">🪙</span>
+                <span className="text-purple-300 font-bold text-xs sm:text-sm">{gameState.prestigeTokens}</span>
+              </div>
+            )}
             <button
               onClick={onClose}
               className="text-white/80 hover:text-white text-2xl sm:text-3xl leading-none touch-manipulation p-2"
@@ -118,10 +148,10 @@ export default function GameShop({ onClose }: GameShopProps) {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-700">
+        <div className="flex border-b border-gray-700 overflow-x-auto">
           <button
             onClick={() => setActiveTab('pickaxes')}
-            className={`flex-1 py-2 sm:py-3 font-bold transition-colors text-xs sm:text-base touch-manipulation ${
+            className={`flex-1 min-w-[80px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
               activeTab === 'pickaxes'
                 ? 'bg-amber-600/20 text-amber-400 border-b-2 border-amber-400'
                 : 'text-gray-400 hover:text-gray-200'
@@ -130,35 +160,41 @@ export default function GameShop({ onClose }: GameShopProps) {
             ⛏️ Pickaxes
           </button>
           <button
-            onClick={() => setActiveTab('products')}
-            disabled={!canAccessProducts}
-            className={`flex-1 py-2 sm:py-3 font-bold transition-colors text-xs sm:text-base touch-manipulation ${
-              activeTab === 'products'
+            onClick={() => setActiveTab('miners')}
+            className={`flex-1 min-w-[80px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
+              activeTab === 'miners'
+                ? 'bg-orange-600/20 text-orange-400 border-b-2 border-orange-400'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            👷 Miners
+          </button>
+          <button
+            onClick={() => setActiveTab('prestige')}
+            disabled={!canAccessPrestige}
+            className={`flex-1 min-w-[80px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
+              activeTab === 'prestige'
                 ? 'bg-purple-600/20 text-purple-400 border-b-2 border-purple-400'
-                : canAccessProducts
+                : canAccessPrestige
                   ? 'text-gray-400 hover:text-gray-200'
                   : 'text-gray-600 cursor-not-allowed'
             }`}
           >
-            {canAccessProducts ? (
-              <span className="flex items-center justify-center gap-1 sm:gap-2">
-                <span className="hidden xs:inline">🏪</span> Products
-                <span className="text-[10px] xs:text-xs bg-purple-600/30 px-1 sm:px-2 py-0.5 rounded">
-                  🔄 {formatTime(restockTimer)}
-                </span>
-              </span>
-            ) : <span className="text-[10px] xs:text-xs">🔒 Unlock at R12 + P12</span>}
+            {canAccessPrestige ? '🌟 Prestige' : '🔒 P1+'}
           </button>
         </div>
 
         {/* Content */}
         <div className="p-3 sm:p-6 overflow-y-auto max-h-[70vh] sm:max-h-[60vh]">
+          {/* PICKAXES TAB */}
           {activeTab === 'pickaxes' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {PICKAXES.map((pickaxe) => {
+              {PICKAXES.filter(p => shouldShowPickaxe(p.id)).map((pickaxe) => {
                 const owned = ownsPickaxe(pickaxe.id);
                 const equipped = currentPickaxe.id === pickaxe.id;
                 const canAfford = canAffordPickaxe(pickaxe.id);
+                const pathLabel = getPathLabel(pickaxe.id);
+                const canBuyForPath = canBuyPickaxeForPath(pickaxe.id);
                 // Calculate scaled price (10% increase every 5 prestiges)
                 const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
                 
@@ -166,7 +202,8 @@ export default function GameShop({ onClose }: GameShopProps) {
                 const highestOwnedId = Math.max(...gameState.ownedPickaxeIds);
                 const isNextInSequence = pickaxe.id === highestOwnedId + 1;
                 const isLocked = !owned && pickaxe.id > highestOwnedId + 1;
-                const canPurchase = !owned && isNextInSequence && canAfford;
+                const isPathLocked = !canBuyForPath && !owned;
+                const canPurchase = !owned && isNextInSequence && canAfford && canBuyForPath;
 
                 return (
                   <div
@@ -176,7 +213,7 @@ export default function GameShop({ onClose }: GameShopProps) {
                         ? 'bg-amber-600/20 border-amber-400'
                         : owned
                           ? 'bg-green-600/10 border-green-600/30'
-                          : isLocked
+                          : isLocked || isPathLocked
                             ? 'bg-gray-900/50 border-gray-800/50 opacity-50'
                             : isNextInSequence
                               ? 'bg-amber-900/20 border-amber-600/50 hover:border-amber-500/50'
@@ -190,22 +227,33 @@ export default function GameShop({ onClose }: GameShopProps) {
                       </div>
                     )}
                     
+                    {/* Path Badge */}
+                    {pathLabel && !owned && (
+                      <div className={`absolute -top-2 -left-2 text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full ${
+                        pathLabel.includes('Darkness') ? 'bg-purple-600 text-white' :
+                        pathLabel.includes('Light') ? 'bg-yellow-500 text-black' :
+                        'bg-yellow-600 text-white'
+                      }`}>
+                        {pathLabel}
+                      </div>
+                    )}
+                    
                     {/* Next Up Badge */}
-                    {isNextInSequence && !owned && (
+                    {isNextInSequence && !owned && !pathLabel && (
                       <div className="absolute -top-2 -left-2 bg-green-500 text-black text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
                         NEXT
                       </div>
                     )}
                     
                     {/* Locked Badge */}
-                    {isLocked && (
+                    {(isLocked || isPathLocked) && !owned && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl">
-                        <span className="text-xl sm:text-2xl">🔒</span>
+                        <span className="text-xl sm:text-2xl">{isPathLocked ? '🚫' : '🔒'}</span>
                       </div>
                     )}
 
                     {/* Pickaxe Image */}
-                    <div className={`relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-2 sm:mb-3 ${isLocked ? 'grayscale' : ''}`}>
+                    <div className={`relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-2 sm:mb-3 ${(isLocked || isPathLocked) && !owned ? 'grayscale' : ''}`}>
                       <Image
                         src={pickaxe.image}
                         alt={pickaxe.name}
@@ -241,6 +289,10 @@ export default function GameShop({ onClose }: GameShopProps) {
                             Equip
                           </button>
                         )
+                      ) : isPathLocked ? (
+                        <div className="text-gray-500 text-center text-xs sm:text-sm">
+                          Wrong path
+                        </div>
                       ) : isLocked ? (
                         <div className="text-gray-500 text-center text-xs sm:text-sm">
                           Buy previous first
@@ -252,9 +304,7 @@ export default function GameShop({ onClose }: GameShopProps) {
                           className={`w-full font-bold py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm touch-manipulation ${
                             canPurchase
                               ? 'bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white'
-                              : !canAfford
-                                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
                           }`}
                         >
                           {scaledPrice === 0 ? 'FREE' : `$${formatNumber(scaledPrice)}`}
@@ -267,101 +317,185 @@ export default function GameShop({ onClose }: GameShopProps) {
             </div>
           )}
 
-          {activeTab === 'products' && canAccessProducts && (
-            <div className="space-y-3 sm:space-y-4">
-              {/* Restock Timer Banner */}
-              <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 rounded-lg sm:rounded-xl p-2 sm:p-3 border border-purple-500/30 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <span className="text-lg sm:text-2xl">🔄</span>
-                  <div>
-                    <p className="text-purple-300 font-bold text-xs sm:text-sm">RESTOCK IN</p>
-                    <p className="text-white font-mono text-base sm:text-xl">{formatTime(restockTimer)}</p>
-                  </div>
+          {/* MINERS TAB */}
+          {activeTab === 'miners' && (
+            <div className="space-y-4">
+              {/* Current Miners Display */}
+              <div className="bg-orange-900/20 border border-orange-600/50 rounded-xl p-4 text-center">
+                <div className="text-4xl mb-2">👷</div>
+                <div className="text-2xl font-bold text-orange-400">
+                  {gameState.minerCount} / {MINER_MAX_COUNT}
                 </div>
-                <div className="text-right">
-                  <p className="text-gray-400 text-[10px] sm:text-xs">Items available</p>
-                  <p className="text-purple-300 font-bold text-sm sm:text-base">{shopStock.items.filter(i => i.quantity > 0).length} / {shopStock.items.length}</p>
-                </div>
+                <div className="text-gray-400 text-sm">Miners Hired</div>
               </div>
 
-              {/* Products Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {shopStock.items.map((stockItem) => {
-                  const product = products.find(p => p.id === stockItem.productId);
-                  if (!product) return null;
+              {/* Bulk Buy Section */}
+              <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
+                <h3 className="text-white font-bold mb-4 text-center">Hire Miners</h3>
+                
+                {/* Amount Selector */}
+                <div className="flex items-center gap-4 mb-4">
+                  <input
+                    type="range"
+                    min={1}
+                    max={Math.max(1, Math.min(100, MINER_MAX_COUNT - gameState.minerCount))}
+                    value={minerBuyAmount}
+                    onChange={(e) => setMinerBuyAmount(Number(e.target.value))}
+                    disabled={gameState.minerCount >= MINER_MAX_COUNT}
+                    className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={MINER_MAX_COUNT - gameState.minerCount}
+                    value={minerBuyAmount}
+                    onChange={(e) => setMinerBuyAmount(Math.max(1, Math.min(MINER_MAX_COUNT - gameState.minerCount, Number(e.target.value))))}
+                    disabled={gameState.minerCount >= MINER_MAX_COUNT}
+                    className="w-20 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-center"
+                  />
+                </div>
 
-                  const price = getProductPrice(product.priceFloat);
-                  const canAfford = gameState.yatesDollars >= price;
-                  const soldOut = stockItem.quantity <= 0;
+                {/* Quick Select */}
+                <div className="flex gap-2 mb-4">
+                  {[1, 5, 10, 25, 50, 100].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setMinerBuyAmount(Math.min(n, MINER_MAX_COUNT - gameState.minerCount))}
+                      disabled={gameState.minerCount >= MINER_MAX_COUNT}
+                      className="flex-1 px-2 py-1 text-xs rounded bg-orange-900/30 hover:bg-orange-800/50 text-orange-300 transition-colors"
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
 
+                {/* Cost Display */}
+                <div className="flex justify-between items-center mb-4 p-3 bg-gray-900/50 rounded-lg">
+                  <span className="text-gray-400">Total Cost:</span>
+                  <span className={`font-bold ${canAffordMiners ? 'text-green-400' : 'text-red-400'}`}>
+                    ${formatNumber(minersCost)}
+                  </span>
+                </div>
+
+                {/* Buy Button */}
+                <button
+                  onClick={handleBuyMiners}
+                  disabled={!canAffordMiners}
+                  className={`w-full py-3 rounded-lg font-bold text-lg transition-all ${
+                    canAffordMiners
+                      ? 'bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white'
+                      : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {gameState.minerCount >= MINER_MAX_COUNT 
+                    ? 'MAX MINERS' 
+                    : `Hire ${minerBuyAmount} Miner${minerBuyAmount > 1 ? 's' : ''}`
+                  }
+                </button>
+              </div>
+
+              {/* Info */}
+              <div className="text-center text-gray-500 text-sm">
+                Miners automatically mine rocks and earn you money!
+              </div>
+            </div>
+          )}
+
+          {/* PRESTIGE STORE TAB */}
+          {activeTab === 'prestige' && canAccessPrestige && (
+            <div className="space-y-4">
+              {/* Header Info */}
+              <div className="bg-purple-900/20 border border-purple-600/50 rounded-xl p-4 text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <span className="text-2xl">🪙</span>
+                  <span className="text-2xl font-bold text-purple-400">{gameState.prestigeTokens}</span>
+                  <span className="text-gray-400">tokens</span>
+                </div>
+                <p className="text-gray-400 text-sm">
+                  Prestige Level: {gameState.prestigeCount} • Multiplier: {gameState.prestigeMultiplier.toFixed(1)}x
+                </p>
+              </div>
+
+              {/* Upgrades Grid */}
+              <div className="space-y-3">
+                {[...PRESTIGE_UPGRADES].sort((a, b) => a.cost - b.cost).map(upgrade => {
+                  const owned = ownsPrestigeUpgrade(upgrade.id);
+                  const canAfford = gameState.prestigeTokens >= upgrade.cost;
+                  
                   return (
                     <div
-                      key={product.id}
-                      className={`relative rounded-xl p-4 transition-all ${
-                        soldOut
-                          ? 'bg-gray-900/50 border border-gray-800/50 opacity-60'
-                          : 'bg-gray-800/50 border border-gray-700/50 hover:border-purple-600/50'
+                      key={upgrade.id}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        owned 
+                          ? 'border-green-500 bg-green-500/10' 
+                          : canAfford
+                            ? 'border-purple-500 bg-purple-500/10 hover:bg-purple-500/20'
+                            : 'border-gray-600 bg-gray-700/30 opacity-60'
                       }`}
                     >
-                      {/* Stock Badge */}
-                      <div className={`absolute -top-2 -right-2 text-xs font-bold px-2 py-1 rounded-full ${
-                        soldOut 
-                          ? 'bg-red-600 text-white' 
-                          : stockItem.quantity === 1 
-                            ? 'bg-yellow-500 text-black'
-                            : 'bg-purple-500 text-white'
-                      }`}>
-                        {soldOut ? 'SOLD OUT' : `×${stockItem.quantity}`}
-                      </div>
-
-                      {/* Product Image */}
-                      <div className={`relative w-24 h-24 mx-auto mb-3 bg-gray-700/30 rounded-lg overflow-hidden ${soldOut ? 'grayscale' : ''}`}>
-                        <Image
-                          src={product.image}
-                          alt={product.name}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-
-                      {/* Info */}
-                      <h3 className="text-white font-bold text-center mb-1 text-sm">{product.name}</h3>
-                      <p className="text-gray-500 text-xs text-center mb-3">
-                        Real price: {product.price}
-                      </p>
-
-                      {/* Buy Button */}
-                      {soldOut ? (
-                        <div className="w-full text-center text-gray-500 font-bold py-2 text-sm">
-                          Wait for restock
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <h3 className="text-white font-bold flex items-center gap-2">
+                            {upgrade.id === 'dual_trinkets' && '💎'}
+                            {upgrade.id === 'coupon_boost' && '🎟️'}
+                            {upgrade.id === 'miner_speed_1' && '⛏️'}
+                            {upgrade.id === 'miner_speed_2' && '⛏️'}
+                            {upgrade.id === 'pcx_damage' && '💥'}
+                            {upgrade.id === 'money_boost' && '💰'}
+                            {upgrade.id === 'miner_sprint' && '🏃'}
+                            {upgrade.id === 'money_printer' && '🖨️'}
+                            {upgrade.id === 'rapid_clicker' && '👆'}
+                            {upgrade.id === 'heavy_hitter' && '🔨'}
+                            {upgrade.id === 'relic_hunter' && '🔮'}
+                            {upgrade.id === 'mega_boost' && '🚀'}
+                            {upgrade.id === 'miner_damage_1' && '💪'}
+                            {upgrade.id === 'miner_damage_2' && '💪'}
+                            {upgrade.id === 'coupon_master' && '🎰'}
+                            {upgrade.id === 'supreme_clicker' && '⚡'}
+                            {upgrade.id === 'rock_crusher' && '🪨'}
+                            {upgrade.id === 'miner_overdrive' && '🔥'}
+                            {upgrade.id === 'gold_rush' && '🤑'}
+                            {upgrade.id === 'ultimate_miner' && '👷'}
+                            {upgrade.id === 'trinket_amplifier' && '✨'}
+                            {upgrade.id === 'yates_blessing' && '🙏'}
+                            {upgrade.id === 'title_master' && '👑'}
+                            {upgrade.name}
+                          </h3>
+                          <p className="text-gray-400 text-sm">{upgrade.description}</p>
                         </div>
-                      ) : (
-                        <button
-                          onClick={() => handleBuyProduct(product.id, product.name)}
-                          disabled={!canAfford}
-                          className={`w-full font-bold py-2 rounded-lg transition-colors text-sm ${
-                            canAfford
-                              ? 'bg-purple-600 hover:bg-purple-500 text-white'
-                              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                          }`}
-                        >
-                          ${formatNumber(price)} YD
-                        </button>
-                      )}
+                        
+                        <div className="text-right ml-4">
+                          {owned ? (
+                            <span className="text-green-400 font-bold">✓ Owned</span>
+                          ) : (
+                            <button
+                              onClick={() => buyPrestigeUpgrade(upgrade.id)}
+                              disabled={!canAfford}
+                              className={`px-4 py-2 rounded-lg font-bold transition-all ${
+                                canAfford
+                                  ? 'bg-purple-600 hover:bg-purple-500 text-white'
+                                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                              }`}
+                            >
+                              🪙 {upgrade.cost}
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
               </div>
-
-              {/* Empty Stock Message */}
-              {shopStock.items.length === 0 && (
-                <div className="text-center py-8 text-gray-400">
-                  <p className="text-4xl mb-2">📦</p>
-                  <p>No items in stock! Wait for restock...</p>
-                </div>
-              )}
+              
+              {/* Info */}
+              <div className="p-3 rounded-lg bg-gray-700/50 text-center">
+                <p className="text-gray-400 text-sm">
+                  Earn 2 prestige tokens every time you prestige!
+                </p>
+              </div>
             </div>
           )}
+
         </div>
       </div>
 
@@ -408,4 +542,3 @@ export default function GameShop({ onClose }: GameShopProps) {
     </div>
   );
 }
-

@@ -220,17 +220,28 @@ export const PICKAXES: Pickaxe[] = [
     name: 'Plasma',
     image: '/game/pickaxes/plasmap.png',
     price: 80000000000,
-    clickPower: 999999,
-    specialAbility: 'Instant melt',
+    clickPower: 120000, // Weaker than Galaxy
+    moneyMultiplier: 1.20,
+    specialAbility: '+20% money',
   },
   {
     id: 25,
     name: 'Galaxy',
     image: '/game/pickaxes/galaxypcx.png',
     price: 150000000000,
-    clickPower: 150000,
+    clickPower: 180000, // Strongest purchasable
     moneyMultiplier: 1.45,
-    specialAbility: '+45% to everything',
+    specialAbility: '+45% to everything (Darkness)',
+  },
+  // === SPECIAL PICKAXES (Golden Cookie only) ===
+  {
+    id: 26,
+    name: 'Yates',
+    image: '/game/pickaxes/yatespcx.png',
+    price: 0, // Cannot be bought - only from Golden Cookie
+    clickPower: 500000,
+    moneyMultiplier: 3.0,
+    specialAbility: '3x money, legendary power (Golden Cookie only)',
   },
 ];
 

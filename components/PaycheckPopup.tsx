@@ -7,8 +7,10 @@ import { usePaycheck } from '@/contexts/PaycheckContext';
 // Tax rate - because even fake money gets taxed lmao
 const TAX_RATE = 0.15; // 15% taxes
 
-// Format money with K, M, B suffixes
+// Format money with K, M, B, T, Q suffixes
 function formatMoney(amount: number): string {
+  if (amount >= 1000000000000000) return `${(amount / 1000000000000000).toFixed(2)}Q`;
+  if (amount >= 1000000000000) return `${(amount / 1000000000000).toFixed(2)}T`;
   if (amount >= 1000000000) return `${(amount / 1000000000).toFixed(2)}B`;
   if (amount >= 1000000) return `${(amount / 1000000).toFixed(2)}M`;
   if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K`;

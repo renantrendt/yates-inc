@@ -7,6 +7,7 @@ import { TRINKETS, RARITY_COLORS, Trinket } from '@/types/game';
 
 export default function TrinketSlot() {
   const [showSelector, setShowSelector] = useState(false);
+  const [showBonusDetails, setShowBonusDetails] = useState(false);
   const { 
     gameState, 
     getEquippedTrinkets, 
@@ -25,6 +26,10 @@ export default function TrinketSlot() {
   
   // Check if any bonuses are active
   const hasActiveBonuses = Object.values(bonuses).some(v => v > 0);
+  
+  // Check for active sacrifice buff
+  const hasActiveSacrificeBuff = gameState.sacrificeBuff && Date.now() < gameState.sacrificeBuff.endsAt;
+  const sacrificeTimeRemaining = hasActiveSacrificeBuff ? Math.ceil((gameState.sacrificeBuff!.endsAt - Date.now()) / 1000) : 0;
 
   return (
     <div className="relative">
@@ -62,13 +67,147 @@ export default function TrinketSlot() {
         })}
       </div>
       
-      {/* Active Bonuses Tooltip */}
+      {/* Active Bonuses Summary (Compact view below trinkets) */}
       {hasActiveBonuses && (
-        <div className="absolute top-full left-0 mt-1 text-[10px] text-green-400 whitespace-nowrap">
-          {bonuses.moneyBonus > 0 && <span className="mr-2">💰+{(bonuses.moneyBonus * 100).toFixed(0)}%</span>}
-          {bonuses.rockDamageBonus > 0 && <span className="mr-2">⛏️+{(bonuses.rockDamageBonus * 100).toFixed(0)}%</span>}
-          {bonuses.couponBonus > 0 && <span className="mr-2">🎟️+{(bonuses.couponBonus * 100).toFixed(0)}%</span>}
+        <div 
+          className="absolute top-full left-0 mt-1 cursor-pointer"
+          onClick={() => setShowBonusDetails(!showBonusDetails)}
+        >
+          <div className="flex flex-wrap gap-1 text-[10px] whitespace-nowrap">
+            {bonuses.moneyBonus > 0 && (
+              <span className="bg-green-900/50 text-green-400 px-1.5 py-0.5 rounded">
+                💰+{(bonuses.moneyBonus * 100).toFixed(0)}%
+              </span>
+            )}
+            {bonuses.rockDamageBonus > 0 && (
+              <span className="bg-orange-900/50 text-orange-400 px-1.5 py-0.5 rounded">
+                ⛏️+{(bonuses.rockDamageBonus * 100).toFixed(0)}%
+              </span>
+            )}
+            {bonuses.minerDamageBonus > 0 && (
+              <span className="bg-yellow-900/50 text-yellow-400 px-1.5 py-0.5 rounded">
+                👷+{(bonuses.minerDamageBonus * 100).toFixed(0)}%
+              </span>
+            )}
+            {bonuses.couponBonus > 0 && (
+              <span className="bg-purple-900/50 text-purple-400 px-1.5 py-0.5 rounded">
+                🎟️+{(bonuses.couponBonus * 100).toFixed(0)}%
+              </span>
+            )}
+          </div>
+          
+          {/* Path indicator */}
+          {gameState.chosenPath && (
+            <div className={`mt-1 text-[9px] font-bold ${
+              gameState.chosenPath === 'light' ? 'text-yellow-400' : 'text-purple-400'
+            }`}>
+              {gameState.chosenPath === 'light' ? '☀️ Light Path' : '🌑 Darkness Path'}
+            </div>
+          )}
+          
+          {/* Active Sacrifice Buff indicator */}
+          {hasActiveSacrificeBuff && (
+            <div className="mt-0.5 text-[9px] text-red-400 animate-pulse">
+              🔥 Buff: {sacrificeTimeRemaining}s
+            </div>
+          )}
         </div>
+      )}
+      
+      {/* Detailed Bonus Breakdown Popup */}
+      {showBonusDetails && hasActiveBonuses && (
+        <>
+          <div 
+            className="fixed inset-0 z-[70]" 
+            onClick={() => setShowBonusDetails(false)}
+          />
+          <div className="absolute top-full left-0 mt-10 w-56 bg-gray-900/95 backdrop-blur rounded-xl p-3 border border-gray-600 shadow-xl z-[80]">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-white font-bold text-xs">Total Bonuses</h4>
+              <button 
+                onClick={() => setShowBonusDetails(false)}
+                className="text-gray-400 hover:text-white text-xs"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-1.5 text-[10px]">
+              {bonuses.moneyBonus > 0 && (
+                <div className="flex justify-between text-green-400">
+                  <span>💰 Money</span>
+                  <span>+{(bonuses.moneyBonus * 100).toFixed(0)}%</span>
+                </div>
+              )}
+              {bonuses.rockDamageBonus > 0 && (
+                <div className="flex justify-between text-orange-400">
+                  <span>⛏️ Pickaxe Damage</span>
+                  <span>+{(bonuses.rockDamageBonus * 100).toFixed(0)}%</span>
+                </div>
+              )}
+              {bonuses.clickSpeedBonus > 0 && (
+                <div className="flex justify-between text-blue-400">
+                  <span>👆 Click Speed</span>
+                  <span>+{(bonuses.clickSpeedBonus * 100).toFixed(0)}%</span>
+                </div>
+              )}
+              {bonuses.couponBonus > 0 && (
+                <div className="flex justify-between text-purple-400">
+                  <span>🎟️ Coupon Luck</span>
+                  <span>+{(bonuses.couponBonus * 100).toFixed(0)}%</span>
+                </div>
+              )}
+              {bonuses.minerSpeedBonus > 0 && (
+                <div className="flex justify-between text-cyan-400">
+                  <span>🏃 Miner Speed</span>
+                  <span>+{(bonuses.minerSpeedBonus * 100).toFixed(0)}%</span>
+                </div>
+              )}
+              {bonuses.minerDamageBonus > 0 && (
+                <div className="flex justify-between text-yellow-400">
+                  <span>👷 Miner Damage</span>
+                  <span>+{(bonuses.minerDamageBonus * 100).toFixed(0)}%</span>
+                </div>
+              )}
+              
+              {/* Sources breakdown */}
+              <div className="border-t border-gray-700 pt-1.5 mt-2">
+                <p className="text-gray-500 text-[9px] mb-1">Sources:</p>
+                <div className="space-y-0.5 text-gray-400">
+                  {equippedTrinkets.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span>💎</span>
+                      <span>{equippedTrinkets.length} Trinket{equippedTrinkets.length > 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  {gameState.ownedPrestigeUpgradeIds.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span>🌟</span>
+                      <span>{gameState.ownedPrestigeUpgradeIds.length} Prestige Upgrade{gameState.ownedPrestigeUpgradeIds.length > 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  {(gameState.equippedTitleIds?.length || 0) > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span>👑</span>
+                      <span>{gameState.equippedTitleIds?.length} Title{(gameState.equippedTitleIds?.length || 0) > 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  {gameState.chosenPath === 'light' && (
+                    <div className="flex items-center gap-1 text-yellow-400">
+                      <span>☀️</span>
+                      <span>Light Path (+50% trinkets, +30% money)</span>
+                    </div>
+                  )}
+                  {hasActiveSacrificeBuff && (
+                    <div className="flex items-center gap-1 text-red-400">
+                      <span>🔥</span>
+                      <span>Sacrifice Buff ({sacrificeTimeRemaining}s left)</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
       )}
       
       {/* Backdrop to close on click outside */}

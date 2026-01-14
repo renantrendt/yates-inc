@@ -11,12 +11,14 @@ import GameTerminal from './GameTerminal';
 import PrestigeButton from './PrestigeButton';
 import TrinketShopButton from './TrinketShopButton';
 import TrinketSlot from './TrinketSlot';
-import MinerSprites, { MinerPurchaseButton } from './MinerSprite';
-import PrestigeStore from './PrestigeStore';
+import MinerSprites from './MinerSprite';
 import AchievementsPanel from './AchievementsPanel';
 import AbilityButton from './AbilityButton';
 import TrinketIndex from './TrinketIndex';
 import RankingPanel from './RankingPanel';
+import PathSelectionModal from './PathSelectionModal';
+import GoldenCookie from './GoldenCookie';
+import SacrificeModal from './SacrificeModal';
 import { MINER_BASE_DAMAGE } from '@/types/game';
 import { ROCKS, getRockById } from '@/lib/gameData';
 
@@ -59,6 +61,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     isBanned,
     banReason,
     getTotalBonuses,
+    selectPath,
   } = useGame();
 
   // Calculate scaled autoclicker cost (10% increase every 5 prestiges)
@@ -74,6 +77,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const [showTerminal, setShowTerminal] = useState(false);
   const [showTrinketIndex, setShowTrinketIndex] = useState(false);
   const [showRanking, setShowRanking] = useState(false);
+  const [showSacrifice, setShowSacrifice] = useState(false);
   const [displayProgress, setDisplayProgress] = useState(0);
   const [rockBroken, setRockBroken] = useState(false);
 
@@ -282,13 +286,12 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const progressPercent = rockBroken ? 100 : (displayProgress || actualProgress);
   const totalCoupons = gameState.coupons.discount30 + gameState.coupons.discount50 + gameState.coupons.discount100;
 
-  // Calculate income per second for miners (with all bonuses)
+  // Calculate actual damage per second for miners (matching miner tick logic)
   const bonuses = getTotalBonuses();
   const minerRock = getRockById(gameState.currentRockId) || ROCKS[0];
-  const totalDamageBonus = bonuses.minerDamageBonus + bonuses.minerSpeedBonus;
-  const minerDps = gameState.minerCount * MINER_BASE_DAMAGE * (1 + totalDamageBonus);
-  const minerRocksPerSecond = minerDps / minerRock.clicksToBreak;
-  const incomePerSecond = Math.ceil(minerRocksPerSecond * minerRock.moneyPerBreak * gameState.prestigeMultiplier * (1 + bonuses.moneyBonus));
+  // Only use miner-specific bonuses that the actual miner tick uses
+  const minerDamageBonus = bonuses.minerDamageBonus + bonuses.minerSpeedBonus;
+  const minerDps = Math.ceil(gameState.minerCount * MINER_BASE_DAMAGE * (1 + minerDamageBonus));
 
   // Check if player can buy the next pickaxe (sequential order)
   const canBuyNextPickaxe = useMemo(() => {
@@ -456,11 +459,15 @@ export default function MiningGame({ onExit }: MiningGameProps) {
           {/* Prestige Button - appears when eligible */}
           <PrestigeButton />
 
-          {/* Prestige Store - appears after first prestige */}
-          <PrestigeStore />
-
-          {/* Miner Purchase Button */}
-          <MinerPurchaseButton />
+          {/* Sacrifice Button - Darkness path only */}
+          {gameState.chosenPath === 'darkness' && (
+            <button
+              onClick={() => setShowSacrifice(true)}
+              className="w-full bg-gradient-to-r from-purple-700 to-red-700 hover:from-purple-600 hover:to-red-600 text-white font-bold py-2.5 px-4 rounded-xl shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] text-sm sm:text-base"
+            >
+              😈 Sacrifice Miners
+            </button>
+          )}
 
           {/* Achievements */}
           <AchievementsPanel 
@@ -619,7 +626,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
                 <div className="flex items-center gap-2 sm:gap-3 text-yellow-400">
                   <span className="text-2xl sm:text-3xl">⛏️</span>
                   <div className="flex items-center gap-3">
-                    <p className="text-green-400 font-bold text-xs sm:text-sm">+${formatNumber(incomePerSecond)}/s</p>
+                    <p className="text-orange-400 font-bold text-xs sm:text-sm">{formatNumber(minerDps)} dmg/s</p>
                     <p className="font-bold text-sm sm:text-base">{gameState.minerCount} Miners</p>
                   </div>
                 </div>
@@ -686,6 +693,17 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
       {/* Miner Sprites - positioned at bottom of screen */}
       <MinerSprites />
+
+      {/* Path Selection Modal - shows after first prestige */}
+      {gameState.showPathSelection && (
+        <PathSelectionModal onSelectPath={selectPath} />
+      )}
+
+      {/* Golden Cookie - Darkness path with ritual active */}
+      <GoldenCookie />
+
+      {/* Sacrifice Modal - Darkness path */}
+      <SacrificeModal isOpen={showSacrifice} onClose={() => setShowSacrifice(false)} />
 
       {/* Trinket Shop Button - bottom left (hidden when trinket index is open) */}
       <TrinketShopButton hidden={showTrinketIndex} />

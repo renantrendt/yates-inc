@@ -1,0 +1,274 @@
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import Image from 'next/image';
+import { useGame } from '@/contexts/GameContext';
+import { GOLDEN_COOKIE_MIN_SPAWN, GOLDEN_COOKIE_MAX_SPAWN, TRINKETS } from '@/types/game';
+import { PICKAXES } from '@/lib/gameData';
+
+interface RewardPopup {
+  id: string;
+  type: string;
+  value: number | string;
+  x: number;
+  y: number;
+}
+
+export default function GoldenCookie() {
+  const { gameState, claimGoldenCookieReward } = useGame();
+  const [isVisible, setIsVisible] = useState(false);
+  const [position, setPosition] = useState({ x: 50, y: 50 });
+  const [isClicked, setIsClicked] = useState(false);
+  const [rewardPopups, setRewardPopups] = useState<RewardPopup[]>([]);
+  const spawnTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const popupIdRef = useRef(0);
+
+  // Get random spawn time between min and max
+  const getRandomSpawnTime = () => {
+    return Math.floor(Math.random() * (GOLDEN_COOKIE_MAX_SPAWN - GOLDEN_COOKIE_MIN_SPAWN)) + GOLDEN_COOKIE_MIN_SPAWN;
+  };
+
+  // Get random position on screen (avoiding edges)
+  const getRandomPosition = () => {
+    const x = Math.floor(Math.random() * 60) + 20; // 20-80% of screen width
+    const y = Math.floor(Math.random() * 50) + 25; // 25-75% of screen height
+    return { x, y };
+  };
+
+  // Schedule next cookie spawn
+  const scheduleNextSpawn = useCallback(() => {
+    if (spawnTimeoutRef.current) {
+      clearTimeout(spawnTimeoutRef.current);
+    }
+
+    const spawnTime = getRandomSpawnTime();
+    spawnTimeoutRef.current = setTimeout(() => {
+      setPosition(getRandomPosition());
+      setIsVisible(true);
+      setIsClicked(false);
+    }, spawnTime);
+  }, []);
+
+  // Only spawn cookies if on darkness path with ritual active
+  useEffect(() => {
+    if (gameState.chosenPath !== 'darkness' || !gameState.goldenCookieRitualActive) {
+      setIsVisible(false);
+      if (spawnTimeoutRef.current) {
+        clearTimeout(spawnTimeoutRef.current);
+      }
+      return;
+    }
+
+    // Start spawn cycle
+    scheduleNextSpawn();
+
+    return () => {
+      if (spawnTimeoutRef.current) {
+        clearTimeout(spawnTimeoutRef.current);
+      }
+    };
+  }, [gameState.chosenPath, gameState.goldenCookieRitualActive, scheduleNextSpawn]);
+
+  // Get reward display text
+  const getRewardText = (type: string, value: number | string): { emoji: string; text: string; color: string } => {
+    switch (type) {
+      case 'yates_pickaxe':
+        return { emoji: '⛏️', text: 'YATES PICKAXE!', color: 'text-yellow-400' };
+      case 'yates_totem':
+        return { emoji: '🗿', text: 'YATES TOTEM!', color: 'text-red-400' };
+      case 'money_12':
+        return { emoji: '💰', text: `+$${formatNumber(value as number)} (12%)`, color: 'text-green-400' };
+      case 'money_24':
+        return { emoji: '💰', text: `+$${formatNumber(value as number)} (24%)`, color: 'text-green-400' };
+      case 'money':
+        return { emoji: '💵', text: `+$${formatNumber(value as number)}`, color: 'text-green-400' };
+      case 'trinket': {
+        const trinket = TRINKETS.find(t => t.id === value);
+        return { emoji: '💎', text: trinket?.name || 'Random Trinket!', color: 'text-purple-400' };
+      }
+      case 'owo_title':
+        return { emoji: '👀', text: 'OwO TITLE! (+500% ALL)', color: 'text-pink-400' };
+      case 'admin_commands':
+        return { emoji: '💻', text: 'ADMIN COMMANDS (5min)', color: 'text-cyan-400' };
+      default:
+        return { emoji: '🎁', text: 'Mystery Reward!', color: 'text-white' };
+    }
+  };
+
+  const formatNumber = (num: number): string => {
+    if (num >= 1000000000000000) return `${(num / 1000000000000000).toFixed(1)}Q`;
+    if (num >= 1000000000000) return `${(num / 1000000000000).toFixed(1)}T`;
+    if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return num.toString();
+  };
+
+  // Handle cookie click
+  const handleClick = () => {
+    if (isClicked) return;
+    setIsClicked(true);
+
+    // Claim reward
+    const reward = claimGoldenCookieReward();
+    if (reward) {
+      // Show reward popup
+      const popup: RewardPopup = {
+        id: `reward-${popupIdRef.current++}`,
+        type: reward.type,
+        value: reward.value,
+        x: position.x,
+        y: position.y,
+      };
+      setRewardPopups(prev => [...prev, popup]);
+
+      // Remove popup after animation
+      setTimeout(() => {
+        setRewardPopups(prev => prev.filter(p => p.id !== popup.id));
+      }, 3000);
+    }
+
+    // Hide cookie with animation
+    setTimeout(() => {
+      setIsVisible(false);
+      // Schedule next spawn
+      scheduleNextSpawn();
+    }, 500);
+  };
+
+  if (!isVisible && rewardPopups.length === 0) return null;
+
+  return (
+    <>
+      {/* Golden Cookie */}
+      {isVisible && (
+        <div
+          className={`fixed z-[150] cursor-pointer transition-all duration-300 ${
+            isClicked ? 'scale-150 opacity-0' : 'hover:scale-110'
+          }`}
+          style={{
+            left: `${position.x}%`,
+            top: `${position.y}%`,
+            transform: 'translate(-50%, -50%)',
+          }}
+          onClick={handleClick}
+        >
+          {/* Glow effect */}
+          <div className="absolute inset-0 -m-4 bg-yellow-400/30 rounded-full blur-xl animate-pulse" />
+          
+          {/* Sparkle particles */}
+          <div className="absolute inset-0 -m-8">
+            {[...Array(8)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-2 h-2 bg-yellow-300 rounded-full animate-sparkle"
+                style={{
+                  left: `${50 + Math.cos(i * 45 * Math.PI / 180) * 40}%`,
+                  top: `${50 + Math.sin(i * 45 * Math.PI / 180) * 40}%`,
+                  animationDelay: `${i * 0.1}s`,
+                }}
+              />
+            ))}
+          </div>
+          
+          {/* Cookie image - using provided cookie image */}
+          <div className="relative w-24 h-24 sm:w-32 sm:h-32 animate-bounce-slow">
+            <Image
+              src="/game/cookieclicker.jpeg"
+              alt="Golden Cookie"
+              fill
+              className="object-contain rounded-full drop-shadow-[0_0_20px_rgba(234,179,8,0.8)]"
+              unoptimized
+            />
+          </div>
+          
+          {/* Click hint */}
+          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-yellow-300 text-xs font-bold whitespace-nowrap animate-pulse">
+            CLICK ME!
+          </div>
+        </div>
+      )}
+
+      {/* Reward Popups */}
+      {rewardPopups.map(popup => {
+        const reward = getRewardText(popup.type, popup.value);
+        return (
+          <div
+            key={popup.id}
+            className="fixed z-[200] pointer-events-none animate-reward-popup"
+            style={{
+              left: `${popup.x}%`,
+              top: `${popup.y}%`,
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            <div className={`bg-black/90 border-2 border-yellow-500 rounded-xl px-6 py-4 text-center shadow-2xl ${reward.color}`}>
+              <div className="text-4xl mb-2">{reward.emoji}</div>
+              <div className="text-xl font-bold">{reward.text}</div>
+              {(popup.type === 'yates_pickaxe' || popup.type === 'yates_totem' || popup.type === 'owo_title') && (
+                <div className="text-yellow-400 text-sm mt-1 animate-pulse">LEGENDARY!</div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Animations */}
+      <style jsx global>{`
+        @keyframes sparkle {
+          0%, 100% {
+            opacity: 0;
+            transform: scale(0);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        
+        @keyframes bounce-slow {
+          0%, 100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-10px);
+          }
+        }
+        
+        @keyframes reward-popup {
+          0% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.5);
+          }
+          20% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.2);
+          }
+          40% {
+            transform: translate(-50%, -50%) scale(1);
+          }
+          80% {
+            opacity: 1;
+            transform: translate(-50%, -100%) scale(1);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(-50%, -150%) scale(0.8);
+          }
+        }
+        
+        .animate-sparkle {
+          animation: sparkle 1.5s ease-in-out infinite;
+        }
+        
+        .animate-bounce-slow {
+          animation: bounce-slow 2s ease-in-out infinite;
+        }
+        
+        .animate-reward-popup {
+          animation: reward-popup 3s ease-out forwards;
+        }
+      `}</style>
+    </>
+  );
+}

@@ -13,6 +13,16 @@ import PaycheckSidebar from './PaycheckSidebar';
 import StockMarket from './StockMarket';
 import BudgetSidebar from './BudgetSidebar';
 
+// Format money with K, M, B, T, Q suffixes
+function formatMoney(amount: number): string {
+  if (amount >= 1000000000000000) return `${(amount / 1000000000000000).toFixed(1)}Q`;
+  if (amount >= 1000000000000) return `${(amount / 1000000000000).toFixed(1)}T`;
+  if (amount >= 1000000000) return `${(amount / 1000000000).toFixed(1)}B`;
+  if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
+  if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K`;
+  return amount.toFixed(0);
+}
+
 export default function Navbar() {
   const { cartCount } = useCart();
   const { unreadCount } = useMail();
@@ -154,12 +164,12 @@ export default function Navbar() {
                       <div className="flex gap-2 text-xs mt-0.5">
                         {currentUserPaycheck.yates_balance > 0 && (
                           <span className="text-yellow-600 dark:text-yellow-400 font-medium">
-                            ${currentUserPaycheck.yates_balance.toFixed(0)} Y$
+                            ${formatMoney(currentUserPaycheck.yates_balance)} Y$
                           </span>
                         )}
                         {currentUserPaycheck.walters_balance > 0 && (
                           <span className="text-purple-600 dark:text-purple-400 font-medium">
-                            ${currentUserPaycheck.walters_balance.toFixed(0)} W$
+                            ${formatMoney(currentUserPaycheck.walters_balance)} W$
                           </span>
                         )}
                         {currentUserPaycheck.yates_balance === 0 && currentUserPaycheck.walters_balance === 0 && (
