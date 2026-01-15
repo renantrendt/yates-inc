@@ -1233,6 +1233,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       let rockDamageBonus = 0;
       let moneyBonus = 0;
       let couponBonus = 0;
+      let clickSpeedBonus = 0;
       
       // Trinket bonuses
       for (const trinketId of prev.equippedTrinketIds) {
@@ -1242,6 +1243,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           rockDamageBonus += (e.rockDamageBonus || 0) + (e.allBonus || 0);
           moneyBonus += (e.moneyBonus || 0) + (e.allBonus || 0) + (e.minerMoneyBonus || 0);
           couponBonus += (e.couponBonus || 0) + (e.couponLuckBonus || 0) + (e.allBonus || 0);
+          clickSpeedBonus += (e.clickSpeedBonus || 0) + (e.allBonus || 0);
         }
       }
       
@@ -1253,6 +1255,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           rockDamageBonus += (upgrade.effects.rockDamageBonus || 0) + allB;
           moneyBonus += (upgrade.effects.moneyBonus || 0) + allB;
           couponBonus += (upgrade.effects.couponBonus || 0) + allB;
+          clickSpeedBonus += (upgrade.effects.clickSpeedBonus || 0) + allB;
         }
       }
       
@@ -1271,15 +1274,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Calculate click power
-      let clickPower = pickaxe.name === 'Plasma' ? rock.clicksToBreak : pickaxe.clickPower;
-      clickPower = Math.ceil(clickPower * (1 + rockDamageBonus + allBonus) * damageMultiplier);
+      // Calculate click power (clickSpeedBonus multiplies damage: 50% = 1.5x, 100% = 2x)
+      let clickPower = pickaxe.clickPower;
+      clickPower = Math.ceil(clickPower * (1 + rockDamageBonus + allBonus) * damageMultiplier * (1 + clickSpeedBonus));
       clickPower = Math.max(1, clickPower); // Ensure at least 1 damage
       
       const newHP = Math.max(0, prev.currentRockHP - clickPower);
       const willBreak = newHP <= 0;
 
-      // Calculate money earned
+      // Calculate money earned (clickSpeedBonus also multiplies money: 50% = 1.5x, 100% = 2x)
       earnedMoney = rock.moneyPerClick;
       if (willBreak) {
         earnedMoney += rock.moneyPerBreak;
@@ -1289,6 +1292,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       earnedMoney *= prev.prestigeMultiplier;
       earnedMoney *= (1 + moneyBonus + allBonus);
+      earnedMoney *= (1 + clickSpeedBonus); // Click speed bonus multiplies money too
       earnedMoney = Math.ceil(earnedMoney);
 
       // Update totals
