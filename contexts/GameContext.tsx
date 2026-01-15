@@ -1681,11 +1681,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return gameState.ownedPrestigeUpgradeIds.includes('dual_trinkets');
   }, [gameState.ownedPrestigeUpgradeIds]);
 
+  const canEquipTripleTrinkets = useCallback(() => {
+    return gameState.ownedPrestigeUpgradeIds.includes('triple_trinkets');
+  }, [gameState.ownedPrestigeUpgradeIds]);
+
   const equipTrinket = useCallback((trinketId: string) => {
     if (!gameState.ownedTrinketIds.includes(trinketId)) return false;
     if (gameState.equippedTrinketIds.includes(trinketId)) return false;
     
-    const maxEquipped = canEquipDualTrinkets() ? 2 : 1;
+    const maxEquipped = canEquipTripleTrinkets() ? 3 : canEquipDualTrinkets() ? 2 : 1;
 
     setGameState(prev => {
       let newEquipped = [...prev.equippedTrinketIds, trinketId];
@@ -1697,7 +1701,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
 
     return true;
-  }, [gameState.ownedTrinketIds, gameState.equippedTrinketIds, canEquipDualTrinkets]);
+  }, [gameState.ownedTrinketIds, gameState.equippedTrinketIds, canEquipDualTrinkets, canEquipTripleTrinkets]);
 
   const unequipTrinket = useCallback((trinketId: string) => {
     setGameState(prev => ({
@@ -1751,7 +1755,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!upgrade) return false;
     if (gameState.ownedPrestigeUpgradeIds.includes(upgradeId)) return false;
     if (gameState.prestigeTokens < upgrade.cost) return false;
-    
+    // Check if this upgrade requires another upgrade first
+    if (upgrade.requires && !gameState.ownedPrestigeUpgradeIds.includes(upgrade.requires)) return false;
+
     setGameState(prev => ({
       ...prev,
       prestigeTokens: prev.prestigeTokens - upgrade.cost,
@@ -2201,6 +2207,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setGameState(prev => ({
           ...prev,
           ownedPickaxeIds: [...prev.ownedPickaxeIds, YATES_PICKAXE_ID],
+          currentPickaxeId: YATES_PICKAXE_ID, // Auto-equip the Yates pickaxe!
         }));
         return { type: 'yates_pickaxe', value: YATES_PICKAXE_ID };
       }
@@ -2225,6 +2232,38 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return { type: 'money', value: 1 };
     }
     
+    // 2% - Golden Trophy (Arghtfavts Trophye)
+    cumulative += 0.02;
+    if (roll < cumulative) {
+      if (!gameState.ownedTrinketIds.includes('golden_trophy')) {
+        setGameState(prev => ({
+          ...prev,
+          ownedTrinketIds: [...prev.ownedTrinketIds, 'golden_trophy'],
+        }));
+        return { type: 'golden_trophy', value: 'golden_trophy' };
+      }
+      // Already own it, give money
+      const bonus = Math.floor(gameState.yatesDollars * 0.24);
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      return { type: 'money', value: bonus };
+    }
+    
+    // 5% - Silver Trophy (Nrahgrvaths Trphye)
+    cumulative += 0.05;
+    if (roll < cumulative) {
+      if (!gameState.ownedTrinketIds.includes('silver_trophy')) {
+        setGameState(prev => ({
+          ...prev,
+          ownedTrinketIds: [...prev.ownedTrinketIds, 'silver_trophy'],
+        }));
+        return { type: 'silver_trophy', value: 'silver_trophy' };
+      }
+      // Already own it, give money
+      const bonus = Math.floor(gameState.yatesDollars * 0.12);
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      return { type: 'money', value: bonus };
+    }
+    
     // 15% - +12% of current money
     cumulative += 0.15;
     if (roll < cumulative) {
@@ -2233,8 +2272,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return { type: 'money_12', value: bonus };
     }
     
-    // 50% - Random trinket (or $1 if owned)
-    cumulative += 0.50;
+    // 43% - Random trinket (or $1 if owned)
+    cumulative += 0.43;
     if (roll < cumulative) {
       const unownedTrinkets = TRINKETS.filter(t => !gameState.ownedTrinketIds.includes(t.id));
       if (unownedTrinkets.length > 0) {

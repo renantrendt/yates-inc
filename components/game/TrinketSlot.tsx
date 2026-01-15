@@ -114,14 +114,14 @@ export default function TrinketSlot() {
         </div>
       )}
       
-      {/* Detailed Bonus Breakdown Popup */}
+      {/* Detailed Bonus Breakdown Popup - high z-index to render above TrinketShopModal */}
       {showBonusDetails && hasActiveBonuses && (
         <>
           <div 
-            className="fixed inset-0 z-[70]" 
+            className="fixed inset-0 z-[170]" 
             onClick={() => setShowBonusDetails(false)}
           />
-          <div className="absolute top-full left-0 mt-10 w-56 bg-gray-900/95 backdrop-blur rounded-xl p-3 border border-gray-600 shadow-xl z-[80]">
+          <div className="fixed top-20 left-4 w-56 bg-gray-900/95 backdrop-blur rounded-xl p-3 border border-gray-600 shadow-xl z-[180]">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-white font-bold text-xs">Total Bonuses</h4>
               <button 

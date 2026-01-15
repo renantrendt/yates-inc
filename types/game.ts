@@ -79,8 +79,10 @@ export const SACRIFICE_BUFF_TIERS: { miners: number; buff: Omit<SacrificeBuff, '
 export const GOLDEN_COOKIE_REWARDS = {
   yatesPickaxe: 0.10,      // 10% - Yates Pickaxe
   yatesTotem: 0.01,        // 1%  - Yates Totem trinket
+  goldenTrophy: 0.02,      // 2%  - Golden Trophy (Arghtfavts Trophye)
+  silverTrophy: 0.05,      // 5%  - Silver Trophy (Nrahgrvaths Trphye)
   money12Percent: 0.15,    // 15% - +12% of current money
-  randomTrinket: 0.50,     // 50% - Random trinket (or $1 if owned)
+  randomTrinket: 0.43,     // 43% - Random trinket (or $1 if owned)
   money24Percent: 0.22,    // 22% - +24% of current money
   owoTitle: 0.01,          // 1%  - Secret "OwO" title (+500% everything!)
   adminCommands: 0.01,     // 1%  - 5min admin commands
@@ -396,6 +398,39 @@ export const TRINKETS: Trinket[] = [
     effects: { allBonus: 0.10 },
     description: '+10% to everything',
   },
+  // Golden Cookie exclusive trophies
+  {
+    id: 'golden_trophy',
+    name: 'Arghtfavts Trophye',
+    image: '/game/accessories/trophy.png',
+    rarity: 'secret',
+    cost: 999999999999,
+    shopChance: 0, // Golden cookie only
+    effects: { 
+      moneyBonus: 1.50,
+      clickSpeedBonus: 2.30,
+      rockDamageBonus: 0.45,
+      minerDamageBonus: 0.45,
+      minerSpeedBonus: 1.00
+    },
+    description: '+150% money, +230% click speed, +45% pcx/miner dmg, +100% miner speed',
+  },
+  {
+    id: 'silver_trophy',
+    name: 'Nrahgrvaths Trphye',
+    image: '/game/accessories/silver.png',
+    rarity: 'mythic',
+    cost: 999999999999,
+    shopChance: 0, // Golden cookie only
+    effects: { 
+      moneyBonus: 0.75,
+      clickSpeedBonus: 1.15,
+      rockDamageBonus: 0.225,
+      minerDamageBonus: 0.225,
+      minerSpeedBonus: 0.50
+    },
+    description: '+75% money, +115% click speed, +22.5% pcx/miner dmg, +50% miner speed',
+  },
 ];
 
 export const RARITY_COLORS: Record<TrinketRarity, string> = {
@@ -448,6 +483,7 @@ export interface PrestigeUpgrade {
   effects: TrinketEffects;
   description: string;
   maxPurchases: number;  // 1 for most, can be higher for stackable
+  requires?: string;     // optional: ID of upgrade that must be owned first
 }
 
 export const PRESTIGE_UPGRADES: PrestigeUpgrade[] = [
@@ -498,6 +534,15 @@ export const PRESTIGE_UPGRADES: PrestigeUpgrade[] = [
     effects: {},
     description: 'Equip 2 trinkets at once',
     maxPurchases: 1,
+  },
+  {
+    id: 'triple_trinkets',
+    name: 'Triple Trinkets',
+    cost: 43,
+    effects: {},
+    description: 'Equip 3 trinkets at once (requires Dual Trinkets)',
+    maxPurchases: 1,
+    requires: 'dual_trinkets',
   },
   // === NEW PRESTIGE UPGRADES ===
   {

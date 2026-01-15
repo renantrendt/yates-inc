@@ -202,7 +202,9 @@ export default function GameShop({ onClose }: GameShopProps) {
                 const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
                 
                 // Sequential purchase: can only buy if you own the previous one
-                const highestOwnedId = Math.max(...gameState.ownedPickaxeIds);
+                // Exclude Yates pickaxe (ID 26) from sequence - it's a special golden cookie reward
+                const regularOwnedIds = gameState.ownedPickaxeIds.filter(id => id !== YATES_PICKAXE_ID);
+                const highestOwnedId = Math.max(...regularOwnedIds);
                 const isNextInSequence = pickaxe.id === highestOwnedId + 1;
                 const isLocked = !owned && pickaxe.id > highestOwnedId + 1;
                 const isPathLocked = !canBuyForPath && !owned;
