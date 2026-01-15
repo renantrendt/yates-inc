@@ -1,4 +1,4 @@
-import { employees } from '@/utils/products';
+import { employees, firedEmployees } from '@/utils/products';
 import Image from 'next/image';
 
 export default function EmployeesPage() {
@@ -40,6 +40,30 @@ export default function EmployeesPage() {
             </div>
           ))}
         </div>
+
+        {/* Fired Section */}
+        {firedEmployees.length > 0 && (
+          <>
+            <h2 className="text-2xl sm:text-3xl font-bold mt-12 mb-6 text-red-600 dark:text-red-500">Fired</h2>
+            <div className="grid md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
+              {firedEmployees.map((employee) => (
+                <div
+                  key={employee.id}
+                  id={employee.anchor || undefined}
+                  className="bg-red-50 dark:bg-red-900/20 rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20 border border-red-200 dark:border-red-800"
+                >
+                  <div className="mb-3 sm:mb-4">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                      {employee.name}
+                    </h2>
+                    <p className="text-red-600 dark:text-red-400 font-semibold text-base sm:text-lg">{employee.role}</p>
+                  </div>
+                  <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300 leading-relaxed">{employee.bio}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

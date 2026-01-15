@@ -282,6 +282,43 @@ export function MailProvider({ children }: { children: React.ReactNode }) {
     fetchConversations();
   };
 
+  const deleteConversation = async (conversationId: string, userId: string): Promise<boolean> => {
+    const conv = conversations.find((c) => c.id === conversationId);
+    if (!conv) return false;
+
+    // Only the creator (first participant) can delete the conversation
+    const creatorId = conv.participants[0];
+    if (creatorId !== userId) {
+      console.error('Only the creator can delete this conversation');
+      return false;
+    }
+
+    try {
+      // Delete all messages in the conversation first
+      await supabase
+        .from('messages')
+        .delete()
+        .eq('conversation_id', conversationId);
+
+      // Then delete the conversation
+      const { error } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId);
+
+      if (error) {
+        console.error('Error deleting conversation:', error);
+        return false;
+      }
+
+      fetchConversations();
+      return true;
+    } catch (err) {
+      console.error('Error deleting conversation:', err);
+      return false;
+    }
+  };
+
   return (
     <MailContext.Provider
       value={{
@@ -293,6 +330,7 @@ export function MailProvider({ children }: { children: React.ReactNode }) {
         sendMessage,
         createConversation,
         markAsRead,
+        deleteConversation,
       }}
     >
       {children}

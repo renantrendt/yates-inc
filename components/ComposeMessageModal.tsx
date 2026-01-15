@@ -13,17 +13,17 @@ interface ComposeMessageModalProps {
 
 interface ClientRecord {
   id: string;
-  full_name: string;
-  email: string;
+  username: string;
+  mail_handle: string;
 }
 
 const EMPLOYEES = [
   { id: '000001', name: 'Logan Wall Fencer', mail: 'ceorequest.mail' },
-  { id: '39187', name: 'Mr. Michael Mackenzy McKale Mackelayne', mail: 'micelCPS.mail' },
   { id: '123456', name: 'Bernardo', mail: 'partnershiprqs.mail' },
   { id: '007411', name: 'Dylan Mad Hawk', mail: 'custumerspp.mail' },
   { id: '674121', name: 'Harris', mail: 'supplychainH.mail' },
   { id: '390738', name: 'Dilshaan', mail: 'advertising.mail' },
+  { id: '319736', name: 'Wyatt', mail: 'legal.mail' },
 ];
 
 type RecipientType = 'employees' | 'clients';
@@ -59,8 +59,8 @@ export default function ComposeMessageModal({ isOpen, onClose }: ComposeMessageM
       try {
         const { data, error } = await supabase
           .from('clients')
-          .select('id, full_name, email')
-          .order('full_name');
+          .select('id, username, mail_handle')
+          .order('username');
         
         if (error) throw error;
         setClientsList(data || []);
@@ -192,7 +192,7 @@ export default function ComposeMessageModal({ isOpen, onClose }: ComposeMessageM
                 {selectedRecipients.map((id) => {
                   const emp = EMPLOYEES.find((e) => e.id === id);
                   const clientRec = clientsList.find((c) => c.id === id);
-                  const name = emp?.name || clientRec?.full_name || 'Unknown';
+                  const name = emp?.name || clientRec?.username || 'Unknown';
                   const isClient = !emp && !!clientRec;
                   
                   return (
@@ -263,9 +263,9 @@ export default function ComposeMessageModal({ isOpen, onClose }: ComposeMessageM
                         }`}
                       >
                         <div className="font-medium text-gray-900 dark:text-white text-sm">
-                          👤 {clientRec.full_name}
+                          👤 {clientRec.username}
                         </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">{clientRec.email}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">@{clientRec.mail_handle}</div>
                       </button>
                     ))}
                   </div>

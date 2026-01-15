@@ -87,8 +87,8 @@ export const GOLDEN_COOKIE_REWARDS = {
 };
 
 // Golden Cookie spawn timing (ms)
-export const GOLDEN_COOKIE_MIN_SPAWN = 120000; // 2 minutes
-export const GOLDEN_COOKIE_MAX_SPAWN = 180000; // 3 minutes
+export const GOLDEN_COOKIE_MIN_SPAWN = 90000; // 1.5 minutes
+export const GOLDEN_COOKIE_MAX_SPAWN = 90000; // 1.5 minutes (fixed interval)
 
 // Miner sacrifice ritual requirements
 export const RITUAL_MONEY_REQUIREMENT = 1000000000000; // 1T$
@@ -96,7 +96,7 @@ export const RITUAL_MINER_SACRIFICE = 420; // Must sacrifice 420 miners
 
 // Path-restricted pickaxes (can only buy/use if on that path)
 export const DARKNESS_PICKAXE_IDS = [18, 21, 25]; // Demon, Nightmare, Galaxy
-export const LIGHT_PICKAXE_IDS = [22]; // Sun
+export const LIGHT_PICKAXE_IDS = [22, 23]; // Sun, Light Saber
 export const YATES_PICKAXE_ID = 26; // Only from Golden Cookie
 
 // Path-restricted rocks (can only mine if on that path)

@@ -99,6 +99,7 @@ export interface MailContextType {
   sendMessage: (conversationId: string, content: string, senderId: string) => Promise<void>;
   createConversation: (subject: string, participantIds: string[], initialMessage: string, senderId: string, priority?: 'normal' | 'high') => Promise<string>;
   markAsRead: (conversationId: string, employeeId: string) => Promise<void>;
+  deleteConversation: (conversationId: string, userId: string) => Promise<boolean>;
 }
 
 // Paycheck Types

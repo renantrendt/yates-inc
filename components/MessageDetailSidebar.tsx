@@ -12,15 +12,19 @@ interface MessageDetailSidebarProps {
 }
 
 export default function MessageDetailSidebar({ conversation, onClose }: MessageDetailSidebarProps) {
-  const { messages, fetchMessages, sendMessage } = useMail();
+  const { messages, fetchMessages, sendMessage, deleteConversation } = useMail();
   const { employee } = useAuth();
   const { client } = useClient();
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Get current user (employee or client)
   const currentUserId = employee?.id || client?.id || '';
   const currentUserName = employee?.name || client?.username || '';
+
+  // Check if current user is the creator (first participant = creator)
+  const canDelete = currentUserId === conversation.participants[0];
 
   useEffect(() => {
     fetchMessages(conversation.id);
@@ -42,6 +46,24 @@ export default function MessageDetailSidebar({ conversation, onClose }: MessageD
     }
   };
 
+  const handleDelete = async () => {
+    if (!canDelete || isDeleting) return;
+    
+    if (!confirm('Are you sure you want to delete this conversation? This cannot be undone.')) {
+      return;
+    }
+    
+    setIsDeleting(true);
+    const success = await deleteConversation(conversation.id, currentUserId);
+    setIsDeleting(false);
+    
+    if (success) {
+      onClose();
+    } else {
+      alert('Failed to delete conversation. Only the creator can delete it.');
+    }
+  };
+
   return (
     <>
       {/* Backdrop for message detail */}
@@ -58,12 +80,24 @@ export default function MessageDetailSidebar({ conversation, onClose }: MessageD
             <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate">
               {conversation.subject}
             </h3>
-            <button
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xl flex-shrink-0"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {canDelete && (
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm px-2 py-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50"
+                  title="Delete conversation"
+                >
+                  {isDeleting ? '...' : '🗑️'}
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-xl"
+              >
+                ✕
+              </button>
+            </div>
           </div>
           <div className="text-xs text-gray-600 dark:text-gray-400">
             <p className="truncate">

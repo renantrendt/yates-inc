@@ -76,7 +76,10 @@ export default function GameShop({ onClose }: GameShopProps) {
 
   // Check if pickaxe should be visible based on path
   const shouldShowPickaxe = (pickaxeId: number): boolean => {
-    // Never show Yates pickaxe in shop (Golden Cookie only)
+    // Always show owned pickaxes (so user can equip them, including Yates from Golden Cookie)
+    if (gameState.ownedPickaxeIds.includes(pickaxeId)) return true;
+    
+    // Never show Yates pickaxe in shop for purchase (Golden Cookie only)
     if (pickaxeId === YATES_PICKAXE_ID) return false;
     
     // If no path chosen, don't show path-restricted pickaxes

@@ -49,6 +49,8 @@ export interface UserGameData {
   owned_title_ids?: string[];
   equipped_title_ids?: string[];
   title_win_counts?: Record<string, number>;
+  // Path system
+  chosen_path?: string | null;
   // Timestamp (set by Supabase)
   updated_at?: string;
 }
@@ -135,6 +137,8 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       owned_title_ids: data.owned_title_ids,
       equipped_title_ids: data.equipped_title_ids,
       title_win_counts: data.title_win_counts,
+      // Path system
+      chosen_path: data.chosen_path,
     };
 
     // FINAL CHECK: If version was provided and has changed, skip this save (a force save happened)
@@ -423,6 +427,8 @@ export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; u
     owned_title_ids: data.owned_title_ids,
     equipped_title_ids: data.equipped_title_ids,
     title_win_counts: data.title_win_counts,
+    // Path system
+    chosen_path: data.chosen_path,
   };
 
   const url = `${supabaseUrl}/rest/v1/user_game_data?on_conflict=user_id`;

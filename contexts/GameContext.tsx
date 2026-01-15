@@ -544,6 +544,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
                   ...(prev.titleWinCounts || {}),
                   ...(supabaseData.title_win_counts || {}),
                 },
+                // Path system (always sync from Supabase - critical state)
+                chosenPath: supabaseData.chosen_path ?? prev.chosenPath,
                 // Keep whichever timestamp is newer (for future syncs)
                 localUpdatedAt: useSupabase ? supabaseTime : localTime,
               };
@@ -1026,6 +1028,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           owned_title_ids: gameState.ownedTitleIds,
           equipped_title_ids: gameState.equippedTitleIds,
           title_win_counts: gameState.titleWinCounts,
+          // Path system
+          chosen_path: gameState.chosenPath,
         });
       }
     } catch (err) {
@@ -1071,6 +1075,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           owned_title_ids: state.ownedTitleIds,
           equipped_title_ids: state.equippedTitleIds,
           has_stocks_unlocked: state.hasStocksUnlocked,
+          // Path system
+          chosen_path: state.chosenPath,
         });
       }
     };
@@ -1108,6 +1114,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         owned_title_ids: state.ownedTitleIds,
         equipped_title_ids: state.equippedTitleIds,
         has_stocks_unlocked: state.hasStocksUnlocked,
+        // Path system
+        chosen_path: state.chosenPath,
       });
     };
 

@@ -109,17 +109,10 @@ export const employees = [
     bio: 'Logan, is the CEO and founder of Yates Inc. He has spend a lot of time and effort, making this the greatest company he could every think of.',
   },
   {
-    id: '39187',
-    name: 'Mr. Michael Mackenzy McKale Mackelayne',
-    role: 'CPS/HR',
-    bio: 'Michael, is who does everything of our designs, and how things will work, he also is our Human Rights manager. Michael also is one of our 2 first hires, together with Bernardo. Michael is very hard working and is able to accomplish multiple Ps, a day, he one made 60% of our daily revenue, doing 21 Ps, and 2 30minute long videos to 5M+ subs channels.',
-    anchor: 'MMMM',
-  },
-  {
     id: '123456',
     name: 'Bernardo',
-    role: 'CTO/CFO/LW',
-    bio: "Bernardo works in three areas. First, he's our Chief Technology Officer handling all tech and development. Second, he's our Chief Financial Officer managing all the money coming in and out. Finally, he's the company's Lawyer, negotiating partnerships and deals with other companies.",
+    role: 'CTO/CFO',
+    bio: "Bernardo works in two areas. First, he's our Chief Technology Officer handling all tech and development. Second, he's our Chief Financial Officer managing all the money coming in and out.",
   },
   {
     id: '007411',
@@ -131,13 +124,29 @@ export const employees = [
     id: '674121',
     name: 'Harris',
     role: 'SCM',
-    bio: "Harris is our newest hire and Supply Chain Manager. While he has some basic coding skills, his real strength is managing the supply chain and logistics. He handles all our partnerships, vendor relationships, and ensures resources flow smoothly to keep operations running.",
+    bio: "Harris is our Supply Chain Manager. While he has some basic coding skills, his real strength is managing the supply chain and logistics. He handles all our partnerships, vendor relationships, and ensures resources flow smoothly to keep operations running.",
   },
   {
     id: '390738',
     name: 'Dilshaan',
     role: 'Advertiser',
     bio: "Dilshaan is our Advertiser, responsible for promoting Yates Inc. and getting the word out about our products and services.",
+  },
+  {
+    id: '319736',
+    name: 'Wyatt',
+    role: 'LW',
+    bio: "Our newest hire. With 5 years of experience in law, and very tuff blue hair.",
+  },
+];
+
+export const firedEmployees = [
+  {
+    id: '39187',
+    name: 'Mr. Michael Mackenzy McKale Mackelayne',
+    role: 'Former CPS/HR, and Co-Founder',
+    bio: "Michael WAS a hard working man, who not only worked to improve this company but also was the main CEO of the company the true person who came up with this idea. And due to his kindness, he stepped down on the 2nd year of the company as CEO and became a normal employee. But after 10 years of working with us his speed, and reliability has became a lot worse, and as such the company has decided to fire him.",
+    anchor: 'MMMM',
   },
 ];
 
