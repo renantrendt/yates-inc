@@ -545,7 +545,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
                   ...(supabaseData.title_win_counts || {}),
                 },
                 // Path system (always sync from Supabase - critical state)
-                chosenPath: supabaseData.chosen_path ?? prev.chosenPath,
+                chosenPath: (supabaseData.chosen_path as GamePath) ?? prev.chosenPath,
                 // Keep whichever timestamp is newer (for future syncs)
                 localUpdatedAt: useSupabase ? supabaseTime : localTime,
               };
