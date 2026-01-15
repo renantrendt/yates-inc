@@ -10,7 +10,6 @@ export default function EmployeesPage() {
           {employees.map((employee) => (
             <div
               key={employee.id}
-              id={employee.anchor || undefined}
               className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20 hover:shadow-lg transition-shadow"
             >
               {/* Scrollable image gallery for employees with images */}
@@ -49,7 +48,6 @@ export default function EmployeesPage() {
               {firedEmployees.map((employee) => (
                 <div
                   key={employee.id}
-                  id={employee.anchor || undefined}
                   className="bg-red-50 dark:bg-red-900/20 rounded-lg shadow-md p-4 sm:p-6 scroll-mt-20 border border-red-200 dark:border-red-800"
                 >
                   <div className="mb-3 sm:mb-4">
