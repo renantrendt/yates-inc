@@ -267,8 +267,8 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 
 // Anti-cheat: Window-level click tracking (survives HMR and re-renders)
 const CLICK_WINDOW_MS = 1000; // 1 second rolling window
-const NORMAL_CLICK_THRESHOLD = 9; // Max 9 clicks/sec for normal users
-const WATCHLIST_CLICK_THRESHOLD = 7; // Max 7 clicks/sec for watchlist users
+const NORMAL_CLICK_THRESHOLD = 14; // Max 14 clicks/sec for normal users (human limit is ~12)
+const WATCHLIST_CLICK_THRESHOLD = 10; // Max 10 clicks/sec for watchlist users
 
 // Initialize on window if not exists
 declare global {
@@ -725,7 +725,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         const totalMoney = moneyPerRock * totalRocksBroken;
         
         // Check for rock upgrade
-        const highestUnlocked = getHighestUnlockedRock(newTotalClicks);
+        const highestUnlocked = getHighestUnlockedRock(newTotalClicks, prev.prestigeCount);
         const newCurrentRockId = highestUnlocked.id > prev.currentRockId ? highestUnlocked.id : prev.currentRockId;
         const nextRock = getRockById(newCurrentRockId) || ROCKS[0];
         
@@ -1306,8 +1306,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         brokeRock = true;
         newRocksMinedCount += 1;
         
-        // Check for rock upgrade
-        const highestUnlocked = getHighestUnlockedRock(newTotalClicks);
+        // Check for rock upgrade (scaled by prestige)
+        const highestUnlocked = getHighestUnlockedRock(newTotalClicks, prev.prestigeCount);
         if (highestUnlocked.id > prev.currentRockId) {
           newCurrentRockId = highestUnlocked.id;
         }

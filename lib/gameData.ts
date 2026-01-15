@@ -521,38 +521,50 @@ export const getRockById = (id: number): Rock | undefined => {
   return ROCKS.find((r) => r.id === id);
 };
 
-export const getNextRock = (currentRockId: number, totalClicks: number): Rock | null => {
+// Rock unlock scaling per prestige (50% more clicks needed per prestige)
+export const ROCK_UNLOCK_PRESTIGE_SCALING = 0.5;
+
+// Get scaled unlock threshold based on prestige
+export const getScaledUnlockThreshold = (baseThreshold: number, prestigeCount: number): number => {
+  return Math.ceil(baseThreshold * (1 + prestigeCount * ROCK_UNLOCK_PRESTIGE_SCALING));
+};
+
+export const getNextRock = (currentRockId: number, totalClicks: number, prestigeCount: number = 0): Rock | null => {
   const nextRock = ROCKS.find((r) => r.id === currentRockId + 1);
-  if (nextRock && totalClicks >= nextRock.unlockAtClicks) {
+  if (nextRock && totalClicks >= getScaledUnlockThreshold(nextRock.unlockAtClicks, prestigeCount)) {
     return nextRock;
   }
   return null;
 };
 
-export const getHighestUnlockedRock = (totalClicks: number): Rock => {
+export const getHighestUnlockedRock = (totalClicks: number, prestigeCount: number = 0): Rock => {
   let highestRock = ROCKS[0];
   for (const rock of ROCKS) {
-    if (totalClicks >= rock.unlockAtClicks) {
+    if (totalClicks >= getScaledUnlockThreshold(rock.unlockAtClicks, prestigeCount)) {
       highestRock = rock;
     }
   }
   return highestRock;
 };
 
-export const getNextRockUnlockInfo = (totalClicks: number): { nextRock: Rock | null; progress: number; clicksNeeded: number } => {
-  const highestUnlocked = getHighestUnlockedRock(totalClicks);
-  const nextRock = ROCKS.find(r => r.id === highestUnlocked.id + 1) || null;
+export const getNextRockUnlockInfo = (totalClicks: number, prestigeCount: number = 0, currentRockId: number = 1): { nextRock: Rock | null; progress: number; clicksNeeded: number } => {
+  const highestUnlockedByClicks = getHighestUnlockedRock(totalClicks, prestigeCount);
+  const currentRock = getRockById(currentRockId) || ROCKS[0];
+  
+  // Use whichever is higher: what you've unlocked by clicks OR what you're currently on
+  const effectiveHighest = currentRock.id > highestUnlockedByClicks.id ? currentRock : highestUnlockedByClicks;
+  const nextRock = ROCKS.find(r => r.id === effectiveHighest.id + 1) || null;
   
   if (!nextRock) {
     return { nextRock: null, progress: 100, clicksNeeded: 0 };
   }
   
-  const previousThreshold = highestUnlocked.unlockAtClicks;
-  const nextThreshold = nextRock.unlockAtClicks;
+  const previousThreshold = getScaledUnlockThreshold(effectiveHighest.unlockAtClicks, prestigeCount);
+  const nextThreshold = getScaledUnlockThreshold(nextRock.unlockAtClicks, prestigeCount);
   const progressInRange = totalClicks - previousThreshold;
   const rangeSize = nextThreshold - previousThreshold;
-  const progress = Math.min(100, (progressInRange / rangeSize) * 100);
-  const clicksNeeded = nextThreshold - totalClicks;
+  const progress = Math.max(0, Math.min(100, (progressInRange / rangeSize) * 100));
+  const clicksNeeded = Math.max(0, nextThreshold - totalClicks);
   
   return { nextRock, progress, clicksNeeded };
 };

@@ -311,10 +311,10 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     return gameState.yatesDollars >= scaledPrice;
   }, [gameState.ownedPickaxeIds, gameState.yatesDollars, gameState.prestigeCount]);
 
-  // Get next rock unlock progress
+  // Get next rock unlock progress (scaled by prestige, based on current rock)
   const nextRockInfo = useMemo(() => {
-    return getNextRockUnlockInfo(gameState.totalClicks);
-  }, [gameState.totalClicks]);
+    return getNextRockUnlockInfo(gameState.totalClicks, gameState.prestigeCount, gameState.currentRockId);
+  }, [gameState.totalClicks, gameState.prestigeCount, gameState.currentRockId]);
 
   // Show ban screen if user is banned
   if (isBanned) {

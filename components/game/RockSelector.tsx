@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
-import { ROCKS } from '@/lib/gameData';
+import { ROCKS, getScaledUnlockThreshold } from '@/lib/gameData';
 import { getScaledRockHP } from '@/types/game';
 
 interface RockSelectorProps {
@@ -52,9 +52,10 @@ export default function RockSelector({ onClose }: RockSelectorProps) {
         <div className="p-3 sm:p-6 overflow-y-auto max-h-[75vh] sm:max-h-[70vh]">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
             {ROCKS.map((rock) => {
-              const isUnlocked = gameState.totalClicks >= rock.unlockAtClicks;
+              const scaledThreshold = getScaledUnlockThreshold(rock.unlockAtClicks, gameState.prestigeCount);
+              const isUnlocked = gameState.totalClicks >= scaledThreshold;
               const isSelected = currentRock.id === rock.id;
-              const clicksNeeded = rock.unlockAtClicks - gameState.totalClicks;
+              const clicksNeeded = scaledThreshold - gameState.totalClicks;
 
               return (
                 <button
