@@ -22,7 +22,14 @@ export default function PathSelectionModal({ onSelectPath }: PathSelectionModalP
     console.log('🎯 Confirm clicked, selectedPath:', selectedPath);
     if (selectedPath) {
       console.log('📤 Calling onSelectPath with:', selectedPath);
-      onSelectPath(selectedPath);
+      try {
+        onSelectPath(selectedPath);
+        console.log('✅ onSelectPath called successfully');
+      } catch (err) {
+        console.error('❌ Error calling onSelectPath:', err);
+      }
+    } else {
+      console.log('❌ No selectedPath!');
     }
   };
 

@@ -2122,17 +2122,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Select path (Light or Darkness) - called from PathSelectionModal
   // force=true allows admin terminal to override existing path choice
   const selectPath = useCallback((path: GamePath, force: boolean = false) => {
-    console.log('🛤️ selectPath called with:', path, 'force:', force, 'current:', gameState.chosenPath);
+    console.log('🛤️ selectPath called with:', path);
     if (!path) {
       console.log('❌ No path provided');
       return;
     }
-    if (gameState.chosenPath && !force) {
-      console.log('❌ Path already chosen:', gameState.chosenPath);
+    
+    // Get current path from ref to avoid stale closure
+    const currentPath = gameStateRef.current.chosenPath;
+    if (currentPath && !force) {
+      console.log('❌ Path already chosen:', currentPath);
       return;
     }
 
     console.log('✅ Setting path to:', path);
+    
+    // Update state
     setGameState(prev => ({
       ...prev,
       chosenPath: path,
@@ -2148,7 +2153,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
         chosen_path: path,
       });
     }
-  }, [gameState.chosenPath, userId, userType]);
+    
+    // Also save to localStorage immediately
+    try {
+      const storageKey = userId ? `yates-mining-game-${userId}` : 'yates-mining-game-guest';
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        parsed.chosenPath = path;
+        parsed.showPathSelection = false;
+        localStorage.setItem(storageKey, JSON.stringify(parsed));
+        console.log('💾 Saved path to localStorage');
+      }
+    } catch (e) {
+      console.error('Failed to save path to localStorage:', e);
+    }
+  }, [userId, userType]);
 
   // Check if player can buy a pickaxe based on their path
   const canBuyPickaxeForPath = useCallback((pickaxeId: number): boolean => {
@@ -2271,11 +2291,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     cumulative += 0.10;
     if (roll < cumulative) {
       if (!gameState.ownedPickaxeIds.includes(YATES_PICKAXE_ID)) {
+        const newOwnedPickaxes = [...gameState.ownedPickaxeIds, YATES_PICKAXE_ID];
         setGameState(prev => ({
           ...prev,
-          ownedPickaxeIds: [...prev.ownedPickaxeIds, YATES_PICKAXE_ID],
+          ownedPickaxeIds: newOwnedPickaxes,
           currentPickaxeId: YATES_PICKAXE_ID, // Auto-equip the Yates pickaxe!
         }));
+        // Force immediate save - Yates pickaxe is rare and important!
+        if (userId && userType) {
+          forceImmediateSave({
+            user_id: userId,
+            user_type: userType,
+            owned_pickaxe_ids: newOwnedPickaxes,
+            current_pickaxe_id: YATES_PICKAXE_ID,
+          });
+        }
         return { type: 'yates_pickaxe', value: YATES_PICKAXE_ID };
       }
       // Already own it, give money instead (minimum $2000)
@@ -2288,10 +2318,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     cumulative += 0.01;
     if (roll < cumulative) {
       if (!gameState.ownedTrinketIds.includes('yates_totem')) {
+        const newOwnedTrinkets = [...gameState.ownedTrinketIds, 'yates_totem'];
         setGameState(prev => ({
           ...prev,
-          ownedTrinketIds: [...prev.ownedTrinketIds, 'yates_totem'],
+          ownedTrinketIds: newOwnedTrinkets,
         }));
+        // Force immediate save - Yates totem is rare!
+        if (userId && userType) {
+          forceImmediateSave({
+            user_id: userId,
+            user_type: userType,
+            owned_trinket_ids: newOwnedTrinkets,
+          });
+        }
         return { type: 'yates_totem', value: 'yates_totem' };
       }
       // Already own it, give $5000
@@ -2303,10 +2342,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     cumulative += 0.005;
     if (roll < cumulative) {
       if (!gameState.ownedTrinketIds.includes('golden_trophy')) {
+        const newOwnedTrinkets = [...gameState.ownedTrinketIds, 'golden_trophy'];
         setGameState(prev => ({
           ...prev,
-          ownedTrinketIds: [...prev.ownedTrinketIds, 'golden_trophy'],
+          ownedTrinketIds: newOwnedTrinkets,
         }));
+        // Force immediate save - trophies are rare!
+        if (userId && userType) {
+          forceImmediateSave({
+            user_id: userId,
+            user_type: userType,
+            owned_trinket_ids: newOwnedTrinkets,
+          });
+        }
         return { type: 'golden_trophy', value: 'golden_trophy' };
       }
       // Already own it, give money (minimum $2000)
@@ -2319,10 +2367,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     cumulative += 0.005;
     if (roll < cumulative) {
       if (!gameState.ownedTrinketIds.includes('silver_trophy')) {
+        const newOwnedTrinkets = [...gameState.ownedTrinketIds, 'silver_trophy'];
         setGameState(prev => ({
           ...prev,
-          ownedTrinketIds: [...prev.ownedTrinketIds, 'silver_trophy'],
+          ownedTrinketIds: newOwnedTrinkets,
         }));
+        // Force immediate save - trophies are rare!
+        if (userId && userType) {
+          forceImmediateSave({
+            user_id: userId,
+            user_type: userType,
+            owned_trinket_ids: newOwnedTrinkets,
+          });
+        }
         return { type: 'silver_trophy', value: 'silver_trophy' };
       }
       // Already own it, give money (minimum $1000)
@@ -2367,7 +2424,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const adminExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes
     setGameState(prev => ({ ...prev, adminCommandsUntil: adminExpiry }));
     return { type: 'admin_commands', value: adminExpiry };
-  }, [gameState.chosenPath, gameState.goldenCookieRitualActive, gameState.yatesDollars, gameState.ownedPickaxeIds, gameState.ownedTrinketIds, gameState.ownedTitleIds]);
+  }, [gameState.chosenPath, gameState.goldenCookieRitualActive, gameState.yatesDollars, gameState.ownedPickaxeIds, gameState.ownedTrinketIds, gameState.ownedTitleIds, userId, userType]);
 
   // Clear expired sacrifice buff
   useEffect(() => {

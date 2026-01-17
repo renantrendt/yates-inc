@@ -25,65 +25,32 @@ export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
   const [rankings, setRankings] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodEndTime, setPeriodEndTime] = useState<Date | null>(null);
-  const [awardsProcessed, setAwardsProcessed] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Calculate next period end (every Sunday at midnight)
+  const getNextPeriodEnd = useCallback(() => {
+    const now = new Date();
+    const nextSunday = new Date(now);
+    // Get to next Sunday
+    const daysUntilSunday = (7 - now.getDay()) % 7;
+    // If today is Sunday and we're past midnight, go to next Sunday
+    if (daysUntilSunday === 0 && now.getHours() >= 0) {
+      nextSunday.setDate(now.getDate() + 7);
+    } else {
+      nextSunday.setDate(now.getDate() + (daysUntilSunday || 7));
+    }
+    nextSunday.setHours(0, 0, 0, 0);
+    return nextSunday;
+  }, []);
+
   // Check and process ranking period end
   const checkAndProcessPeriodEnd = useCallback(async () => {
-    try {
-      // Fetch current period
-      const { data: periodData } = await supabase
-        .from('ranking_period')
-        .select('period_end, is_processing')
-        .eq('id', 1)
-        .single();
-
-      if (!periodData) {
-        // Table doesn't exist yet, use fallback
-        const fallbackEnd = new Date();
-        fallbackEnd.setHours(23, 59, 59, 999);
-        // Set to next Sunday at midnight
-        const daysUntilSunday = (7 - fallbackEnd.getDay()) % 7 || 7;
-        fallbackEnd.setDate(fallbackEnd.getDate() + daysUntilSunday);
-        setPeriodEndTime(fallbackEnd);
-        return;
-      }
-
-      const periodEnd = new Date(periodData.period_end);
-      setPeriodEndTime(periodEnd);
-
-      // Check if period has ended and not already processing
-      if (periodEnd <= new Date() && !periodData.is_processing) {
-        console.log('🏆 Ranking period ended! Processing awards...');
-        
-        // Call the Supabase function to process awards
-        const { data: result, error } = await supabase.rpc('process_ranking_period');
-        
-        if (error) {
-          console.error('Error processing ranking period:', error);
-        } else if (result?.processed) {
-          console.log('🎉 Awards processed!', result.winners);
-          setAwardsProcessed(true);
-          // Refresh period end time
-          const { data: newPeriod } = await supabase
-            .from('ranking_period')
-            .select('period_end')
-            .eq('id', 1)
-            .single();
-          if (newPeriod) {
-            setPeriodEndTime(new Date(newPeriod.period_end));
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error checking ranking period:', err);
-      // Fallback to 3 days from now if table doesn't exist
-      setPeriodEndTime(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
-    }
-  }, []);
+    // Just set the next Sunday as the period end - no DB dependency
+    setPeriodEndTime(getNextPeriodEnd());
+  }, [getNextPeriodEnd]);
 
   // Fetch rankings when panel opens or category changes
   useEffect(() => {
@@ -268,13 +235,6 @@ export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
             ✕
           </button>
         </div>
-
-        {/* Awards processed banner */}
-        {awardsProcessed && (
-          <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-yellow-600/30 to-amber-600/30 border border-yellow-500/50 text-center animate-pulse">
-            <span className="text-yellow-300 font-bold">🎉 Rankings just reset! Titles awarded to winners!</span>
-          </div>
-        )}
 
         {/* Period countdown */}
         <div className="text-center mb-4 text-sm">
