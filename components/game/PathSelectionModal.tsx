@@ -19,7 +19,9 @@ export default function PathSelectionModal({ onSelectPath }: PathSelectionModalP
   };
 
   const handleConfirm = () => {
+    console.log('🎯 Confirm clicked, selectedPath:', selectedPath);
     if (selectedPath) {
+      console.log('📤 Calling onSelectPath with:', selectedPath);
       onSelectPath(selectedPath);
     }
   };
@@ -75,8 +77,13 @@ export default function PathSelectionModal({ onSelectPath }: PathSelectionModalP
                 Go Back
               </button>
               <button
-                onClick={handleConfirm}
-                className={`flex-1 px-6 py-3 font-bold rounded-xl transition-all transform hover:scale-105 ${
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleConfirm();
+                }}
+                className={`flex-1 px-6 py-3 font-bold rounded-xl transition-all transform hover:scale-105 cursor-pointer ${
                   selectedPath === 'light'
                     ? 'bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-black'
                     : 'bg-gradient-to-r from-purple-600 to-red-600 hover:from-purple-500 hover:to-red-500 text-white'

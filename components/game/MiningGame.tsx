@@ -158,26 +158,30 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       setTimeout(() => setDisplayProgress(0), 200);
     }
 
-    // Create money popup
-    const popupId = `popup-${popupIdRef.current++}`;
+    // Get rock position for popups and particles
     const rockRect = rockRef.current?.getBoundingClientRect();
-    const randomOffsetX = (Math.random() - 0.5) * 100;
-    const randomOffsetY = (Math.random() - 0.5) * 50;
 
-    setMoneyPopups((prev) => [
-      ...prev,
-      {
-        id: popupId,
-        amount: result.earnedMoney,
-        x: (rockRect?.width || 200) / 2 + randomOffsetX,
-        y: (rockRect?.height || 200) / 2 + randomOffsetY,
-      },
-    ]);
+    // Create money popup (only if we actually earned money)
+    if (result.earnedMoney > 0) {
+      const popupId = `popup-${popupIdRef.current++}`;
+      const randomOffsetX = (Math.random() - 0.5) * 100;
+      const randomOffsetY = (Math.random() - 0.5) * 50;
 
-    // Remove popup after animation
-    setTimeout(() => {
-      setMoneyPopups((prev) => prev.filter((p) => p.id !== popupId));
-    }, 1000);
+      setMoneyPopups((prev) => [
+        ...prev,
+        {
+          id: popupId,
+          amount: result.earnedMoney,
+          x: (rockRect?.width || 200) / 2 + randomOffsetX,
+          y: (rockRect?.height || 200) / 2 + randomOffsetY,
+        },
+      ]);
+
+      // Remove popup after animation
+      setTimeout(() => {
+        setMoneyPopups((prev) => prev.filter((p) => p.id !== popupId));
+      }, 1000);
+    }
 
     // Create particles
     for (let i = 0; i < 5; i++) {
@@ -607,7 +611,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
                     textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
                   }}
                 >
-                  +${popup.amount}
+                  +${formatNumber(popup.amount)}
                 </div>
               ))}
 

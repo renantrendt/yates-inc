@@ -2122,15 +2122,33 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Select path (Light or Darkness) - called from PathSelectionModal
   // force=true allows admin terminal to override existing path choice
   const selectPath = useCallback((path: GamePath, force: boolean = false) => {
-    if (!path) return;
-    if (gameState.chosenPath && !force) return; // Can't change path once chosen (unless forced)
+    console.log('🛤️ selectPath called with:', path, 'force:', force, 'current:', gameState.chosenPath);
+    if (!path) {
+      console.log('❌ No path provided');
+      return;
+    }
+    if (gameState.chosenPath && !force) {
+      console.log('❌ Path already chosen:', gameState.chosenPath);
+      return;
+    }
 
+    console.log('✅ Setting path to:', path);
     setGameState(prev => ({
       ...prev,
       chosenPath: path,
       showPathSelection: false,
     }));
-  }, [gameState.chosenPath]);
+
+    // Force immediate save to Supabase - path selection is critical
+    if (userId && userType) {
+      console.log('💾 Force saving path to Supabase');
+      forceImmediateSave({
+        user_id: userId,
+        user_type: userType,
+        chosen_path: path,
+      });
+    }
+  }, [gameState.chosenPath, userId, userType]);
 
   // Check if player can buy a pickaxe based on their path
   const canBuyPickaxeForPath = useCallback((pickaxeId: number): boolean => {
@@ -2260,8 +2278,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }));
         return { type: 'yates_pickaxe', value: YATES_PICKAXE_ID };
       }
-      // Already own it, give money instead
-      const bonus = Math.floor(gameState.yatesDollars * 0.24);
+      // Already own it, give money instead (minimum $2000)
+      const bonus = Math.max(2000, Math.floor(gameState.yatesDollars * 0.24));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money', value: bonus };
     }
@@ -2276,13 +2294,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }));
         return { type: 'yates_totem', value: 'yates_totem' };
       }
-      // Already own it, give $1
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + 1, totalMoneyEarned: (prev.totalMoneyEarned || 0) + 1 }));
-      return { type: 'money', value: 1 };
+      // Already own it, give $5000
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + 5000, totalMoneyEarned: (prev.totalMoneyEarned || 0) + 5000 }));
+      return { type: 'money', value: 5000 };
     }
     
-    // 2% - Golden Trophy (Arghtfavts Trophye)
-    cumulative += 0.02;
+    // 0.5% - Golden Trophy (Arghtfavts Trophye)
+    cumulative += 0.005;
     if (roll < cumulative) {
       if (!gameState.ownedTrinketIds.includes('golden_trophy')) {
         setGameState(prev => ({
@@ -2291,14 +2309,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }));
         return { type: 'golden_trophy', value: 'golden_trophy' };
       }
-      // Already own it, give money
-      const bonus = Math.floor(gameState.yatesDollars * 0.24);
+      // Already own it, give money (minimum $2000)
+      const bonus = Math.max(2000, Math.floor(gameState.yatesDollars * 0.24));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money', value: bonus };
     }
     
-    // 5% - Silver Trophy (Nrahgrvaths Trphye)
-    cumulative += 0.05;
+    // 0.5% - Silver Trophy (Nrahgrvaths Trphye)
+    cumulative += 0.005;
     if (roll < cumulative) {
       if (!gameState.ownedTrinketIds.includes('silver_trophy')) {
         setGameState(prev => ({
@@ -2307,41 +2325,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }));
         return { type: 'silver_trophy', value: 'silver_trophy' };
       }
-      // Already own it, give money
-      const bonus = Math.floor(gameState.yatesDollars * 0.12);
+      // Already own it, give money (minimum $1000)
+      const bonus = Math.max(1000, Math.floor(gameState.yatesDollars * 0.12));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money', value: bonus };
     }
     
-    // 15% - +12% of current money
-    cumulative += 0.15;
+    // 36% - +12% of current money (minimum $1000)
+    cumulative += 0.36;
     if (roll < cumulative) {
-      const bonus = Math.floor(gameState.yatesDollars * 0.12);
+      const bonus = Math.max(1000, Math.floor(gameState.yatesDollars * 0.12));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money_12', value: bonus };
     }
     
-    // 43% - Random trinket (or $1 if owned)
-    cumulative += 0.43;
+    // 50% - +24% of current money (minimum $2000)
+    cumulative += 0.50;
     if (roll < cumulative) {
-      const unownedTrinkets = TRINKETS.filter(t => !gameState.ownedTrinketIds.includes(t.id));
-      if (unownedTrinkets.length > 0) {
-        const randomTrinket = unownedTrinkets[Math.floor(Math.random() * unownedTrinkets.length)];
-        setGameState(prev => ({
-          ...prev,
-          ownedTrinketIds: [...prev.ownedTrinketIds, randomTrinket.id],
-        }));
-        return { type: 'trinket', value: randomTrinket.id };
-      }
-      // Own all trinkets, give $1
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + 1, totalMoneyEarned: (prev.totalMoneyEarned || 0) + 1 }));
-      return { type: 'money', value: 1 };
-    }
-    
-    // 22% - +24% of current money
-    cumulative += 0.22;
-    if (roll < cumulative) {
-      const bonus = Math.floor(gameState.yatesDollars * 0.24);
+      const bonus = Math.max(2000, Math.floor(gameState.yatesDollars * 0.24));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money_24', value: bonus };
     }
@@ -2356,8 +2357,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }));
         return { type: 'owo_title', value: 'owo_secret' };
       }
-      // Already have it, give money
-      const bonus = Math.floor(gameState.yatesDollars * 0.24);
+      // Already have it, give money (minimum $2000)
+      const bonus = Math.max(2000, Math.floor(gameState.yatesDollars * 0.24));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money', value: bonus };
     }

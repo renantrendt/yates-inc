@@ -340,15 +340,16 @@ export const TRINKETS: Trinket[] = [
     image: '/misc/Yates totem.png',
     rarity: 'secret',
     cost: 777000000,
-    shopChance: 0.000001, // 0.0001%
+    shopChance: 0.005, // 0.5%
     effects: {
-      moneyBonus: 0.67,
-      rockDamageBonus: 0.60,
-      minerSpeedBonus: 0.30,
-      minerMoneyBonus: 0.45,
-      couponLuckBonus: 0.30
+      moneyBonus: 6.0,
+      rockDamageBonus: 6.0,
+      minerSpeedBonus: 6.0,
+      minerDamageBonus: 6.0,
+      clickSpeedBonus: 6.0,
+      couponLuckBonus: 6.0
     },
-    description: '+67% money, +60% rock dmg, +30% miner speed, +45% miner money, +30% coupon luck',
+    description: '+600% EVERYTHING - The ultimate trinket',
   },
   {
     id: 'spike',
