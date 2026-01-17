@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useGame } from '@/contexts/GameContext';
 import { ACHIEVEMENTS, checkAchievementUnlocked, TRINKETS, TITLES, TITLE_NAME_STYLES, PRESTIGE_UPGRADES } from '@/types/game';
+import { supabase } from '@/lib/supabase';
 
 interface AchievementsPanelProps {
   isTrinketIndexOpen: boolean;
@@ -14,10 +15,42 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
   const { gameState, equipTitle, unequipTitle } = useGame();
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [titleCounts, setTitleCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Fetch title counts when panel opens
+  useEffect(() => {
+    if (!isAchievementsOpen) return;
+    
+    const fetchTitleCounts = async () => {
+      try {
+        // Get all users' owned_title_ids
+        const { data, error } = await supabase
+          .from('user_game_data')
+          .select('owned_title_ids');
+        
+        if (error || !data) return;
+        
+        // Count how many users have each title
+        const counts: Record<string, number> = {};
+        data.forEach(row => {
+          const titles = row.owned_title_ids || [];
+          titles.forEach((titleId: string) => {
+            counts[titleId] = (counts[titleId] || 0) + 1;
+          });
+        });
+        
+        setTitleCounts(counts);
+      } catch (err) {
+        console.error('Error fetching title counts:', err);
+      }
+    };
+    
+    fetchTitleCounts();
+  }, [isAchievementsOpen]);
   
   const unlockedCount = ACHIEVEMENTS.filter(a => checkAchievementUnlocked(a, gameState)).length;
   const totalCount = ACHIEVEMENTS.length;
@@ -132,7 +165,11 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
                             <p className={`font-bold ${TITLE_NAME_STYLES[title.nameStyle]}`}>
                               {title.name}
                             </p>
-                            <p className="text-xs text-gray-400">{title.description}</p>
+                            <p className="text-xs text-gray-400">
+                              {title.category === 'secret' && titleCounts[title.id] 
+                                ? `You are one of the ${titleCounts[title.id]} who have this title!`
+                                : title.description}
+                            </p>
                             {/* Show buffs */}
                             <div className="text-xs text-green-400 mt-1">
                               {title.buffs.moneyBonus && `+${Math.round(title.buffs.moneyBonus * 100)}% money `}
