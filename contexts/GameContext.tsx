@@ -862,6 +862,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Path selection - show modal for players who have prestiged but haven't chosen a path
   useEffect(() => {
+    // If path is already chosen, make sure modal is hidden
+    if (gameState.chosenPath && gameState.showPathSelection) {
+      console.log('🛤️ Path already chosen, hiding modal');
+      setGameState(prev => ({
+        ...prev,
+        showPathSelection: false,
+      }));
+      return;
+    }
+    
     // Only show if player has prestiged at least once, hasn't chosen a path, and modal isn't already showing
     if (gameState.prestigeCount >= 1 && !gameState.chosenPath && !gameState.showPathSelection) {
       setGameState(prev => ({

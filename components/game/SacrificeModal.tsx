@@ -34,6 +34,7 @@ export default function SacrificeModal({ isOpen, onClose }: SacrificeModalProps)
   }, [isOpen, gameState.minerCount]);
 
   const formatNumber = (num: number): string => {
+    if (num >= 1000000000000000000) return `${(num / 1000000000000000000).toFixed(1)}Qi`;
     if (num >= 1000000000000000) return `${(num / 1000000000000000).toFixed(1)}Q`;
     if (num >= 1000000000000) return `${(num / 1000000000000).toFixed(1)}T`;
     if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
