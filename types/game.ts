@@ -172,6 +172,8 @@ export interface GameState {
   showPathSelection: boolean;        // Flag to show path selection modal
   // Timestamp for sync conflict resolution
   localUpdatedAt: number;
+  // Playtime tracking for "Blessed by the Heavens" title
+  totalPlaytimeSeconds: number;
 }
 
 // Prestige requirements (Rock 19 = Titanium Quartz, Pickaxe 16 = Pin)
@@ -797,6 +799,17 @@ export const TITLES: Title[] = [
     placement: 'secret',
     buffs: { allBonus: 5.0 }, // +500% to everything!
     nameStyle: 'diamond',
+  },
+  // Light path exclusive title
+  {
+    id: 'blessed_by_heavens',
+    name: 'Blessed by the Heavens',
+    description: 'Light path master: own all pickaxes, unlock all rocks, 5+ hours played',
+    icon: '☀️',
+    category: 'secret',
+    placement: 'secret',
+    buffs: { moneyBonus: 0.60 }, // +60% money
+    nameStyle: 'gold',
   },
 ];
 

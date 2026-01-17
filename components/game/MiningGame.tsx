@@ -331,9 +331,44 @@ export default function MiningGame({ onExit }: MiningGameProps) {
               <span className="text-gray-500">Reason:</span> {banReason}
             </p>
           )}
-          <p className="text-gray-500 text-sm">
-            If you believe this is a mistake, contact an administrator.
-          </p>
+          
+          {/* Appeal Section */}
+          {!gameState.appealPending ? (
+            <div className="mt-6 space-y-4">
+              <p className="text-gray-400 text-sm mb-3">
+                Think this is unfair? Submit an appeal:
+              </p>
+              <textarea
+                value={appealText}
+                onChange={(e) => setAppealText(e.target.value)}
+                placeholder="Explain why you should be unbanned..."
+                className="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-white placeholder-gray-500 resize-none"
+                rows={3}
+              />
+              <button
+                onClick={async () => {
+                  if (!appealText.trim()) return;
+                  setIsSubmittingAppeal(true);
+                  const success = await submitAppeal(appealText);
+                  setIsSubmittingAppeal(false);
+                  if (success) {
+                    setAppealText('');
+                  }
+                }}
+                disabled={!appealText.trim() || isSubmittingAppeal}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-4 py-3 rounded-lg font-bold transition-colors"
+              >
+                {isSubmittingAppeal ? 'Submitting...' : 'Submit Appeal'}
+              </button>
+            </div>
+          ) : (
+            <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/50 rounded-lg">
+              <div className="text-2xl mb-2">⏳</div>
+              <p className="text-yellow-400 font-bold">Appeal Pending</p>
+              <p className="text-gray-400 text-sm">Check your inbox for updates</p>
+            </div>
+          )}
+          
           {onExit && (
             <button
               onClick={onExit}

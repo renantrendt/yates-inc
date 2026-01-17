@@ -22,7 +22,6 @@ const EMPLOYEES = [
   { id: '123456', name: 'Bernardo', mail: 'partnershiprqs.mail' },
   { id: '007411', name: 'Dylan Mad Hawk', mail: 'custumerspp.mail' },
   { id: '674121', name: 'Harris', mail: 'supplychainH.mail' },
-  { id: '390738', name: 'Dilshaan', mail: 'advertising.mail' },
   { id: '319736', name: 'Wyatt', mail: 'legal.mail' },
 ];
 
@@ -39,6 +38,7 @@ export default function ComposeMessageModal({ isOpen, onClose }: ComposeMessageM
   const [recipientType, setRecipientType] = useState<RecipientType>('employees');
   const [clientsList, setClientsList] = useState<ClientRecord[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
 
   // Force refresh client from localStorage when modal opens
   useEffect(() => {
@@ -56,16 +56,22 @@ export default function ComposeMessageModal({ isOpen, onClose }: ComposeMessageM
       if (!employee || !isOpen) return;
       
       setLoadingClients(true);
+      console.log('📧 Loading clients for compose modal...');
       try {
         const { data, error } = await supabase
           .from('clients')
           .select('id, username, mail_handle')
           .order('username');
         
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Error loading clients:', error.message, error.details);
+          throw error;
+        }
+        console.log(`✅ Loaded ${data?.length || 0} clients`);
         setClientsList(data || []);
       } catch (err) {
-        console.error('Error loading clients:', err);
+        console.error('❌ Exception loading clients:', err);
+        setClientsList([]);
       } finally {
         setLoadingClients(false);
       }
@@ -76,9 +82,10 @@ export default function ComposeMessageModal({ isOpen, onClose }: ComposeMessageM
     }
   }, [employee, isOpen, recipientType]);
 
-  // Reset recipients when switching type
+  // Reset recipients and search when switching type
   useEffect(() => {
     setSelectedRecipients([]);
+    setClientSearch('');
   }, [recipientType]);
 
   const currentUser = employee || client;
@@ -241,35 +248,51 @@ export default function ComposeMessageModal({ isOpen, onClose }: ComposeMessageM
             
             {/* Clients List (only for employees) */}
             {recipientType === 'clients' && isEmployeeUser && (
-              <div className="max-h-48 overflow-y-auto">
-                {loadingClients ? (
-                  <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                    Loading clients...
-                  </div>
-                ) : clientsList.length === 0 ? (
-                  <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                    No clients found
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-2">
-                    {clientsList.map((clientRec) => (
-                      <button
-                        key={clientRec.id}
-                        onClick={() => toggleRecipient(clientRec.id)}
-                        className={`p-3 border-2 rounded-lg text-left transition ${
-                          selectedRecipients.includes(clientRec.id)
-                            ? 'border-green-500 bg-green-50 dark:bg-green-900/30'
-                            : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-700'
-                        }`}
-                      >
-                        <div className="font-medium text-gray-900 dark:text-white text-sm">
-                          👤 {clientRec.username}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">@{clientRec.mail_handle}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div>
+                {/* Search input */}
+                <input
+                  type="text"
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  placeholder="Search by username..."
+                  className="w-full border dark:border-gray-600 rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white"
+                />
+                <div className="max-h-48 overflow-y-auto">
+                  {loadingClients ? (
+                    <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                      Loading clients...
+                    </div>
+                  ) : clientsList.length === 0 ? (
+                    <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                      No clients found. Make sure clients have signed up!
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2">
+                      {clientsList
+                        .filter(c => 
+                          clientSearch === '' || 
+                          c.username.toLowerCase().includes(clientSearch.toLowerCase()) ||
+                          c.mail_handle.toLowerCase().includes(clientSearch.toLowerCase())
+                        )
+                        .map((clientRec) => (
+                          <button
+                            key={clientRec.id}
+                            onClick={() => toggleRecipient(clientRec.id)}
+                            className={`p-3 border-2 rounded-lg text-left transition ${
+                              selectedRecipients.includes(clientRec.id)
+                                ? 'border-green-500 bg-green-50 dark:bg-green-900/30'
+                                : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-700'
+                            }`}
+                          >
+                            <div className="font-medium text-gray-900 dark:text-white text-sm">
+                              👤 {clientRec.username}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">@{clientRec.mail_handle}</div>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

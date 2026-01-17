@@ -116,6 +116,7 @@ interface GameContextType {
   buyPrestigeUpgrade: (upgradeId: string) => boolean;
   ownsPrestigeUpgrade: (upgradeId: string) => boolean;
   canEquipDualTrinkets: () => boolean;
+  canEquipTripleTrinkets: () => boolean;
   // Auto-prestige
   toggleAutoPrestige: () => void;
   // Admin functions (terminal)
@@ -212,6 +213,8 @@ const defaultGameState: GameState = {
   showPathSelection: false,
   // Timestamp for sync conflict resolution
   localUpdatedAt: Date.now(),
+  // Playtime tracking
+  totalPlaytimeSeconds: 0,
 };
 
 const STORAGE_KEY_PREFIX = 'yates-mining-game';
@@ -546,6 +549,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 },
                 // Path system (always sync from Supabase - critical state)
                 chosenPath: (supabaseData.chosen_path as GamePath) ?? prev.chosenPath,
+                // Playtime tracking (use max to never lose playtime)
+                totalPlaytimeSeconds: Math.max(
+                  prev.totalPlaytimeSeconds || 0,
+                  (supabaseData as unknown as { total_playtime_seconds?: number }).total_playtime_seconds || 0
+                ),
                 // Keep whichever timestamp is newer (for future syncs)
                 localUpdatedAt: useSupabase ? supabaseTime : localTime,
               };
@@ -610,6 +618,41 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     return () => clearInterval(interval);
   }, [gameState.trinketShopLastRefresh]);
+
+  // Playtime tracking - increment every second
+  useEffect(() => {
+    const playtimeInterval = setInterval(() => {
+      setGameState(prev => ({
+        ...prev,
+        totalPlaytimeSeconds: prev.totalPlaytimeSeconds + 1,
+      }));
+    }, 1000);
+    
+    return () => clearInterval(playtimeInterval);
+  }, []);
+
+  // Check for "Blessed by the Heavens" title unlock
+  useEffect(() => {
+    // Requirements: Light path, own all pickaxes 1-25, unlocked all rocks (35M clicks), 5+ hours (18000 seconds)
+    if (
+      gameState.chosenPath === 'light' &&
+      !gameState.ownedTitleIds?.includes('blessed_by_heavens') &&
+      gameState.totalPlaytimeSeconds >= 18000 && // 5 hours
+      gameState.totalClicks >= 35000000 // Unlocked all rocks
+    ) {
+      // Check if owns all pickaxes 1-25 (excluding Yates 26)
+      const requiredPickaxes = Array.from({ length: 25 }, (_, i) => i + 1);
+      const ownsAllPickaxes = requiredPickaxes.every(id => gameState.ownedPickaxeIds.includes(id));
+      
+      if (ownsAllPickaxes) {
+        setGameState(prev => ({
+          ...prev,
+          ownedTitleIds: [...(prev.ownedTitleIds || []), 'blessed_by_heavens'],
+        }));
+        console.log('☀️ TITLE UNLOCKED: Blessed by the Heavens!');
+      }
+    }
+  }, [gameState.chosenPath, gameState.totalPlaytimeSeconds, gameState.totalClicks, gameState.ownedPickaxeIds, gameState.ownedTitleIds]);
 
   // Miner tick logic - miners damage rock every second
   // Using a ref to avoid stale closure issues
@@ -1030,6 +1073,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           title_win_counts: gameState.titleWinCounts,
           // Path system
           chosen_path: gameState.chosenPath,
+          // Playtime tracking
+          total_playtime_seconds: gameState.totalPlaytimeSeconds,
         });
       }
     } catch (err) {
@@ -1077,6 +1122,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           has_stocks_unlocked: state.hasStocksUnlocked,
           // Path system
           chosen_path: state.chosenPath,
+          // Playtime tracking
+          total_playtime_seconds: state.totalPlaytimeSeconds,
         });
       }
     };
@@ -1116,6 +1163,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         has_stocks_unlocked: state.hasStocksUnlocked,
         // Path system
         chosen_path: state.chosenPath,
+        // Playtime tracking
+        total_playtime_seconds: state.totalPlaytimeSeconds,
       });
     };
 
@@ -2213,7 +2262,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       // Already own it, give money instead
       const bonus = Math.floor(gameState.yatesDollars * 0.24);
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money', value: bonus };
     }
     
@@ -2228,7 +2277,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         return { type: 'yates_totem', value: 'yates_totem' };
       }
       // Already own it, give $1
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + 1 }));
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + 1, totalMoneyEarned: (prev.totalMoneyEarned || 0) + 1 }));
       return { type: 'money', value: 1 };
     }
     
@@ -2244,7 +2293,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       // Already own it, give money
       const bonus = Math.floor(gameState.yatesDollars * 0.24);
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money', value: bonus };
     }
     
@@ -2260,7 +2309,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       // Already own it, give money
       const bonus = Math.floor(gameState.yatesDollars * 0.12);
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money', value: bonus };
     }
     
@@ -2268,7 +2317,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     cumulative += 0.15;
     if (roll < cumulative) {
       const bonus = Math.floor(gameState.yatesDollars * 0.12);
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money_12', value: bonus };
     }
     
@@ -2285,7 +2334,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         return { type: 'trinket', value: randomTrinket.id };
       }
       // Own all trinkets, give $1
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + 1 }));
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + 1, totalMoneyEarned: (prev.totalMoneyEarned || 0) + 1 }));
       return { type: 'money', value: 1 };
     }
     
@@ -2293,7 +2342,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     cumulative += 0.22;
     if (roll < cumulative) {
       const bonus = Math.floor(gameState.yatesDollars * 0.24);
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money_24', value: bonus };
     }
     
@@ -2309,7 +2358,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       // Already have it, give money
       const bonus = Math.floor(gameState.yatesDollars * 0.24);
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus }));
+      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money', value: bonus };
     }
     
@@ -2402,6 +2451,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         buyPrestigeUpgrade,
         ownsPrestigeUpgrade,
         canEquipDualTrinkets,
+        canEquipTripleTrinkets,
         // Auto-prestige
         toggleAutoPrestige,
         // Admin functions (terminal)

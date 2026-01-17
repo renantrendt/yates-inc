@@ -14,6 +14,7 @@ export default function TrinketSlot() {
     equipTrinket, 
     unequipTrinket, 
     canEquipDualTrinkets,
+    canEquipTripleTrinkets,
     getTotalBonuses 
   } = useGame();
   
@@ -21,7 +22,7 @@ export default function TrinketSlot() {
   const ownedTrinkets = gameState.ownedTrinketIds
     .map(id => TRINKETS.find(t => t.id === id))
     .filter((t): t is Trinket => t !== undefined);
-  const maxSlots = canEquipDualTrinkets() ? 2 : 1;
+  const maxSlots = canEquipTripleTrinkets() ? 3 : canEquipDualTrinkets() ? 2 : 1;
   const bonuses = getTotalBonuses();
   
   // Check if any bonuses are active

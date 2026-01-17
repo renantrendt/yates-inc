@@ -478,7 +478,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       }
 
       // Update based on type
-      let updateData: Record<string, unknown> = {};
+      // Always update timestamp so receiving player's sync will pick up the change
+      let updateData: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
       let successMsg = '';
 
       switch (type.toLowerCase()) {
@@ -494,8 +497,31 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
           updateData.miner_count = Math.min(420, (gameData.miner_count || 0) + amount);
           successMsg = `👷 Gave ${amount} miners to ${targetName}!`;
           break;
+        case 'trinket':
+          // Give a trinket by ID
+          const trinketId = String(amount); // amount is actually the trinket ID for this type
+          const currentTrinkets = gameData.owned_trinket_ids || [];
+          if (currentTrinkets.includes(trinketId)) {
+            addToHistory(`❌ ${targetName} already owns that trinket`);
+            return;
+          }
+          updateData.owned_trinket_ids = [...currentTrinkets, trinketId];
+          successMsg = `💎 Gave trinket "${trinketId}" to ${targetName}!`;
+          break;
+        case 'pcx':
+        case 'pickaxe':
+          // Give a pickaxe by ID
+          const pcxId = amount;
+          const currentPickaxes = gameData.owned_pickaxe_ids || [1];
+          if (currentPickaxes.includes(pcxId)) {
+            addToHistory(`❌ ${targetName} already owns pickaxe #${pcxId}`);
+            return;
+          }
+          updateData.owned_pickaxe_ids = [...currentPickaxes, pcxId];
+          successMsg = `⛏️ Gave pickaxe #${pcxId} to ${targetName}!`;
+          break;
         default:
-          addToHistory(`❌ Unknown type: ${type}. Use: money, tokens, miners`);
+          addToHistory(`❌ Unknown type: ${type}. Use: money, tokens, miners, trinket, pcx`);
           return;
       }
 
@@ -564,8 +590,8 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory('prestige       - Skip the grind 😎');
         addToHistory('title [id]     - Give yourself a title');
         addToHistory('users          - List all clients');
-        addToHistory('give [user] [type] [amt]');
-        addToHistory('               - Types: money, tokens, miners');
+        addToHistory('give [user] [type] [amt/id]');
+        addToHistory('               - Types: money, tokens, miners, trinket, pcx');
         addToHistory('ban [id/email/name] [reason]');
         addToHistory('unban [id]     - Unban a user');
         addToHistory('banned         - List all banned');

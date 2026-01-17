@@ -30,7 +30,7 @@ export default function PathSelectionModal({ onSelectPath }: PathSelectionModalP
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/95">
       {/* Animated background */}
       <div className="absolute inset-0 overflow-hidden">
         {/* Light side gradient */}
@@ -51,7 +51,7 @@ export default function PathSelectionModal({ onSelectPath }: PathSelectionModalP
 
       {/* Confirmation Modal */}
       {confirming && selectedPath && (
-        <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black/80">
+        <div className="fixed inset-0 z-[10010] flex items-center justify-center bg-black/80">
           <div className={`p-8 rounded-2xl border-2 max-w-md text-center ${
             selectedPath === 'light' 
               ? 'bg-gradient-to-b from-amber-900/80 to-yellow-900/60 border-yellow-500'

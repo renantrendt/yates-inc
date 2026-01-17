@@ -51,6 +51,8 @@ export interface UserGameData {
   title_win_counts?: Record<string, number>;
   // Path system
   chosen_path?: string | null;
+  // Playtime tracking
+  total_playtime_seconds?: number;
   // Timestamp (set by Supabase)
   updated_at?: string;
 }
@@ -139,6 +141,8 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       title_win_counts: data.title_win_counts,
       // Path system
       chosen_path: data.chosen_path,
+      // Playtime tracking
+      total_playtime_seconds: data.total_playtime_seconds,
     };
 
     // FINAL CHECK: If version was provided and has changed, skip this save (a force save happened)
@@ -429,6 +433,8 @@ export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; u
     title_win_counts: data.title_win_counts,
     // Path system
     chosen_path: data.chosen_path,
+    // Playtime tracking
+    total_playtime_seconds: data.total_playtime_seconds,
   };
 
   const url = `${supabaseUrl}/rest/v1/user_game_data?on_conflict=user_id`;

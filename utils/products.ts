@@ -127,12 +127,6 @@ export const employees = [
     bio: "Harris is our Supply Chain Manager. While he has some basic coding skills, his real strength is managing the supply chain and logistics. He handles all our partnerships, vendor relationships, and ensures resources flow smoothly to keep operations running.",
   },
   {
-    id: '390738',
-    name: 'Dilshaan',
-    role: 'Advertiser',
-    bio: "Dilshaan is our Advertiser, responsible for promoting Yates Inc. and getting the word out about our products and services.",
-  },
-  {
     id: '319736',
     name: 'Wyatt',
     role: 'LW',
