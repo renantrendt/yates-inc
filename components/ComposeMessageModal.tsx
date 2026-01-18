@@ -23,6 +23,7 @@ const EMPLOYEES = [
   { id: '007411', name: 'Dylan Mad Hawk', mail: 'custumerspp.mail' },
   { id: '674121', name: 'Harris', mail: 'supplychainH.mail' },
   { id: '319736', name: 'Wyatt', mail: 'legal.mail' },
+  { id: '010101', name: 'Suhas', mail: 'bugs.mail' },
 ];
 
 type RecipientType = 'employees' | 'clients';

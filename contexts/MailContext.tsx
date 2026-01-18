@@ -72,6 +72,16 @@ export function MailProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentUser]);
 
+  // Update browser tab title when there are unread messages
+  useEffect(() => {
+    const baseTitle = 'Yates Inc.';
+    if (unreadCount > 0) {
+      document.title = `(${unreadCount}) ${baseTitle}`;
+    } else {
+      document.title = baseTitle;
+    }
+  }, [unreadCount]);
+
   const fetchConversations = async () => {
     if (!currentUser) return;
 

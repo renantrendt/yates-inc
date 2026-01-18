@@ -203,12 +203,33 @@ export default function GameShop({ onClose }: GameShopProps) {
                 const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
                 
                 // Sequential purchase: can only buy if you own the previous one
-                // Exclude Yates pickaxe (ID 26) from sequence - it's a special golden cookie reward
+                // Skip path-locked pickaxes in the sequence calculation
                 const regularOwnedIds = gameState.ownedPickaxeIds.filter(id => id !== YATES_PICKAXE_ID);
-                // If no regular pickaxes owned (edge case), default to having pickaxe 1
                 const highestOwnedId = regularOwnedIds.length > 0 ? Math.max(...regularOwnedIds) : 0;
-                const isNextInSequence = pickaxe.id === highestOwnedId + 1;
-                const isLocked = !owned && pickaxe.id > highestOwnedId + 1;
+                
+                // Determine which pickaxe IDs to skip based on player's path
+                const skippedIds = new Set<number>([YATES_PICKAXE_ID]);
+                if (gameState.chosenPath === 'darkness') {
+                  // Darkness players skip Light pickaxes
+                  LIGHT_PICKAXE_IDS.forEach(id => skippedIds.add(id));
+                } else if (gameState.chosenPath === 'light') {
+                  // Light players skip Darkness pickaxes
+                  DARKNESS_PICKAXE_IDS.forEach(id => skippedIds.add(id));
+                } else {
+                  // No path chosen yet - skip all path-restricted pickaxes
+                  LIGHT_PICKAXE_IDS.forEach(id => skippedIds.add(id));
+                  DARKNESS_PICKAXE_IDS.forEach(id => skippedIds.add(id));
+                }
+                
+                // Find the effective next ID by skipping unbuyable pickaxes
+                let effectiveNextId = highestOwnedId + 1;
+                while (skippedIds.has(effectiveNextId) && effectiveNextId <= 30) {
+                  effectiveNextId++;
+                }
+                
+                const isNextInSequence = pickaxe.id === effectiveNextId;
+                // A pickaxe is locked if it's beyond the effective next AND not a skipped one we already passed
+                const isLocked = !owned && !skippedIds.has(pickaxe.id) && pickaxe.id > effectiveNextId;
                 const isPathLocked = !canBuyForPath && !owned;
                 const canPurchase = !owned && isNextInSequence && canAfford && canBuyForPath;
 

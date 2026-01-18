@@ -130,7 +130,13 @@ export const employees = [
     id: '319736',
     name: 'Wyatt',
     role: 'LW',
-    bio: "Our newest hire. With 5 years of experience in law, and very tuff blue hair.",
+    bio: "With 5 years of experience in law, and very tuff blue hair.",
+  },
+  {
+    id: '010101',
+    name: 'Suhas',
+    role: 'Bug Finder',
+    bio: "Our newest hire. Suhas was a normal customer but became the customer with the most amount of hours, and has given us many feedbacks as a customer so we hired him as our bug finder.",
   },
 ];
 

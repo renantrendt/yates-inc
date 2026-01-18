@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { PICKAXES, getNextRockUnlockInfo } from '@/lib/gameData';
-import { AUTOCLICKER_COST, AUTOCLICKER_CPS, getPrestigePriceMultiplier } from '@/types/game';
+import { AUTOCLICKER_COST, AUTOCLICKER_CPS, getPrestigePriceMultiplier, YATES_PICKAXE_ID, DARKNESS_PICKAXE_IDS, LIGHT_PICKAXE_IDS } from '@/types/game';
 import GameShop from './GameShop';
 import RockSelector from './RockSelector';
 import GameTerminal from './GameTerminal';
@@ -304,17 +304,38 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const minerDamageBonus = bonuses.minerDamageBonus + bonuses.minerSpeedBonus;
   const minerDps = Math.ceil(gameState.minerCount * MINER_BASE_DAMAGE * (1 + minerDamageBonus));
 
-  // Check if player can buy the next pickaxe (sequential order)
+  // Check if player can buy the next pickaxe (sequential order, accounting for path-locked pickaxes)
   const canBuyNextPickaxe = useMemo(() => {
-    // Find the highest owned pickaxe
-    const highestOwnedId = Math.max(...gameState.ownedPickaxeIds);
-    // Next pickaxe in sequence
-    const nextPickaxe = PICKAXES.find(p => p.id === highestOwnedId + 1);
+    // Find the highest owned regular pickaxe (excluding Yates)
+    const regularOwnedIds = gameState.ownedPickaxeIds.filter(id => id !== YATES_PICKAXE_ID);
+    const highestOwnedId = regularOwnedIds.length > 0 ? Math.max(...regularOwnedIds) : 0;
+    
+    // Determine which pickaxe IDs to skip based on player's path
+    const skippedIds = new Set<number>([YATES_PICKAXE_ID]);
+    if (gameState.chosenPath === 'darkness') {
+      LIGHT_PICKAXE_IDS.forEach(id => skippedIds.add(id));
+    } else if (gameState.chosenPath === 'light') {
+      DARKNESS_PICKAXE_IDS.forEach(id => skippedIds.add(id));
+    } else {
+      // No path chosen - skip all path-restricted pickaxes
+      LIGHT_PICKAXE_IDS.forEach(id => skippedIds.add(id));
+      DARKNESS_PICKAXE_IDS.forEach(id => skippedIds.add(id));
+    }
+    
+    // Find the effective next ID by skipping unbuyable pickaxes
+    let effectiveNextId = highestOwnedId + 1;
+    while (skippedIds.has(effectiveNextId) && effectiveNextId <= 30) {
+      effectiveNextId++;
+    }
+    
+    // Next pickaxe in sequence (after skipping path-locked ones)
+    const nextPickaxe = PICKAXES.find(p => p.id === effectiveNextId);
     if (!nextPickaxe) return false;
+    
     // Can afford it? (with prestige price scaling)
     const scaledPrice = Math.floor(nextPickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
     return gameState.yatesDollars >= scaledPrice;
-  }, [gameState.ownedPickaxeIds, gameState.yatesDollars, gameState.prestigeCount]);
+  }, [gameState.ownedPickaxeIds, gameState.yatesDollars, gameState.prestigeCount, gameState.chosenPath]);
 
   // Get next rock unlock progress (scaled by prestige, based on current rock)
   const nextRockInfo = useMemo(() => {
