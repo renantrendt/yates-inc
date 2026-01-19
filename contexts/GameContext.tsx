@@ -2398,18 +2398,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return { type: 'money', value: bonus };
     }
     
-    // 36% - +12% of current money (minimum $1000)
+    // 36% - +0.5% of current money (minimum $500)
     cumulative += 0.36;
     if (roll < cumulative) {
-      const bonus = Math.max(1000, Math.floor(gameState.yatesDollars * 0.12));
+      const bonus = Math.max(500, Math.floor(gameState.yatesDollars * 0.005));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money_12', value: bonus };
     }
     
-    // 50% - +24% of current money (minimum $2000)
+    // 50% - +1% of current money (minimum $1000)
     cumulative += 0.50;
     if (roll < cumulative) {
-      const bonus = Math.max(2000, Math.floor(gameState.yatesDollars * 0.24));
+      const bonus = Math.max(1000, Math.floor(gameState.yatesDollars * 0.01));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money_24', value: bonus };
     }

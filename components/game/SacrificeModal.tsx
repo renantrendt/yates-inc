@@ -179,7 +179,7 @@ export default function SacrificeModal({ isOpen, onClose }: SacrificeModalProps)
               min={1}
               max={Math.min(300, gameState.minerCount)}
               value={sacrificeCount}
-              onChange={(e) => setSacrificeCount(Math.min(300, Math.max(1, Number(e.target.value))))}
+              onChange={(e) => setSacrificeCount(Math.min(300, Math.min(gameState.minerCount, Math.max(1, Number(e.target.value)))))}
               disabled={gameState.minerCount === 0}
               className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-center text-sm"
             />

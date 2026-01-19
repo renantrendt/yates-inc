@@ -79,11 +79,10 @@ export const SACRIFICE_BUFF_TIERS: { miners: number; buff: Omit<SacrificeBuff, '
 export const GOLDEN_COOKIE_REWARDS = {
   yatesPickaxe: 0.10,      // 10% - Yates Pickaxe
   yatesTotem: 0.01,        // 1%  - Yates Totem trinket
-  goldenTrophy: 0.02,      // 2%  - Golden Trophy (Arghtfavts Trophye)
-  silverTrophy: 0.05,      // 5%  - Silver Trophy (Nrahgrvaths Trphye)
-  money12Percent: 0.15,    // 15% - +12% of current money
-  randomTrinket: 0.43,     // 43% - Random trinket (or $1 if owned)
-  money24Percent: 0.22,    // 22% - +24% of current money
+  goldenTrophy: 0.005,     // 0.5% - Golden Trophy (Arghtfavts Trophye)
+  silverTrophy: 0.005,     // 0.5% - Silver Trophy (Nrahgrvaths Trphye)
+  moneySmall: 0.36,        // 36% - +0.5% of current money
+  moneyMedium: 0.50,       // 50% - +1% of current money
   owoTitle: 0.01,          // 1%  - Secret "OwO" title (+500% everything!)
   adminCommands: 0.01,     // 1%  - 5min admin commands
 };
@@ -309,7 +308,7 @@ export const TRINKETS: Trinket[] = [
     name: 'Rainbow Collar',
     image: '/game/accessories/RainbowColar.png',
     rarity: 'rare',
-    cost: 2000000,
+    cost: 20000000,
     shopChance: 0.80,
     effects: { moneyBonus: 0.15 },
     description: '+15% money',
@@ -339,7 +338,7 @@ export const TRINKETS: Trinket[] = [
     name: 'Yates Totem',
     image: '/misc/Yates totem.png',
     rarity: 'secret',
-    cost: 777000000,
+    cost: 777000000000,
     shopChance: 0.005, // 0.5%
     effects: {
       moneyBonus: 6.0,
@@ -366,7 +365,7 @@ export const TRINKETS: Trinket[] = [
     name: 'Elder Ring',
     image: '/game/accessories/elderring.png',
     rarity: 'mythic',
-    cost: 56000000,
+    cost: 56000000000,
     shopChance: 0.21,
     effects: { rockDamageBonus: 0.70, moneyBonus: 0.30 },
     description: '+70% pickaxe damage, +30% money',
@@ -400,6 +399,87 @@ export const TRINKETS: Trinket[] = [
     shopChance: 0.40,
     effects: { allBonus: 0.10 },
     description: '+10% to everything',
+  },
+  // New trinkets
+  {
+    id: 'miners_lucky_charm',
+    name: "Miner's Lucky Charm",
+    image: '/game/accessories/minersluckycharm.png',
+    rarity: 'rare',
+    cost: 3500000,
+    shopChance: 0.65,
+    effects: { minerSpeedBonus: 0.35, minerDamageBonus: 0.25 },
+    description: '+35% miner speed, +25% miner damage',
+  },
+  {
+    id: 'ancient_compass',
+    name: 'Ancient Compass',
+    image: '/game/accessories/ancientcompas.png',
+    rarity: 'rare',
+    cost: 5000000,
+    shopChance: 0.55,
+    effects: { clickSpeedBonus: 0.35, minerSpeedBonus: 0.25 },
+    description: '+35% click speed, +25% miner speed',
+  },
+  {
+    id: 'eternal_hourglass',
+    name: 'Eternal Hourglass',
+    image: '/game/accessories/hourglass.png',
+    rarity: 'rare',
+    cost: 8000000,
+    shopChance: 0.50,
+    effects: { minerSpeedBonus: 0.50, clickSpeedBonus: 0.35 },
+    description: '+50% miner speed, +35% click speed',
+  },
+  {
+    id: 'dragon_scale',
+    name: 'Dragon Scale',
+    image: '/game/accessories/dragonscale.png',
+    rarity: 'epic',
+    cost: 15000000,
+    shopChance: 0.45,
+    effects: { rockDamageBonus: 0.60, minerDamageBonus: 0.40 },
+    description: '+60% pcx damage, +40% miner damage',
+  },
+  {
+    id: 'obsidian_heart',
+    name: 'Obsidian Heart',
+    image: '/game/accessories/obsheart.png',
+    rarity: 'epic',
+    cost: 22000000000,
+    shopChance: 0.35,
+    effects: { rockDamageBonus: 0.75, moneyBonus: 0.50 },
+    description: '+75% pcx damage, +50% money (Darkness)',
+  },
+  {
+    id: 'crystal_prism',
+    name: 'Crystal Prism',
+    image: '/game/accessories/crystalprism.png',
+    rarity: 'epic',
+    cost: 22000000000,
+    shopChance: 0.35,
+    effects: { moneyBonus: 0.55, clickSpeedBonus: 0.45 },
+    description: '+55% money, +45% click speed (Light)',
+  },
+  {
+    id: 'phoenix_feather',
+    name: 'Phoenix Feather',
+    image: '/game/accessories/phoenixfeather.png',
+    rarity: 'legendary',
+    cost: 50000000000,
+    shopChance: 0.25,
+    effects: { moneyBonus: 0.65, allBonus: 0.35 },
+    description: '+65% money, +35% all bonus',
+  },
+  {
+    id: 'void_stone',
+    name: 'Void Stone',
+    image: '/game/accessories/voidstone.png',
+    rarity: 'legendary',
+    cost: 65000000000,
+    shopChance: 0.20,
+    effects: { rockDamageBonus: 0.90, clickSpeedBonus: 0.70 },
+    description: '+90% pcx damage, +70% click speed',
   },
   // Golden Cookie exclusive trophies
   {
