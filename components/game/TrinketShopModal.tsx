@@ -93,10 +93,12 @@ export default function TrinketShopModal({ isOpen, onClose }: TrinketShopModalPr
     buyTrinket, 
     ownsTrinket, 
     gameState,
-    getTrinketShopTimeLeft 
+    getTrinketShopTimeLeft,
+    resetTrinketShop 
   } = useGame();
   
   const [timeLeft, setTimeLeft] = useState(0);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   
   // Update timer every second when modal is open
   useEffect(() => {
@@ -142,6 +144,27 @@ export default function TrinketShopModal({ isOpen, onClose }: TrinketShopModalPr
               className="text-gray-400 hover:text-white transition-colors"
             >
               ✕ Close
+            </button>
+          </div>
+        </div>
+
+        {/* Reset Shop Button */}
+        <div className="mb-4 p-3 bg-purple-900/30 border border-purple-600/50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-300 font-bold text-sm">🔄 Refresh Shop Now</p>
+              <p className="text-gray-400 text-xs">Cost: 40% of your money (${formatMoney(Math.floor(gameState.yatesDollars * 0.4))})</p>
+            </div>
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              disabled={gameState.yatesDollars <= 0}
+              className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+                gameState.yatesDollars > 0
+                  ? 'bg-purple-600 hover:bg-purple-500 text-white'
+                  : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              Reset Shop
             </button>
           </div>
         </div>
@@ -199,6 +222,44 @@ export default function TrinketShopModal({ isOpen, onClose }: TrinketShopModalPr
           )}
         </div>
       </div>
+
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div 
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80"
+          onClick={() => setShowResetConfirm(false)}
+        >
+          <div 
+            className="bg-gray-900 border-2 border-purple-500 rounded-xl p-6 max-w-sm text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-5xl mb-4">🔄</div>
+            <h3 className="text-xl font-bold text-purple-400 mb-2">Reset Trinket Shop?</h3>
+            <p className="text-gray-300 text-sm mb-4">
+              This will cost <span className="text-yellow-400 font-bold">${formatMoney(Math.floor(gameState.yatesDollars * 0.4))}</span>
+              <br />
+              <span className="text-gray-500">(40% of your money)</span>
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  resetTrinketShop();
+                  setShowResetConfirm(false);
+                }}
+                className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

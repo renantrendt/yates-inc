@@ -101,6 +101,7 @@ interface GameContextType {
   // Trinket functions
   trinketShopItems: Trinket[];
   getTrinketShopTimeLeft: () => number;
+  resetTrinketShop: () => boolean; // Costs 40% of money to refresh shop
   buyTrinket: (trinketId: string) => boolean;
   equipTrinket: (trinketId: string) => boolean;
   unequipTrinket: (trinketId: string) => void;
@@ -1711,6 +1712,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const elapsed = Date.now() - gameState.trinketShopLastRefresh;
     return Math.max(0, TRINKET_SHOP_REFRESH_INTERVAL - elapsed);
   }, [gameState.trinketShopLastRefresh]);
+
+  // Reset trinket shop for 40% of current money
+  const resetTrinketShop = useCallback((): boolean => {
+    const cost = Math.floor(gameState.yatesDollars * 0.4);
+    if (cost <= 0 || gameState.yatesDollars < cost) return false;
+    
+    const newItems = generateTrinketShopItems();
+    setGameState(prev => ({
+      ...prev,
+      yatesDollars: prev.yatesDollars - cost,
+      trinketShopItems: newItems,
+      trinketShopLastRefresh: Date.now(),
+    }));
+    return true;
+  }, [gameState.yatesDollars]);
   
   const ownsTrinket = useCallback((trinketId: string) => {
     return gameState.ownedTrinketIds.includes(trinketId);
@@ -2504,6 +2520,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         // Trinket functions
         trinketShopItems,
         getTrinketShopTimeLeft,
+        resetTrinketShop,
         buyTrinket,
         equipTrinket,
         unequipTrinket,
