@@ -211,6 +211,7 @@ const defaultGameState: GameState = {
   goldenCookieRitualActive: false,
   sacrificeBuff: null,
   adminCommandsUntil: null,
+  lastTaxTime: null,
   showPathSelection: false,
   // Timestamp for sync conflict resolution
   localUpdatedAt: Date.now(),
@@ -550,6 +551,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 },
                 // Path system (always sync from Supabase - critical state)
                 chosenPath: (supabaseData.chosen_path as GamePath) ?? prev.chosenPath,
+                // Tax system (sync from Supabase)
+                lastTaxTime: (supabaseData as unknown as { last_tax_time?: number | null }).last_tax_time ?? prev.lastTaxTime,
                 // Playtime tracking (use max to never lose playtime)
                 totalPlaytimeSeconds: Math.max(
                   prev.totalPlaytimeSeconds || 0,
@@ -1084,6 +1087,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           title_win_counts: gameState.titleWinCounts,
           // Path system
           chosen_path: gameState.chosenPath,
+          // Tax system
+          last_tax_time: gameState.lastTaxTime,
           // Playtime tracking
           total_playtime_seconds: gameState.totalPlaytimeSeconds,
         });
@@ -1174,6 +1179,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         has_stocks_unlocked: state.hasStocksUnlocked,
         // Path system
         chosen_path: state.chosenPath,
+        // Tax system
+        last_tax_time: state.lastTaxTime,
         // Playtime tracking
         total_playtime_seconds: state.totalPlaytimeSeconds,
       });
@@ -2485,6 +2492,48 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     return () => clearTimeout(timeout);
   }, [gameState.adminCommandsUntil]);
+
+  // Wealth tax for 1QI+ players (10-30% daily)
+  const WEALTH_TAX_THRESHOLD = 1000000000000000000; // 1 Quintillion
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  
+  useEffect(() => {
+    // Only check if player has 1QI+ money
+    if (gameState.yatesDollars < WEALTH_TAX_THRESHOLD) return;
+    
+    // Check if a day has passed since last tax
+    const now = Date.now();
+    const lastTax = gameState.lastTaxTime || 0;
+    const timeSinceLastTax = now - lastTax;
+    
+    if (timeSinceLastTax < ONE_DAY_MS) return;
+    
+    // Apply tax: random 10-30%
+    const taxRate = 0.10 + (Math.random() * 0.20); // 10% to 30%
+    const taxAmount = Math.floor(gameState.yatesDollars * taxRate);
+    const remainingAmount = gameState.yatesDollars - taxAmount;
+    
+    // Update state
+    setGameState(prev => ({
+      ...prev,
+      yatesDollars: remainingAmount,
+      lastTaxTime: now,
+    }));
+    
+    // Store pending tax notification for popup
+    const taxData = {
+      originalAmount: gameState.yatesDollars,
+      taxRate,
+      taxAmount,
+      remainingAmount,
+    };
+    localStorage.setItem('yates-game-tax-pending', JSON.stringify(taxData));
+    
+    // Dispatch event for immediate popup
+    window.dispatchEvent(new CustomEvent('yates-tax-collected', { detail: taxData }));
+    
+    console.log(`💀 WEALTH TAX: Collected ${Math.round(taxRate * 100)}% ($${taxAmount.toLocaleString()}) from player with $${gameState.yatesDollars.toLocaleString()}`);
+  }, [gameState.yatesDollars, gameState.lastTaxTime]);
 
   // Always render - game will work with default state while data loads
 

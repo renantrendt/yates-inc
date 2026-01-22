@@ -1,4 +1,4 @@
-import { Pickaxe, Rock } from '@/types/game';
+import { Pickaxe, Rock, HARD_MODE_PRESTIGE_THRESHOLD, HARD_MODE_MULTIPLIER } from '@/types/game';
 
 export const PICKAXES: Pickaxe[] = [
   {
@@ -524,9 +524,10 @@ export const getRockById = (id: number): Rock | undefined => {
 // Rock unlock scaling per prestige (50% more clicks needed per prestige)
 export const ROCK_UNLOCK_PRESTIGE_SCALING = 0.5;
 
-// Get scaled unlock threshold based on prestige
+// Get scaled unlock threshold based on prestige (+40% after prestige 40)
 export const getScaledUnlockThreshold = (baseThreshold: number, prestigeCount: number): number => {
-  return Math.ceil(baseThreshold * (1 + prestigeCount * ROCK_UNLOCK_PRESTIGE_SCALING));
+  const base = Math.ceil(baseThreshold * (1 + prestigeCount * ROCK_UNLOCK_PRESTIGE_SCALING));
+  return prestigeCount >= HARD_MODE_PRESTIGE_THRESHOLD ? Math.ceil(base * HARD_MODE_MULTIPLIER) : base;
 };
 
 export const getNextRock = (currentRockId: number, totalClicks: number, prestigeCount: number = 0): Rock | null => {

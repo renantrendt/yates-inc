@@ -28,7 +28,12 @@ WITH expected_columns AS (
     'total_money_earned', 'game_start_time', 'fastest_prestige_time',
     'owned_title_ids', 'equipped_title_ids', 'title_win_counts',
     -- FIX_MISSING_COLUMNS.sql (previously missing!)
-    'has_stocks_unlocked', 'unlocked_achievement_ids'
+    'has_stocks_unlocked', 'unlocked_achievement_ids',
+    -- PATH_SYSTEM.sql
+    'chosen_path', 'golden_cookie_ritual_active', 'sacrifice_buff',
+    'admin_commands_until', 'show_path_selection',
+    -- FIX_INTEGER_OVERFLOW.sql (tax + playtime)
+    'last_tax_time', 'total_playtime_seconds'
   ]) AS column_name
 ),
 actual_columns AS (
@@ -107,3 +112,5 @@ FROM user_game_data;
 -- 4. TRINKETS_MINERS_PRESTIGE.sql (trinkets, miners, prestige upgrades)
 -- 5. RANKINGS_SQL.sql (ranking system, titles)
 -- 6. FIX_MISSING_COLUMNS.sql (stocks unlock, achievements)
+-- 7. PATH_SYSTEM.sql (light/darkness path system)
+-- 8. FIX_INTEGER_OVERFLOW.sql (CRITICAL! Fix total_clicks, add tax/playtime)

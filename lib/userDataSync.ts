@@ -51,6 +51,8 @@ export interface UserGameData {
   title_win_counts?: Record<string, number>;
   // Path system
   chosen_path?: string | null;
+  // Tax system (1QI+ wealth tax)
+  last_tax_time?: number | null;
   // Playtime tracking
   total_playtime_seconds?: number;
   // Timestamp (set by Supabase)
@@ -141,6 +143,8 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       title_win_counts: data.title_win_counts,
       // Path system
       chosen_path: data.chosen_path,
+      // Tax system
+      last_tax_time: data.last_tax_time,
       // Playtime tracking
       total_playtime_seconds: data.total_playtime_seconds,
     };
@@ -433,6 +437,8 @@ export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; u
     title_win_counts: data.title_win_counts,
     // Path system
     chosen_path: data.chosen_path,
+    // Tax system
+    last_tax_time: data.last_tax_time,
     // Playtime tracking
     total_playtime_seconds: data.total_playtime_seconds,
   };

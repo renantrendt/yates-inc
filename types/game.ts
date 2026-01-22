@@ -168,6 +168,7 @@ export interface GameState {
   goldenCookieRitualActive: boolean; // Has completed the ritual to spawn golden cookies
   sacrificeBuff: SacrificeBuff | null; // Current active sacrifice buff
   adminCommandsUntil: number | null; // Timestamp when admin commands expire (from golden cookie)
+  lastTaxTime: number | null;        // Timestamp of last wealth tax (1QI+ = 10-30% daily)
   showPathSelection: boolean;        // Flag to show path selection modal
   // Timestamp for sync conflict resolution
   localUpdatedAt: number;
@@ -187,9 +188,14 @@ export const PRESTIGE_REQUIREMENTS = {
 // Max prestige level where buffs stop
 export const MAX_PRESTIGE_WITH_BUFFS = 230;
 
-// Get prestige money requirement (5% increase per prestige)
+// Hard mode threshold - after this prestige, everything is 40% harder
+export const HARD_MODE_PRESTIGE_THRESHOLD = 40;
+export const HARD_MODE_MULTIPLIER = 1.4; // 40% harder
+
+// Get prestige money requirement (5% increase per prestige, +40% after prestige 40)
 export function getPrestigeMoneyRequirement(prestigeCount: number): number {
-  return Math.floor(PRESTIGE_REQUIREMENTS.baseMoneyRequired * Math.pow(1.05, prestigeCount));
+  const base = Math.floor(PRESTIGE_REQUIREMENTS.baseMoneyRequired * Math.pow(1.05, prestigeCount));
+  return prestigeCount >= HARD_MODE_PRESTIGE_THRESHOLD ? Math.floor(base * HARD_MODE_MULTIPLIER) : base;
 }
 
 // Get scaled prestige rock requirement (increases by 1 every 5 prestiges until max)
@@ -539,14 +545,16 @@ export const MINER_VISIBLE_MAX = 100; // Max visible sprites
 // Rock health scaling per prestige (23% increase per prestige)
 export const ROCK_HEALTH_PRESTIGE_SCALING = 0.23;
 
-// Get scaled rock HP based on prestige count
+// Get scaled rock HP based on prestige count (+40% after prestige 40)
 export function getScaledRockHP(baseHP: number, prestigeCount: number): number {
-  return Math.ceil(baseHP * (1 + prestigeCount * ROCK_HEALTH_PRESTIGE_SCALING));
+  const base = Math.ceil(baseHP * (1 + prestigeCount * ROCK_HEALTH_PRESTIGE_SCALING));
+  return prestigeCount >= HARD_MODE_PRESTIGE_THRESHOLD ? Math.ceil(base * HARD_MODE_MULTIPLIER) : base;
 }
 
-// Get prestige price multiplier (10% increase every 5 prestiges)
+// Get prestige price multiplier (10% increase every 5 prestiges, +40% after prestige 40)
 export function getPrestigePriceMultiplier(prestigeCount: number): number {
-  return Math.pow(1.10, Math.floor(prestigeCount / 5));
+  const base = Math.pow(1.10, Math.floor(prestigeCount / 5));
+  return prestigeCount >= HARD_MODE_PRESTIGE_THRESHOLD ? base * HARD_MODE_MULTIPLIER : base;
 }
 
 // Get miner cost with prestige scaling (10% increase every 5 prestiges)

@@ -20,6 +20,7 @@ import RankingPanel from './RankingPanel';
 import PathSelectionModal from './PathSelectionModal';
 import GoldenCookie from './GoldenCookie';
 import SacrificeModal from './SacrificeModal';
+import TaxPopup from './TaxPopup';
 import { MINER_BASE_DAMAGE, getScaledRockHP } from '@/types/game';
 import { ROCKS, getRockById } from '@/lib/gameData';
 
@@ -768,6 +769,9 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
       {/* Golden Cookie - Darkness path with ritual active */}
       <GoldenCookie />
+
+      {/* Tax Popup - 1QI+ wealth tax */}
+      <TaxPopup />
 
       {/* Sacrifice Modal - Darkness path */}
       <SacrificeModal isOpen={showSacrifice} onClose={() => setShowSacrifice(false)} />
