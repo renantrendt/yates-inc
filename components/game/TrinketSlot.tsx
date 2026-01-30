@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { TRINKETS, RARITY_COLORS, Trinket } from '@/types/game';
@@ -8,6 +8,7 @@ import { TRINKETS, RARITY_COLORS, Trinket } from '@/types/game';
 export default function TrinketSlot() {
   const [showSelector, setShowSelector] = useState(false);
   const [showBonusDetails, setShowBonusDetails] = useState(false);
+  const [now, setNow] = useState(Date.now());
   const { 
     gameState, 
     getEquippedTrinkets, 
@@ -15,8 +16,16 @@ export default function TrinketSlot() {
     unequipTrinket, 
     canEquipDualTrinkets,
     canEquipTripleTrinkets,
-    getTotalBonuses 
+    getTotalBonuses,
+    getActiveBuffs,
+    isWizardRitualActive,
   } = useGame();
+  
+  // Update time every second for buff timers
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
   
   const equippedTrinkets = getEquippedTrinkets();
   const ownedTrinkets = gameState.ownedTrinketIds
@@ -29,8 +38,17 @@ export default function TrinketSlot() {
   const hasActiveBonuses = Object.values(bonuses).some(v => v > 0);
   
   // Check for active sacrifice buff
-  const hasActiveSacrificeBuff = gameState.sacrificeBuff && Date.now() < gameState.sacrificeBuff.endsAt;
-  const sacrificeTimeRemaining = hasActiveSacrificeBuff ? Math.ceil((gameState.sacrificeBuff!.endsAt - Date.now()) / 1000) : 0;
+  const hasActiveSacrificeBuff = gameState.sacrificeBuff && now < gameState.sacrificeBuff.endsAt;
+  const sacrificeTimeRemaining = hasActiveSacrificeBuff ? Math.ceil((gameState.sacrificeBuff!.endsAt - now) / 1000) : 0;
+
+  // Check for active factory buffs
+  const activeBuffs = getActiveBuffs();
+  const hasActiveFactoryBuffs = activeBuffs.length > 0;
+
+  // Check for wizard ritual
+  const wizardRitualActive = isWizardRitualActive();
+  const wizardTimeRemaining = wizardRitualActive && gameState.buildings.wizard_tower.ritualEndTime 
+    ? Math.ceil((gameState.buildings.wizard_tower.ritualEndTime - now) / 1000) : 0;
 
   return (
     <div className="relative">
@@ -106,12 +124,34 @@ export default function TrinketSlot() {
             </div>
           )}
           
-          {/* Active Sacrifice Buff indicator */}
-          {hasActiveSacrificeBuff && (
-            <div className="mt-0.5 text-[9px] text-red-400 animate-pulse">
-              🔥 Buff: {sacrificeTimeRemaining}s
-            </div>
-          )}
+          {/* Active Buffs */}
+          <div className="mt-0.5 flex flex-wrap gap-1">
+            {/* Sacrifice Buff */}
+            {hasActiveSacrificeBuff && (
+              <span className="text-[9px] text-red-400 animate-pulse">
+                🩸{sacrificeTimeRemaining}s
+              </span>
+            )}
+            
+            {/* Wizard Ritual */}
+            {wizardRitualActive && (
+              <span className="text-[9px] text-purple-400 animate-pulse">
+                🔮3x {wizardTimeRemaining}s
+              </span>
+            )}
+            
+            {/* Factory Buffs */}
+            {activeBuffs.map(buff => {
+              const timeLeft = Math.ceil((buff.startTime + buff.duration - now) / 1000);
+              if (timeLeft <= 0) return null;
+              const icon = buff.type === 'damage' ? '⚔️' : buff.type === 'money' ? '💰' : buff.type === 'clickSpeed' ? '⚡' : '🏭';
+              return (
+                <span key={buff.id} className="text-[9px] text-amber-400">
+                  {icon}+{Math.round(buff.multiplier * 100)}% {timeLeft}s
+                </span>
+              );
+            })}
+          </div>
         </div>
       )}
       

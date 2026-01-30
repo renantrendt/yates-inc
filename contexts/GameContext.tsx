@@ -13,7 +13,20 @@ import {
   GamePath, SacrificeBuff, SACRIFICE_BUFF_TIERS,
   DARKNESS_PICKAXE_IDS, LIGHT_PICKAXE_IDS, YATES_PICKAXE_ID,
   // Rock health scaling
-  getScaledRockHP
+  getScaledRockHP,
+  // Building system
+  BuildingType, Building, ActiveBuff, ActiveDebuff, 
+  ProgressiveUpgradeType, PowerupType, Powerup,
+  BUILDINGS, PROGRESSIVE_UPGRADES, POWERUPS,
+  getDefaultBuildingStates, getDefaultProgressiveUpgradeState, getDefaultPowerupInventory,
+  getBuildingCost, canBuyBuilding, getBuildingCount,
+  MINE_MINER_EQUIVALENTS_PER_MINE, MINE_TICK_INTERVAL as MINE_PASSIVE_TICK_INTERVAL,
+  FACTORY_BONUS_MINERS, generateFactoryBuff, getNextFactoryBuffTime,
+  FACTORY_BUFF_MIN_INTERVAL, FACTORY_BUFF_MAX_INTERVAL, FACTORY_BUFF_REDUCTION_PER_FACTORY,
+  BANK_BASE_INTEREST_RATE, BANK_TIME_MULTIPLIER, calculateBankInterest,
+  TEMPLE_MINER_MONEY_MULTIPLIER, TEMPLE_BUFF_INTERVAL_MIN, TEMPLE_BUFF_INTERVAL_MAX,
+  getProgressiveUpgradeCost, getProgressiveUpgradeBonus,
+  generateShipmentDelivery,
 } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
@@ -153,6 +166,43 @@ interface GameContextType {
   canActivateRitual: () => boolean;
   // Golden Cookie reward claiming
   claimGoldenCookieReward: () => { type: string; value: number | string } | null;
+  // =====================
+  // BUILDING SYSTEM FUNCTIONS
+  // =====================
+  buyBuilding: (buildingId: BuildingType) => boolean;
+  canAffordBuilding: (buildingId: BuildingType) => boolean;
+  getBuildingCostForType: (buildingId: BuildingType) => number;
+  // Mine functions
+  absorbMinersIntoMine: () => boolean;
+  getMineEfficiency: () => number;
+  // Bank functions
+  depositToBank: (amount: number) => boolean;
+  withdrawFromBank: () => { principal: number; interest: number } | null;
+  getBankBalance: () => { principal: number; interest: number; totalTime: number };
+  // Factory functions
+  getFactoryBonusMiners: () => number;
+  // Temple functions (Light path)
+  buyTempleUpgrade: (upgradeType: string, rank: number) => boolean;
+  equipTempleRank: (rank: number | null) => boolean;
+  getTempleUpgradeBonus: (upgradeType: string) => number;
+  // Wizard Tower functions (Darkness path)
+  startWizardRitual: () => boolean;
+  isWizardRitualActive: () => boolean;
+  // Shipment functions
+  collectShipmentDelivery: (deliveryId: string) => { type: string; value: string | number } | null;
+  getPendingShipments: () => { id: string; type: string; arrivalTime: number; isReady: boolean }[];
+  // Buff/Debuff functions
+  getActiveBuffs: () => ActiveBuff[];
+  getActiveDebuffs: () => ActiveDebuff[];
+  getTotalBuffMultiplier: (type: string) => number;
+  // Progressive Upgrades
+  buyProgressiveUpgrade: (upgradeId: ProgressiveUpgradeType) => boolean;
+  getProgressiveUpgradeLevel: (upgradeId: ProgressiveUpgradeType) => number;
+  getProgressiveUpgradeTotalBonus: (upgradeId: ProgressiveUpgradeType) => number;
+  // Powerups
+  buyPowerup: (powerupId: PowerupType) => boolean;
+  usePowerup: (powerupId: PowerupType) => boolean;
+  getPowerupCount: (powerupId: PowerupType) => number;
 }
 
 const defaultGameState: GameState = {
@@ -217,6 +267,14 @@ const defaultGameState: GameState = {
   localUpdatedAt: Date.now(),
   // Playtime tracking
   totalPlaytimeSeconds: 0,
+  // Building system
+  buildings: getDefaultBuildingStates(),
+  activeBuffs: [],
+  activeDebuffs: [],
+  progressiveUpgrades: getDefaultProgressiveUpgradeState(),
+  powerupInventory: getDefaultPowerupInventory(),
+  activePowerups: [],
+  guaranteedCouponDrop: false,
 };
 
 const STORAGE_KEY_PREFIX = 'yates-mining-game';
@@ -797,6 +855,265 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [gameState.minerCount, gameState.isBlocked]);
 
+  // Mine passive income tick - Each mine = 20 miner-equivalents of passive income
+  // Special: With Temple Rank 2/3, generates 20% of click money every 0.5s instead
+  const mineIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (mineIntervalRef.current) {
+      clearInterval(mineIntervalRef.current);
+      mineIntervalRef.current = null;
+    }
+    
+    // Don't run if no mines or blocked
+    if (gameState.buildings.mine.count <= 0 || gameState.isBlocked) {
+      return;
+    }
+    
+    // Check if using Temple Rank 2/3 (can't buy miners - special mine income)
+    const equippedTempleRank = gameState.buildings.temple.equippedRank;
+    const useSpecialMineIncome = equippedTempleRank === 2 || equippedTempleRank === 3;
+    
+    // Tick interval: 1 second normally, 0.5 seconds for special mine income
+    const tickInterval = useSpecialMineIncome ? 500 : 1000;
+    
+    mineIntervalRef.current = setInterval(() => {
+      setGameState(prev => {
+        if (prev.buildings.mine.count <= 0 || prev.isBlocked) return prev;
+        
+        const mineCount = prev.buildings.mine.count;
+        const rock = getRockById(prev.currentRockId) || ROCKS[0];
+        
+        // Calculate bonuses
+        let moneyBonus = 0;
+        let damageBonus = 0;
+        
+        // Trinket bonuses
+        for (const trinketId of prev.equippedTrinketIds) {
+          const trinket = TRINKETS.find(t => t.id === trinketId);
+          if (trinket) {
+            const e = trinket.effects;
+            moneyBonus += (e.moneyBonus || 0) + (e.allBonus || 0);
+            damageBonus += (e.minerDamageBonus || 0) + (e.allBonus || 0);
+          }
+        }
+        
+        // Prestige upgrade bonuses
+        for (const upgradeId of prev.ownedPrestigeUpgradeIds) {
+          const upgrade = PRESTIGE_UPGRADES.find(u => u.id === upgradeId);
+          if (upgrade) {
+            const allB = upgrade.effects.allBonus || 0;
+            moneyBonus += (upgrade.effects.moneyBonus || 0) + allB;
+            damageBonus += (upgrade.effects.minerDamageBonus || 0) + allB;
+          }
+        }
+        
+        // Temple bonuses (Light path)
+        const templeRank = prev.buildings.temple.equippedRank;
+        const templeValues: Record<number, { money: number; pcxDamage: number }> = {
+          1: { money: 0.27, pcxDamage: 0.36 },
+          2: { money: 0.55, pcxDamage: 0.73 },
+          3: { money: 0.90, pcxDamage: 1.20 },
+        };
+        if (templeRank && prev.chosenPath === 'light') {
+          const bonus = templeValues[templeRank];
+          if (bonus) {
+            moneyBonus += bonus.money;
+            damageBonus += bonus.pcxDamage;
+          }
+        }
+        
+        // Wizard ritual 3x multiplier
+        if (prev.buildings.wizard_tower.ritualActive && 
+            prev.buildings.wizard_tower.ritualEndTime &&
+            Date.now() < prev.buildings.wizard_tower.ritualEndTime) {
+          moneyBonus = (1 + moneyBonus) * 3 - 1;
+          damageBonus = (1 + damageBonus) * 3 - 1;
+        }
+        
+        if (templeRank === 2 || templeRank === 3) {
+          // Special mode: 20% of click money every 0.5s per mine
+          const pickaxe = getPickaxeById(prev.currentPickaxeId);
+          const clickMoney = Math.ceil(rock.moneyPerClick * prev.prestigeMultiplier * (1 + moneyBonus));
+          const passiveMoney = Math.ceil(clickMoney * 0.20 * mineCount);
+          
+          return {
+            ...prev,
+            yatesDollars: prev.yatesDollars + passiveMoney,
+            totalMoneyEarned: (prev.totalMoneyEarned || 0) + passiveMoney,
+          };
+        } else {
+          // Normal mode: Each mine = 20 miner-equivalents of damage
+          const minerEquivalents = mineCount * 20; // Each mine = 20 miner-equivalents
+          const damage = Math.ceil(minerEquivalents * MINER_BASE_DAMAGE * (1 + damageBonus));
+          
+          const newHP = prev.currentRockHP - damage;
+          const newTotalClicks = prev.totalClicks + damage;
+          
+          // Rock didn't break
+          if (newHP > 0) {
+            return {
+              ...prev,
+              currentRockHP: newHP,
+              totalClicks: newTotalClicks,
+            };
+          }
+          
+          // Rock broke
+          const overkillDamage = Math.abs(newHP);
+          const fullRockHP = getScaledRockHP(rock.clicksToBreak, prev.prestigeCount);
+          const additionalRocks = Math.floor(overkillDamage / fullRockHP);
+          const totalRocksBroken = 1 + additionalRocks;
+          const leftoverDamage = overkillDamage % fullRockHP;
+          const finalHP = fullRockHP - leftoverDamage;
+          
+          const moneyPerRock = Math.ceil(rock.moneyPerBreak * prev.prestigeMultiplier * (1 + moneyBonus));
+          const totalMoney = moneyPerRock * totalRocksBroken;
+          
+          const highestUnlocked = getHighestUnlockedRock(newTotalClicks, prev.prestigeCount);
+          const newCurrentRockId = highestUnlocked.id > prev.currentRockId ? highestUnlocked.id : prev.currentRockId;
+          const nextRock = getRockById(newCurrentRockId) || ROCKS[0];
+          
+          return {
+            ...prev,
+            currentRockHP: newCurrentRockId !== prev.currentRockId ? getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount) : finalHP,
+            currentRockId: newCurrentRockId,
+            rocksMinedCount: prev.rocksMinedCount + totalRocksBroken,
+            yatesDollars: prev.yatesDollars + totalMoney,
+            totalMoneyEarned: (prev.totalMoneyEarned || 0) + totalMoney,
+            totalClicks: newTotalClicks,
+          };
+        }
+      });
+    }, tickInterval);
+    
+    return () => {
+      if (mineIntervalRef.current) {
+        clearInterval(mineIntervalRef.current);
+        mineIntervalRef.current = null;
+      }
+    };
+  }, [gameState.buildings.mine.count, gameState.buildings.temple.equippedRank, gameState.isBlocked]);
+
+  // Factory buff generation tick
+  const factoryIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (factoryIntervalRef.current) {
+      clearInterval(factoryIntervalRef.current);
+      factoryIntervalRef.current = null;
+    }
+    
+    // Don't run if no factories
+    if (gameState.buildings.factory.count <= 0) {
+      return;
+    }
+    
+    // Check every 5 seconds if it's time to generate a buff
+    factoryIntervalRef.current = setInterval(() => {
+      setGameState(prev => {
+        if (prev.buildings.factory.count <= 0) return prev;
+        
+        const now = Date.now();
+        const nextBuffTime = prev.buildings.factory.nextBuffTime || 0;
+        
+        // Not time yet
+        if (now < nextBuffTime) return prev;
+        
+        // Generate a new buff!
+        const factoryCount = prev.buildings.factory.count;
+        const newBuff = generateFactoryBuff();
+        
+        // Calculate next buff time (10-12 min base, -5s per factory)
+        const reduction = (factoryCount - 1) * FACTORY_BUFF_REDUCTION_PER_FACTORY;
+        const minInterval = Math.max(60000, FACTORY_BUFF_MIN_INTERVAL - reduction);
+        const maxInterval = Math.max(90000, FACTORY_BUFF_MAX_INTERVAL - reduction);
+        const nextTime = now + minInterval + Math.random() * (maxInterval - minInterval);
+        
+        return {
+          ...prev,
+          activeBuffs: [...prev.activeBuffs, newBuff],
+          buildings: {
+            ...prev.buildings,
+            factory: {
+              ...prev.buildings.factory,
+              lastBuffTime: now,
+              nextBuffTime: nextTime,
+            },
+          },
+        };
+      });
+    }, 5000);
+    
+    return () => {
+      if (factoryIntervalRef.current) {
+        clearInterval(factoryIntervalRef.current);
+        factoryIntervalRef.current = null;
+      }
+    };
+  }, [gameState.buildings.factory.count]);
+
+  // Temple tax tick - applies tax based on equipped rank
+  const templeTaxIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (templeTaxIntervalRef.current) {
+      clearInterval(templeTaxIntervalRef.current);
+      templeTaxIntervalRef.current = null;
+    }
+    
+    const equippedRank = gameState.buildings.temple.equippedRank;
+    if (!equippedRank || gameState.chosenPath !== 'light') {
+      return;
+    }
+    
+    // Check every 10 seconds for tax time
+    templeTaxIntervalRef.current = setInterval(() => {
+      setGameState(prev => {
+        const rank = prev.buildings.temple.equippedRank;
+        if (!rank || prev.chosenPath !== 'light') return prev;
+        
+        const now = Date.now();
+        const lastTaxTime = prev.buildings.temple.lastTaxTime || now;
+        
+        // Tax config: rank 1 = 5% every 5min, rank 2 = 12% every 12min, rank 3 = 25% every 25min
+        const taxConfig: Record<number, { percent: number; intervalMs: number }> = {
+          1: { percent: 0.05, intervalMs: 5 * 60 * 1000 },
+          2: { percent: 0.12, intervalMs: 12 * 60 * 1000 },
+          3: { percent: 0.25, intervalMs: 25 * 60 * 1000 },
+        };
+        
+        const config = taxConfig[rank];
+        if (!config) return prev;
+        
+        // Not time yet
+        if (now - lastTaxTime < config.intervalMs) return prev;
+        
+        // Apply tax
+        const taxAmount = Math.ceil(prev.yatesDollars * config.percent);
+        
+        return {
+          ...prev,
+          yatesDollars: prev.yatesDollars - taxAmount,
+          buildings: {
+            ...prev.buildings,
+            temple: {
+              ...prev.buildings.temple,
+              lastTaxTime: now,
+            },
+          },
+        };
+      });
+    }, 10000);
+    
+    return () => {
+      if (templeTaxIntervalRef.current) {
+        clearInterval(templeTaxIntervalRef.current);
+        templeTaxIntervalRef.current = null;
+      }
+    };
+  }, [gameState.buildings.temple.equippedRank, gameState.chosenPath]);
+
   // Auto-prestige logic
   useEffect(() => {
     if (!gameState.autoPrestigeEnabled) return;
@@ -1014,9 +1331,38 @@ export function GameProvider({ children }: { children: ReactNode }) {
         bonuses.minerDamageBonus += buff.allBonus;
       }
     }
+
+    // TEMPLE BONUSES (Light path) - based on equipped rank
+    const equippedTempleRank = gameState.buildings.temple.equippedRank;
+    if (equippedTempleRank && gameState.chosenPath === 'light') {
+      const templeValues: Record<number, { money: number; pcxDamage: number; prestigePower: number; trinketPower: number }> = {
+        1: { money: 0.27, pcxDamage: 0.36, prestigePower: 0.15, trinketPower: 0.24 },
+        2: { money: 0.55, pcxDamage: 0.73, prestigePower: 0.30, trinketPower: 0.49 },
+        3: { money: 0.90, pcxDamage: 1.20, prestigePower: 0.50, trinketPower: 0.81 },
+      };
+      const templeBonus = templeValues[equippedTempleRank];
+      if (templeBonus) {
+        bonuses.moneyBonus += templeBonus.money;
+        bonuses.rockDamageBonus += templeBonus.pcxDamage;
+        // Note: prestigePower and trinketPower are applied separately in prestige/trinket calculations
+      }
+    }
+
+    // WIZARD RITUAL (Darkness path) - 3x ALL stats when active
+    if (gameState.buildings.wizard_tower.ritualActive && 
+        gameState.buildings.wizard_tower.ritualEndTime && 
+        Date.now() < gameState.buildings.wizard_tower.ritualEndTime) {
+      // Triple all current bonuses (3x = add 2x more on top of current)
+      bonuses.moneyBonus = (1 + bonuses.moneyBonus) * 3 - 1;
+      bonuses.rockDamageBonus = (1 + bonuses.rockDamageBonus) * 3 - 1;
+      bonuses.clickSpeedBonus = (1 + bonuses.clickSpeedBonus) * 3 - 1;
+      bonuses.couponBonus = (1 + bonuses.couponBonus) * 3 - 1;
+      bonuses.minerSpeedBonus = (1 + bonuses.minerSpeedBonus) * 3 - 1;
+      bonuses.minerDamageBonus = (1 + bonuses.minerDamageBonus) * 3 - 1;
+    }
     
     return bonuses;
-  }, [gameState.equippedTrinketIds, gameState.ownedPrestigeUpgradeIds, gameState.equippedTitleIds, gameState.chosenPath, gameState.sacrificeBuff]);
+  }, [gameState.equippedTrinketIds, gameState.ownedPrestigeUpgradeIds, gameState.equippedTitleIds, gameState.chosenPath, gameState.sacrificeBuff, gameState.buildings.temple.equippedRank, gameState.buildings.wizard_tower.ritualActive, gameState.buildings.wizard_tower.ritualEndTime]);
 
   // Save to localStorage and Supabase whenever state changes
   useEffect(() => {
@@ -1341,9 +1687,39 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Wizard ritual multiplier (3x all stats when active)
+      let wizardRitualMultiplier = 1;
+      if (prev.buildings.wizard_tower.ritualActive && 
+          prev.buildings.wizard_tower.ritualEndTime && 
+          Date.now() < prev.buildings.wizard_tower.ritualEndTime) {
+        wizardRitualMultiplier = 3.0;
+      }
+
+      // Factory buff multipliers
+      let factoryDamageMultiplier = 1;
+      let factoryMoneyMultiplier = 1;
+      let factorySpeedMultiplier = 1;
+      const now = Date.now();
+      for (const buff of prev.activeBuffs) {
+        if (buff.startTime + buff.duration > now) {
+          if (buff.type === 'damage') factoryDamageMultiplier += buff.multiplier;
+          if (buff.type === 'money') factoryMoneyMultiplier += buff.multiplier;
+          if (buff.type === 'clickSpeed') factorySpeedMultiplier += buff.multiplier;
+        }
+      }
+
+      // Temple curse penalties
+      let templeCurseMoneyPenalty = 1;
+      if (prev.buildings.temple.hasHolyUnluckinessCurse) {
+        templeCurseMoneyPenalty = 0.6; // 40% less money
+      }
+      if (prev.buildings.temple.hiddenCurseActive) {
+        templeCurseMoneyPenalty *= 0.9; // Additional 10% less money
+      }
+
       // Calculate click power (clickSpeedBonus multiplies damage: 50% = 1.5x, 100% = 2x)
       let clickPower = pickaxe.clickPower;
-      clickPower = Math.ceil(clickPower * (1 + rockDamageBonus + allBonus) * damageMultiplier * (1 + clickSpeedBonus));
+      clickPower = Math.ceil(clickPower * (1 + rockDamageBonus + allBonus) * damageMultiplier * (1 + clickSpeedBonus) * wizardRitualMultiplier * factoryDamageMultiplier * factorySpeedMultiplier);
       clickPower = Math.max(1, clickPower); // Ensure at least 1 damage
       
       const newHP = Math.max(0, prev.currentRockHP - clickPower);
@@ -1360,6 +1736,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       earnedMoney *= prev.prestigeMultiplier;
       earnedMoney *= (1 + moneyBonus + allBonus);
       earnedMoney *= (1 + clickSpeedBonus); // Click speed bonus multiplies money too
+      earnedMoney *= wizardRitualMultiplier; // Wizard ritual 3x
+      earnedMoney *= factoryMoneyMultiplier; // Factory money buff
+      earnedMoney *= templeCurseMoneyPenalty; // Temple curse penalties
       earnedMoney = Math.ceil(earnedMoney);
 
       // Update totals
@@ -1668,6 +2047,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
       gameStartTime: Date.now(), // Reset for next prestige attempt
       // PATH SELECTION: Show modal after first prestige if no path chosen yet
       showPathSelection: newPrestigeCount === 1 && !prev.chosenPath,
+      // Reset temple curses on prestige
+      buildings: {
+        ...prev.buildings,
+        temple: {
+          ...prev.buildings.temple,
+          goldenCookieClicks: 0,
+          hiddenCurseActive: false,
+          hasCookieCurse: false,
+          hasHolyUnluckinessCurse: false,
+        },
+      },
     }));
 
     // Force immediate save to Supabase after prestige (bypass debounce)
@@ -1812,6 +2202,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const buyMiner = useCallback(() => {
     if (gameState.minerCount >= MINER_MAX_COUNT) return false;
+    
+    // Temple rank 2/3 blocks miner purchases
+    const equippedRank = gameState.buildings.temple.equippedRank;
+    if (equippedRank === 2 || equippedRank === 3) {
+      return false; // Can't buy miners with these ranks equipped
+    }
+    
     const cost = getMinerCost(gameState.minerCount, gameState.prestigeCount);
     if (gameState.yatesDollars < cost) return false;
     
@@ -1822,7 +2219,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
     
     return true;
-  }, [gameState.minerCount, gameState.yatesDollars]);
+  }, [gameState.minerCount, gameState.yatesDollars, gameState.buildings.temple.equippedRank]);
 
   // =====================
   // PRESTIGE UPGRADE FUNCTIONS
@@ -2459,6 +2856,553 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return { type: 'admin_commands', value: adminExpiry };
   }, [gameState.chosenPath, gameState.goldenCookieRitualActive, gameState.yatesDollars, gameState.ownedPickaxeIds, gameState.ownedTrinketIds, gameState.ownedTitleIds, userId, userType]);
 
+  // =====================
+  // BUILDING SYSTEM FUNCTIONS
+  // =====================
+
+  const canAffordBuilding = useCallback((buildingId: BuildingType): boolean => {
+    const building = BUILDINGS.find(b => b.id === buildingId);
+    if (!building) return false;
+    return canBuyBuilding(building, gameState);
+  }, [gameState]);
+
+  const getBuildingCostForType = useCallback((buildingId: BuildingType): number => {
+    const building = BUILDINGS.find(b => b.id === buildingId);
+    if (!building) return Infinity;
+    const currentCount = getBuildingCount(buildingId, gameState);
+    return getBuildingCost(building, currentCount, gameState.yatesDollars);
+  }, [gameState]);
+
+  const buyBuilding = useCallback((buildingId: BuildingType): boolean => {
+    const building = BUILDINGS.find(b => b.id === buildingId);
+    if (!building) return false;
+    if (!canBuyBuilding(building, gameState)) return false;
+
+    const currentCount = getBuildingCount(buildingId, gameState);
+    const cost = getBuildingCost(building, currentCount, gameState.yatesDollars);
+
+    setGameState(prev => {
+      const newBuildings = { ...prev.buildings };
+      
+      switch (buildingId) {
+        case 'mine':
+          newBuildings.mine = {
+            ...newBuildings.mine,
+            count: newBuildings.mine.count + 1,
+          };
+          break;
+        case 'bank':
+          newBuildings.bank = {
+            ...newBuildings.bank,
+            owned: true,
+          };
+          break;
+        case 'factory':
+          const newFactoryCount = newBuildings.factory.count + 1;
+          newBuildings.factory = {
+            ...newBuildings.factory,
+            count: newFactoryCount,
+            bonusMiners: newBuildings.factory.bonusMiners + FACTORY_BONUS_MINERS,
+            nextBuffTime: newBuildings.factory.nextBuffTime || getNextFactoryBuffTime(newFactoryCount),
+          };
+          break;
+        case 'temple':
+          newBuildings.temple = {
+            ...newBuildings.temple,
+            owned: true,
+            nextBuffTime: Date.now() + TEMPLE_BUFF_INTERVAL_MIN + Math.random() * (TEMPLE_BUFF_INTERVAL_MAX - TEMPLE_BUFF_INTERVAL_MIN),
+          };
+          break;
+        case 'wizard_tower':
+          newBuildings.wizard_tower = {
+            ...newBuildings.wizard_tower,
+            owned: true,
+          };
+          break;
+        case 'shipment':
+          const newDelivery = generateShipmentDelivery(newBuildings.shipment.count + 1);
+          newBuildings.shipment = {
+            ...newBuildings.shipment,
+            count: newBuildings.shipment.count + 1,
+            pendingDeliveries: [...newBuildings.shipment.pendingDeliveries, newDelivery],
+          };
+          break;
+      }
+
+      return {
+        ...prev,
+        yatesDollars: prev.yatesDollars - cost,
+        buildings: newBuildings,
+      };
+    });
+
+    return true;
+  }, [gameState]);
+
+  // Mine functions - Mines now generate passive income (= 20 miner-equivalents per mine)
+  // These functions are kept for backward compatibility but no longer do the old absorb behavior
+  const absorbMinersIntoMine = useCallback((): boolean => {
+    // No longer absorbs miners - mines just passively generate income
+    return false;
+  }, []);
+
+  const getMineEfficiency = useCallback((): number => {
+    // Each mine = 20 miner-equivalents of passive income
+    return gameState.buildings.mine.count * MINE_MINER_EQUIVALENTS_PER_MINE;
+  }, [gameState.buildings.mine.count]);
+
+  // Bank functions
+  const depositToBank = useCallback((amount: number): boolean => {
+    if (!gameState.buildings.bank.owned) return false;
+    if (gameState.buildings.bank.depositAmount > 0) return false; // Already has deposit
+    if (amount <= 0 || amount > gameState.yatesDollars) return false;
+
+    setGameState(prev => ({
+      ...prev,
+      yatesDollars: prev.yatesDollars - amount,
+      buildings: {
+        ...prev.buildings,
+        bank: {
+          ...prev.buildings.bank,
+          depositAmount: amount,
+          depositTimestamp: Date.now(),
+        },
+      },
+    }));
+
+    return true;
+  }, [gameState.buildings.bank, gameState.yatesDollars]);
+
+  const withdrawFromBank = useCallback((): { principal: number; interest: number } | null => {
+    if (!gameState.buildings.bank.owned) return null;
+    if (gameState.buildings.bank.depositAmount <= 0) return null;
+    if (!gameState.buildings.bank.depositTimestamp) return null;
+
+    const principal = gameState.buildings.bank.depositAmount;
+    const interest = calculateBankInterest(
+      principal,
+      gameState.buildings.bank.depositTimestamp,
+      Date.now()
+    );
+
+    setGameState(prev => ({
+      ...prev,
+      yatesDollars: prev.yatesDollars + principal + interest,
+      totalMoneyEarned: (prev.totalMoneyEarned || 0) + interest,
+      buildings: {
+        ...prev.buildings,
+        bank: {
+          ...prev.buildings.bank,
+          depositAmount: 0,
+          depositTimestamp: null,
+          lastInterestClaim: Date.now(),
+        },
+      },
+    }));
+
+    return { principal, interest };
+  }, [gameState.buildings.bank]);
+
+  const getBankBalance = useCallback((): { principal: number; interest: number; totalTime: number } => {
+    if (!gameState.buildings.bank.depositTimestamp || gameState.buildings.bank.depositAmount <= 0) {
+      return { principal: 0, interest: 0, totalTime: 0 };
+    }
+    
+    const principal = gameState.buildings.bank.depositAmount;
+    const totalTime = Date.now() - gameState.buildings.bank.depositTimestamp;
+    const interest = calculateBankInterest(principal, gameState.buildings.bank.depositTimestamp, Date.now());
+    
+    return { principal, interest, totalTime };
+  }, [gameState.buildings.bank]);
+
+  // Factory functions
+  const getFactoryBonusMiners = useCallback((): number => {
+    return gameState.buildings.factory.bonusMiners;
+  }, [gameState.buildings.factory.bonusMiners]);
+
+  // Temple functions (Light path)
+  // Temple rank unlock costs (much higher now)
+  const TEMPLE_RANK_COSTS: Record<number, number> = {
+    1: 50_000_000_000_000, // 50T
+    2: 250_000_000_000_000, // 250T
+    3: 1_000_000_000_000_000, // 1Q
+  };
+
+  const buyTempleUpgrade = useCallback((upgradeType: string, rank: number): boolean => {
+    if (!gameState.buildings.temple.owned) return false;
+    if (gameState.chosenPath !== 'light') return false;
+    if (rank < 1 || rank > 3) return false;
+
+    // Check if already unlocked
+    const alreadyUnlocked = gameState.buildings.temple.upgrades.some(u => u.rank === rank);
+    if (alreadyUnlocked) return false;
+
+    // Check if previous rank is unlocked (must unlock in order)
+    if (rank > 1) {
+      const prevUnlocked = gameState.buildings.temple.upgrades.some(u => u.rank === rank - 1);
+      if (!prevUnlocked) return false;
+    }
+
+    // Check cost
+    const cost = TEMPLE_RANK_COSTS[rank];
+    if (!cost || gameState.yatesDollars < cost) return false;
+
+    setGameState(prev => {
+      const newUpgrades = [...prev.buildings.temple.upgrades, { type: 'all' as any, rank: rank as any }];
+
+      return {
+        ...prev,
+        yatesDollars: prev.yatesDollars - cost,
+        buildings: {
+          ...prev.buildings,
+          temple: {
+            ...prev.buildings.temple,
+            upgrades: newUpgrades,
+          },
+        },
+      };
+    });
+
+    return true;
+  }, [gameState.buildings.temple.owned, gameState.buildings.temple.upgrades, gameState.chosenPath, gameState.yatesDollars]);
+
+  // Equip/unequip a temple rank
+  const equipTempleRank = useCallback((rank: number | null): boolean => {
+    if (!gameState.buildings.temple.owned) return false;
+    
+    // If rank is provided, check if it's unlocked
+    if (rank !== null) {
+      const isUnlocked = gameState.buildings.temple.upgrades.some(u => u.rank === rank);
+      if (!isUnlocked) return false;
+    }
+
+    setGameState(prev => ({
+      ...prev,
+      buildings: {
+        ...prev.buildings,
+        temple: {
+          ...prev.buildings.temple,
+          equippedRank: rank as any,
+        },
+      },
+    }));
+
+    return true;
+  }, [gameState.buildings.temple.owned, gameState.buildings.temple.upgrades]);
+
+  // Get temple bonus based on EQUIPPED rank
+  const getTempleUpgradeBonus = useCallback((upgradeType: string): number => {
+    const equippedRank = gameState.buildings.temple.equippedRank;
+    if (!equippedRank) return 0;
+
+    const values: Record<number, Record<string, number>> = {
+      1: { money: 0.27, pcxDamage: 0.36, prestigePower: 0.15, trinketPower: 0.24 },
+      2: { money: 0.55, pcxDamage: 0.73, prestigePower: 0.30, trinketPower: 0.49 },
+      3: { money: 0.90, pcxDamage: 1.20, prestigePower: 0.50, trinketPower: 0.81 },
+    };
+
+    return values[equippedRank]?.[upgradeType] || 0;
+  }, [gameState.buildings.temple.equippedRank]);
+
+  // Wizard Tower functions (Darkness path)
+  const WIZARD_RITUAL_DURATION_MS = 60000; // 1 minute
+  const WIZARD_RITUAL_MINER_COST = 367; // Must have 367 miners
+  
+  const startWizardRitual = useCallback((): boolean => {
+    if (!gameState.buildings.wizard_tower.owned) return false;
+    if (gameState.chosenPath !== 'darkness') return false;
+    if (gameState.buildings.wizard_tower.ritualActive) return false;
+    if (gameState.minerCount < WIZARD_RITUAL_MINER_COST) return false; // Need 367 miners
+
+    const ritualEndTime = Date.now() + WIZARD_RITUAL_DURATION_MS;
+    
+    setGameState(prev => ({
+      ...prev,
+      buildings: {
+        ...prev.buildings,
+        wizard_tower: {
+          ...prev.buildings.wizard_tower,
+          ritualActive: true,
+          ritualEndTime,
+        },
+      },
+    }));
+
+    // Set timeout to end ritual
+    setTimeout(() => {
+      setGameState(prev => ({
+        ...prev,
+        buildings: {
+          ...prev.buildings,
+          wizard_tower: {
+            ...prev.buildings.wizard_tower,
+            ritualActive: false,
+            ritualEndTime: null,
+          },
+        },
+      }));
+    }, WIZARD_RITUAL_DURATION_MS);
+
+    return true;
+  }, [gameState.buildings.wizard_tower.owned, gameState.buildings.wizard_tower.ritualActive, gameState.chosenPath, gameState.minerCount]);
+
+  const isWizardRitualActive = useCallback((): boolean => {
+    if (!gameState.buildings.wizard_tower.ritualActive) return false;
+    if (!gameState.buildings.wizard_tower.ritualEndTime) return false;
+    return Date.now() < gameState.buildings.wizard_tower.ritualEndTime;
+  }, [gameState.buildings.wizard_tower.ritualActive, gameState.buildings.wizard_tower.ritualEndTime]);
+
+  // Shipment functions
+  const collectShipmentDelivery = useCallback((deliveryId: string): { type: string; value: string | number } | null => {
+    const delivery = gameState.buildings.shipment.pendingDeliveries.find(d => d.id === deliveryId);
+    if (!delivery) return null;
+    if (Date.now() < delivery.arrivalTime) return null;
+
+    // Remove the delivery and add a new one
+    const newDelivery = generateShipmentDelivery(gameState.buildings.shipment.count);
+    
+    setGameState(prev => ({
+      ...prev,
+      buildings: {
+        ...prev.buildings,
+        shipment: {
+          ...prev.buildings.shipment,
+          pendingDeliveries: [
+            ...prev.buildings.shipment.pendingDeliveries.filter(d => d.id !== deliveryId),
+            newDelivery,
+          ],
+          totalDeliveries: prev.buildings.shipment.totalDeliveries + 1,
+        },
+      },
+    }));
+
+    // Apply the reward based on type
+    switch (delivery.type) {
+      case 'money':
+        const moneyAmount = typeof delivery.value === 'number' ? delivery.value : 0;
+        setGameState(prev => ({
+          ...prev,
+          yatesDollars: prev.yatesDollars + moneyAmount,
+          totalMoneyEarned: (prev.totalMoneyEarned || 0) + moneyAmount,
+        }));
+        break;
+      case 'prestige_tokens':
+        const tokenAmount = typeof delivery.value === 'number' ? delivery.value : 0;
+        setGameState(prev => ({
+          ...prev,
+          prestigeTokens: prev.prestigeTokens + tokenAmount,
+        }));
+        break;
+      // TODO: Handle exotic_rock, trinket, and title rewards
+    }
+
+    return { type: delivery.type, value: delivery.value };
+  }, [gameState.buildings.shipment]);
+
+  const getPendingShipments = useCallback((): { id: string; type: string; arrivalTime: number; isReady: boolean }[] => {
+    const now = Date.now();
+    return gameState.buildings.shipment.pendingDeliveries.map(d => ({
+      id: d.id,
+      type: d.type,
+      arrivalTime: d.arrivalTime,
+      isReady: now >= d.arrivalTime,
+    }));
+  }, [gameState.buildings.shipment.pendingDeliveries]);
+
+  // Buff/Debuff functions
+  const getActiveBuffs = useCallback((): ActiveBuff[] => {
+    const now = Date.now();
+    return gameState.activeBuffs.filter(buff => now < buff.startTime + buff.duration);
+  }, [gameState.activeBuffs]);
+
+  const getActiveDebuffs = useCallback((): ActiveDebuff[] => {
+    const now = Date.now();
+    return gameState.activeDebuffs.filter(debuff => {
+      if (debuff.duration === null) return true; // Permanent
+      return now < debuff.startTime + debuff.duration;
+    });
+  }, [gameState.activeDebuffs]);
+
+  const getTotalBuffMultiplier = useCallback((type: string): number => {
+    const activeBuffs = getActiveBuffs();
+    let total = 0;
+    for (const buff of activeBuffs) {
+      if (buff.type === type) {
+        total += buff.multiplier;
+      }
+    }
+    return total;
+  }, [getActiveBuffs]);
+
+  // Progressive Upgrades
+  const buyProgressiveUpgrade = useCallback((upgradeId: ProgressiveUpgradeType): boolean => {
+    const upgrade = PROGRESSIVE_UPGRADES.find(u => u.id === upgradeId);
+    if (!upgrade) return false;
+    
+    const currentLevel = gameState.progressiveUpgrades[upgradeId];
+    if (currentLevel >= upgrade.maxLevel) return false;
+    
+    const cost = getProgressiveUpgradeCost(upgrade, currentLevel);
+    if (gameState.yatesDollars < cost) return false;
+
+    setGameState(prev => ({
+      ...prev,
+      yatesDollars: prev.yatesDollars - cost,
+      progressiveUpgrades: {
+        ...prev.progressiveUpgrades,
+        [upgradeId]: prev.progressiveUpgrades[upgradeId] + 1,
+      },
+    }));
+
+    return true;
+  }, [gameState.yatesDollars, gameState.progressiveUpgrades]);
+
+  const getProgressiveUpgradeLevel = useCallback((upgradeId: ProgressiveUpgradeType): number => {
+    return gameState.progressiveUpgrades[upgradeId] || 0;
+  }, [gameState.progressiveUpgrades]);
+
+  const getProgressiveUpgradeTotalBonus = useCallback((upgradeId: ProgressiveUpgradeType): number => {
+    const upgrade = PROGRESSIVE_UPGRADES.find(u => u.id === upgradeId);
+    if (!upgrade) return 0;
+    return getProgressiveUpgradeBonus(upgrade, gameState.progressiveUpgrades[upgradeId] || 0);
+  }, [gameState.progressiveUpgrades]);
+
+  // Powerups
+  const buyPowerup = useCallback((powerupId: PowerupType): boolean => {
+    const powerup = POWERUPS.find(p => p.id === powerupId);
+    if (!powerup) return false;
+    if (gameState.yatesDollars < powerup.cost) return false;
+
+    setGameState(prev => ({
+      ...prev,
+      yatesDollars: prev.yatesDollars - powerup.cost,
+      powerupInventory: {
+        ...prev.powerupInventory,
+        [powerupId]: (prev.powerupInventory[powerupId] || 0) + 1,
+      },
+    }));
+
+    return true;
+  }, [gameState.yatesDollars]);
+
+  const usePowerup = useCallback((powerupId: PowerupType): boolean => {
+    const count = gameState.powerupInventory[powerupId] || 0;
+    if (count <= 0) return false;
+
+    const powerup = POWERUPS.find(p => p.id === powerupId);
+    if (!powerup) return false;
+
+    // Consume the powerup
+    setGameState(prev => ({
+      ...prev,
+      powerupInventory: {
+        ...prev.powerupInventory,
+        [powerupId]: prev.powerupInventory[powerupId] - 1,
+      },
+    }));
+
+    // Apply the effect based on powerup type
+    switch (powerupId) {
+      case 'miningFrenzy':
+      case 'buildingBoost':
+        // Add as active buff
+        const buff: ActiveBuff = {
+          id: `powerup_${powerupId}_${Date.now()}`,
+          type: powerup.effect.type as any,
+          multiplier: powerup.effect.value,
+          duration: powerup.duration || 0,
+          startTime: Date.now(),
+          source: 'powerup',
+          name: powerup.name,
+          icon: powerup.icon,
+        };
+        setGameState(prev => ({
+          ...prev,
+          activeBuffs: [...prev.activeBuffs, buff],
+        }));
+        break;
+      case 'goldenTouch':
+        // Add as active powerup with click tracking
+        setGameState(prev => ({
+          ...prev,
+          activePowerups: [...prev.activePowerups, {
+            type: 'goldenTouch',
+            startTime: Date.now(),
+            duration: null,
+            remainingClicks: powerup.effect.clicks,
+          }],
+        }));
+        break;
+      case 'timeWarp':
+        // Calculate 1 hour of miner income and add it
+        const minerDamage = MINER_BASE_DAMAGE * gameState.minerCount;
+        const ticksPerHour = 3600; // 1 tick per second for 1 hour
+        const hourlyIncome = minerDamage * ticksPerHour;
+        setGameState(prev => ({
+          ...prev,
+          yatesDollars: prev.yatesDollars + hourlyIncome,
+          totalMoneyEarned: (prev.totalMoneyEarned || 0) + hourlyIncome,
+        }));
+        break;
+      case 'luckyStrike':
+        setGameState(prev => ({
+          ...prev,
+          guaranteedCouponDrop: true,
+        }));
+        break;
+    }
+
+    return true;
+  }, [gameState.powerupInventory, gameState.minerCount]);
+
+  const getPowerupCount = useCallback((powerupId: PowerupType): number => {
+    return gameState.powerupInventory[powerupId] || 0;
+  }, [gameState.powerupInventory]);
+
+  // Clear expired buffs periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setGameState(prev => ({
+        ...prev,
+        activeBuffs: prev.activeBuffs.filter(buff => now < buff.startTime + buff.duration),
+        activeDebuffs: prev.activeDebuffs.filter(debuff => {
+          if (debuff.duration === null) return true;
+          return now < debuff.startTime + debuff.duration;
+        }),
+      }));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Factory buff generation
+  useEffect(() => {
+    if (gameState.buildings.factory.count === 0) return;
+    if (!gameState.buildings.factory.nextBuffTime) return;
+
+    const timeUntilBuff = gameState.buildings.factory.nextBuffTime - Date.now();
+    if (timeUntilBuff > 0) {
+      const timeout = setTimeout(() => {
+        const buff = generateFactoryBuff();
+        setGameState(prev => ({
+          ...prev,
+          activeBuffs: [...prev.activeBuffs, buff],
+          buildings: {
+            ...prev.buildings,
+            factory: {
+              ...prev.buildings.factory,
+              lastBuffTime: Date.now(),
+              nextBuffTime: getNextFactoryBuffTime(),
+            },
+          },
+        }));
+      }, timeUntilBuff);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [gameState.buildings.factory.count, gameState.buildings.factory.nextBuffTime]);
+
   // Clear expired sacrifice buff
   useEffect(() => {
     if (!gameState.sacrificeBuff) return;
@@ -2475,6 +3419,116 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     return () => clearTimeout(timeout);
   }, [gameState.sacrificeBuff]);
+
+  // Temple tax mechanic - takes % of money every X minutes based on rank
+  useEffect(() => {
+    const equippedRank = gameState.buildings.temple.equippedRank;
+    if (!equippedRank) return;
+
+    const config: Record<1 | 2 | 3, { taxPercent: number; taxIntervalMs: number; rottenCookieChance: number }> = {
+      1: { taxPercent: 0.05, taxIntervalMs: 5 * 60 * 1000, rottenCookieChance: 0.05 },
+      2: { taxPercent: 0.12, taxIntervalMs: 12 * 60 * 1000, rottenCookieChance: 0.12 },
+      3: { taxPercent: 0.25, taxIntervalMs: 25 * 60 * 1000, rottenCookieChance: 0.50 },
+    };
+
+    const rankConfig = config[equippedRank];
+    const interval = setInterval(() => {
+      setGameState(prev => {
+        const taxAmount = Math.floor(prev.yatesDollars * rankConfig.taxPercent);
+        let newState = {
+          ...prev,
+          yatesDollars: prev.yatesDollars - taxAmount,
+          buildings: {
+            ...prev.buildings,
+            temple: {
+              ...prev.buildings.temple,
+              lastTaxTime: Date.now(),
+            },
+          },
+        };
+
+        // Rotten cookie chance - apply a random debuff
+        if (Math.random() < rankConfig.rottenCookieChance) {
+          const debuffRoll = Math.random();
+          
+          if (debuffRoll < 0.001) {
+            // 0.1% - Cookie Curse (permanent until prestige)
+            newState = {
+              ...newState,
+              buildings: {
+                ...newState.buildings,
+                temple: {
+                  ...newState.buildings.temple,
+                  hasCookieCurse: true,
+                },
+              },
+            };
+          } else if (debuffRoll < 0.002) {
+            // 0.09% - Holy Unluckiness Curse (permanent until prestige)
+            newState = {
+              ...newState,
+              buildings: {
+                ...newState.buildings,
+                temple: {
+                  ...newState.buildings.temple,
+                  hasHolyUnluckinessCurse: true,
+                },
+              },
+            };
+          } else if (debuffRoll < 0.2) {
+            // Lose 15% money
+            newState.yatesDollars = Math.floor(newState.yatesDollars * 0.85);
+          } else if (debuffRoll < 0.4) {
+            // Lose half miners
+            newState = { ...newState, minerCount: Math.floor(newState.minerCount / 2) };
+          } else if (debuffRoll < 0.6) {
+            // Rock heals to 100%
+            const currentRock = getRockById(newState.currentRockId);
+            if (currentRock) {
+              newState.currentRockHP = getScaledRockHP(currentRock.clicksToBreak, newState.prestigeCount);
+            }
+          } else if (debuffRoll < 0.8) {
+            // 2x rock health (for current rock only)
+            newState.currentRockHP = Math.floor(newState.currentRockHP * 2);
+          }
+          // Other debuffs: lose buildings, 60% slower pickaxe handled elsewhere
+        }
+
+        return newState;
+      });
+    }, rankConfig.taxIntervalMs);
+
+    return () => clearInterval(interval);
+  }, [gameState.buildings.temple.equippedRank]);
+
+  // Mine passive income when can't buy miners (temple rank 2/3)
+  useEffect(() => {
+    const equippedRank = gameState.buildings.temple.equippedRank;
+    const mineCount = gameState.buildings.mine.count;
+    
+    // Only active when rank 2/3 equipped AND have mines
+    if ((equippedRank !== 2 && equippedRank !== 3) || mineCount === 0) return;
+
+    const interval = setInterval(() => {
+      setGameState(prev => {
+        const currentPickaxe = PICKAXES.find(p => p.id === prev.currentPickaxeId) || PICKAXES[0];
+        const currentRock = getRockById(prev.currentRockId);
+        if (!currentRock) return prev;
+
+        // 20% of click money per mine, every 0.5s
+        const clickMoney = Math.ceil(currentRock.moneyPerBreak * prev.prestigeMultiplier);
+        const passiveIncome = Math.floor(clickMoney * 0.20 * mineCount);
+
+        return {
+          ...prev,
+          yatesDollars: prev.yatesDollars + passiveIncome,
+          totalMoneyEarned: (prev.totalMoneyEarned || 0) + passiveIncome,
+        };
+      });
+    }, 500); // Every 0.5 seconds
+
+    return () => clearInterval(interval);
+  }, [gameState.buildings.temple.equippedRank, gameState.buildings.mine.count]);
 
   // Clear expired admin commands
   useEffect(() => {
@@ -2616,6 +3670,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
         activateGoldenCookieRitual,
         canActivateRitual,
         claimGoldenCookieReward,
+        // Building system functions
+        buyBuilding,
+        canAffordBuilding,
+        getBuildingCostForType,
+        absorbMinersIntoMine,
+        getMineEfficiency,
+        depositToBank,
+        withdrawFromBank,
+        getBankBalance,
+        getFactoryBonusMiners,
+        buyTempleUpgrade,
+        equipTempleRank,
+        getTempleUpgradeBonus,
+        startWizardRitual,
+        isWizardRitualActive,
+        collectShipmentDelivery,
+        getPendingShipments,
+        getActiveBuffs,
+        getActiveDebuffs,
+        getTotalBuffMultiplier,
+        buyProgressiveUpgrade,
+        getProgressiveUpgradeLevel,
+        getProgressiveUpgradeTotalBonus,
+        buyPowerup,
+        usePowerup,
+        getPowerupCount,
       }}
     >
       {children}

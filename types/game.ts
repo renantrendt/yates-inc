@@ -174,6 +174,17 @@ export interface GameState {
   localUpdatedAt: number;
   // Playtime tracking for "Blessed by the Heavens" title
   totalPlaytimeSeconds: number;
+  // =====================
+  // BUILDING SYSTEM STATE
+  // =====================
+  buildings: BuildingStates;
+  activeBuffs: ActiveBuff[];
+  activeDebuffs: ActiveDebuff[];
+  progressiveUpgrades: ProgressiveUpgradeState;
+  powerupInventory: PowerupInventory;
+  activePowerups: ActivePowerup[];
+  // Guaranteed coupon flag (from Lucky Strike powerup)
+  guaranteedCouponDrop: boolean;
 }
 
 // Prestige requirements (Rock 19 = Titanium Quartz, Pickaxe 16 = Pin)
@@ -1155,4 +1166,724 @@ export function shouldUnlockAchievement(achievement: Achievement, state: GameSta
     case 'trinket_all': return state.ownedTrinketIds.length >= TRINKETS.length;
     default: return false;
   }
+}
+
+// =====================
+// BUILDING SYSTEM
+// =====================
+
+export type BuildingType = 'mine' | 'bank' | 'factory' | 'temple' | 'wizard_tower' | 'shipment';
+
+export interface Building {
+  id: BuildingType;
+  name: string;
+  description: string;
+  image: string;
+  baseCost: number;
+  costMultiplier: number;
+  maxCount: number; // -1 for unlimited, specific number for limited (e.g., 1 for bank)
+  pathRestriction: GamePath | null; // null = no restriction, 'light' or 'darkness' = path-locked
+}
+
+// Mine: Each mine = 10 miners working at 2x efficiency (= 20 miner-equivalents of passive income per mine)
+export interface MineState {
+  count: number;
+  lastTickTime: number; // Last time passive income was generated
+}
+
+// Bank: Only 1, deposit money for interest over time
+export interface BankState {
+  owned: boolean;
+  depositAmount: number;
+  depositTimestamp: number | null; // When deposit was made
+  lastInterestClaim: number | null; // When interest was last claimed
+}
+
+// Factory: +10 miners each, random buffs
+export interface FactoryState {
+  count: number;
+  bonusMiners: number; // Total bonus miners from factories
+  lastBuffTime: number; // Timestamp of last buff generation
+  nextBuffTime: number; // Timestamp when next buff will trigger
+}
+
+// Temple: Light path only, permanent upgrades with 3 ranks
+export type TempleUpgradeType = 'money' | 'pcxDamage' | 'prestigePower' | 'trinketPower';
+export type TempleUpgradeRank = 1 | 2 | 3;
+
+export interface TempleUpgrade {
+  type: TempleUpgradeType;
+  rank: TempleUpgradeRank;
+}
+
+export interface TempleState {
+  owned: boolean;
+  upgrades: TempleUpgrade[];
+  equippedRank: TempleUpgradeRank | null; // Which rank is currently active (can only equip one)
+  lastBuffTime: number;
+  nextBuffTime: number;
+  lastTaxTime: number | null; // For rank costs
+  goldenCookieClicks: number; // Track clicks while temple equipped (for hidden curse)
+  hiddenCurseActive: boolean; // 25+ golden cookies = permanent curse until prestige
+  hasCookieCurse: boolean; // Permanent until prestige - rock randomly heals to 100%
+  hasHolyUnluckinessCurse: boolean; // Permanent until prestige - rock heals + 40% less money
+}
+
+// Wizard Tower: Darkness path only, shadow miners and rituals
+export interface WizardTowerState {
+  owned: boolean;
+  shadowMiners: number;
+  ritualActive: boolean;
+  ritualEndTime: number | null;
+  lastBuffTime: number;
+  nextBuffTime: number;
+}
+
+// Shipment: Delayed imports from other dimensions
+export interface ShipmentDelivery {
+  id: string;
+  type: 'exotic_rock' | 'trinket' | 'prestige_tokens' | 'money' | 'title';
+  value: string | number; // Item ID or amount
+  arrivalTime: number; // Timestamp when delivery arrives
+}
+
+export interface ShipmentState {
+  count: number;
+  pendingDeliveries: ShipmentDelivery[];
+  totalDeliveries: number;
+}
+
+// Combined building state
+export interface BuildingStates {
+  mine: MineState;
+  bank: BankState;
+  factory: FactoryState;
+  temple: TempleState;
+  wizard_tower: WizardTowerState;
+  shipment: ShipmentState;
+}
+
+// =====================
+// BUFF/DEBUFF SYSTEM
+// =====================
+
+export type BuffType = 
+  | 'clickSpeed' 
+  | 'damage' 
+  | 'money' 
+  | 'goldenCookie' 
+  | 'allStats'
+  | 'minerSpeed'
+  | 'minerDamage';
+
+export type BuffSource = 
+  | 'factory' 
+  | 'temple' 
+  | 'wizard' 
+  | 'powerup' 
+  | 'event' 
+  | 'goldenCookie';
+
+export interface ActiveBuff {
+  id: string;
+  type: BuffType;
+  multiplier: number; // e.g., 0.5 = +50%, 1.0 = +100%
+  duration: number; // Total duration in ms
+  startTime: number; // Timestamp when buff started
+  source: BuffSource;
+  name: string; // Display name for buff bar
+  icon: string; // Emoji or icon path
+}
+
+export type DebuffType = 
+  | 'moneyLoss'      // -15% of current money
+  | 'slowPickaxe'    // 60% slower pickaxe
+  | 'loseMiners'     // Lose half miners
+  | 'loseBuilding'   // Lose 1-5 random buildings
+  | 'doubleRockHP'   // 2x rock HP for current rock
+  | 'healRock'       // Heal rock to 100%
+  | 'cookieCurse'    // Rock randomly heals to 100%
+  | 'holyUnlicknessCurse'; // Random heal + 40% harder money
+
+export interface ActiveDebuff {
+  id: string;
+  type: DebuffType;
+  severity: number; // For variable effects
+  duration: number | null; // null = permanent/until cleared, number = ms
+  startTime: number;
+  name: string;
+  icon: string;
+}
+
+// =====================
+// PROGRESSIVE UPGRADES
+// =====================
+
+export type ProgressiveUpgradeType = 
+  | 'pcxDamage' 
+  | 'money' 
+  | 'generalSpeed' 
+  | 'minerSpeed' 
+  | 'minerDamage';
+
+export interface ProgressiveUpgrade {
+  id: ProgressiveUpgradeType;
+  name: string;
+  description: string;
+  icon: string;
+  baseValue: number; // Starting bonus (e.g., 0.001 = 0.1%)
+  valuePerLevel: number; // Bonus increase per level
+  baseCost: number;
+  costMultiplier: number; // Cost scaling per level
+  maxLevel: number;
+}
+
+export interface ProgressiveUpgradeState {
+  pcxDamage: number; // Current level
+  money: number;
+  generalSpeed: number;
+  minerSpeed: number;
+  minerDamage: number;
+}
+
+// =====================
+// POWERUPS (Consumables)
+// =====================
+
+export type PowerupType = 
+  | 'miningFrenzy'   // 5x click speed
+  | 'goldenTouch'    // 10x money for 100 clicks
+  | 'timeWarp'       // 1hr miner income
+  | 'luckyStrike'    // Guaranteed coupon
+  | 'buildingBoost'; // 2x building effects
+
+export interface Powerup {
+  id: PowerupType;
+  name: string;
+  description: string;
+  icon: string;
+  cost: number;
+  duration: number | null; // null for instant/count-based, number for timed
+  effect: {
+    type: BuffType | 'instantMoney' | 'guaranteedCoupon';
+    value: number;
+    clicks?: number; // For click-based powerups like Golden Touch
+  };
+}
+
+export interface PowerupInventory {
+  miningFrenzy: number;
+  goldenTouch: number;
+  timeWarp: number;
+  luckyStrike: number;
+  buildingBoost: number;
+}
+
+// Active powerup state (for Golden Touch click tracking)
+export interface ActivePowerup {
+  type: PowerupType;
+  startTime: number;
+  duration: number | null;
+  remainingClicks?: number; // For click-based powerups
+}
+
+// =====================
+// BUILDING CONSTANTS
+// =====================
+
+export const BUILDINGS: Building[] = [
+  {
+    id: 'mine',
+    name: 'Mine',
+    description: 'Each mine = 10 miners at 2x efficiency (20 miner-equivalents of passive income). Special: With Temple Rank 2/3, generates 20% of click money every 0.5s instead.',
+    image: '/game/buildings/mine.png',
+    baseCost: 500000000000, // 500B
+    costMultiplier: 1.8,
+    maxCount: -1,
+    pathRestriction: null,
+  },
+  {
+    id: 'bank',
+    name: 'Bank',
+    description: 'Deposit money and earn interest over time. The longer you wait, the more profit!',
+    image: '/game/buildings/bank.png',
+    baseCost: 0, // 60-70% of current money
+    costMultiplier: 1,
+    maxCount: 1,
+    pathRestriction: null,
+  },
+  {
+    id: 'factory',
+    name: 'Factory',
+    description: 'Each factory provides +10 bonus miners and generates random pickaxe buffs.',
+    image: '/game/buildings/factory.png',
+    baseCost: 1000000000000, // 1T
+    costMultiplier: 1.6,
+    maxCount: -1,
+    pathRestriction: null,
+  },
+  {
+    id: 'temple',
+    name: 'Temple',
+    description: 'Light path only. Miners generate 1.5x money. Unlock permanent upgrades with 3 ranks.',
+    image: '/game/buildings/temple.png',
+    baseCost: 10000000000000, // 10T
+    costMultiplier: 1,
+    maxCount: 1,
+    pathRestriction: 'light',
+  },
+  {
+    id: 'wizard_tower',
+    name: 'Wizard Tower',
+    description: 'Darkness path only. Summon shadow miners and perform dark rituals for mega buffs.',
+    image: '/game/buildings/wizard_tower.png',
+    baseCost: 10000000000000, // 10T
+    costMultiplier: 1,
+    maxCount: 1,
+    pathRestriction: 'darkness',
+  },
+  {
+    id: 'shipment',
+    name: 'Shipment',
+    description: 'Import rare ores from other dimensions. Deliveries take time but bring exotic rewards!',
+    image: '/game/buildings/shipment.png',
+    baseCost: 50000000000000, // 50T
+    costMultiplier: 2.5,
+    maxCount: -1,
+    pathRestriction: null,
+  },
+];
+
+// Mine constants - Each mine = 10 miners at 2x efficiency = 20 miner-equivalents
+export const MINE_MINER_EQUIVALENTS_PER_MINE = 20; // Each mine generates income like 20 miners
+export const MINE_TICK_INTERVAL = 1000; // Every 1 second for passive income
+
+// Bank constants
+export const BANK_COST_PERCENTAGE_MIN = 0.60; // 60% of current money
+export const BANK_COST_PERCENTAGE_MAX = 0.70; // 70% of current money
+export const BANK_BASE_INTEREST_RATE = 0.001; // 0.1% per minute base
+export const BANK_TIME_MULTIPLIER = 0.0001; // Interest increases with time
+
+// Factory constants
+export const FACTORY_BONUS_MINERS = 10;
+export const FACTORY_BUFF_MIN_INTERVAL = 600000; // 10 minutes base
+export const FACTORY_BUFF_MAX_INTERVAL = 720000; // 12 minutes base
+export const FACTORY_BUFF_REDUCTION_PER_FACTORY = 5000; // -5 seconds per factory owned
+export const FACTORY_BUFF_RANGES = {
+  clickSpeed: { min: 0.01, max: 0.50, durationMin: 5000, durationMax: 20000 },
+  damage: { min: 0.10, max: 1.00, durationMin: 2000, durationMax: 31000 },
+  money: { min: 0.0001, max: 1.00, durationMin: 1000, durationMax: 60000 },
+};
+
+// Temple constants
+export const TEMPLE_MINER_MONEY_MULTIPLIER = 1.5;
+export const TEMPLE_BUFF_INTERVAL_MIN = 120000; // 2 minutes
+export const TEMPLE_BUFF_INTERVAL_MAX = 180000; // 3 minutes
+export const TEMPLE_UPGRADE_VALUES: Record<TempleUpgradeType, { rank1: number; rank2: number; rank3: number }> = {
+  money: { rank1: 0.27, rank2: 0.55, rank3: 0.90 },
+  pcxDamage: { rank1: 0.36, rank2: 0.73, rank3: 1.20 },
+  prestigePower: { rank1: 0.15, rank2: 0.30, rank3: 0.50 },
+  trinketPower: { rank1: 0.24, rank2: 0.49, rank3: 0.81 },
+};
+export const TEMPLE_RANK_COSTS = {
+  rank1: { moneyPercentage: 0.05, interval: 600000 }, // 5% every 10min
+  rank2: { canBuyMiners: false, canSacrifice: false },
+  rank3: { moneyPercentage: 0.25, interval: 1200000, canBuyMiners: false, rottenCookieChance: 0.15 }, // 25% every 20min
+};
+
+// Wizard Tower constants
+export const WIZARD_SHADOW_MINER_BASE = 10;
+export const WIZARD_RITUAL_DURATION = 60000; // 1 minute ritual
+export const WIZARD_RITUAL_BUFF_MULTIPLIER = 3.0; // 3x everything during ritual
+export const WIZARD_RITUAL_MINER_COST = 367; // Must have 367 miners to perform ritual
+export const WIZARD_BUFF_INTERVAL_MIN = 90000;
+export const WIZARD_BUFF_INTERVAL_MAX = 150000;
+
+// Temple Rank mechanics
+export const TEMPLE_RANK_CONFIG: Record<1 | 2 | 3, {
+  taxPercent: number;
+  taxIntervalMs: number;
+  rottenCookieChance: number;
+  canBuyMiners: boolean;
+}> = {
+  1: { taxPercent: 0.05, taxIntervalMs: 5 * 60 * 1000, rottenCookieChance: 0.05, canBuyMiners: true },
+  2: { taxPercent: 0.12, taxIntervalMs: 12 * 60 * 1000, rottenCookieChance: 0.12, canBuyMiners: false },
+  3: { taxPercent: 0.25, taxIntervalMs: 25 * 60 * 1000, rottenCookieChance: 0.50, canBuyMiners: false },
+};
+
+// Hidden curse after 25 golden cookies while temple equipped
+export const TEMPLE_HIDDEN_CURSE_THRESHOLD = 25;
+export const TEMPLE_HIDDEN_CURSE_PRICE_MULTIPLIER = 1.6; // 60% more expensive
+export const TEMPLE_HIDDEN_CURSE_ROCK_HP_MULTIPLIER = 10; // 10x rock health
+export const TEMPLE_HIDDEN_CURSE_MONEY_PENALTY = 0.10; // 10% less money
+
+// Mine passive income when can't buy miners (rank 2/3)
+export const MINE_PASSIVE_INCOME_PERCENT = 0.20; // 20% of click money
+export const MINE_PASSIVE_TICK_MS = 500; // Every 0.5 seconds
+export const MINE_PASSIVE_SPEED_INCREASE = 0.001; // 0.1% faster each tick
+
+// Shipment constants
+export const SHIPMENT_DELIVERY_TIME_MIN = 300000; // 5 minutes
+export const SHIPMENT_DELIVERY_TIME_MAX = 1800000; // 30 minutes
+export const SHIPMENT_REWARDS = {
+  exoticRock: 0.15,
+  trinket: 0.10,
+  prestigeTokens: 0.25,
+  money: 0.45,
+  title: 0.05,
+};
+
+// =====================
+// PROGRESSIVE UPGRADE CONSTANTS
+// =====================
+
+export const PROGRESSIVE_UPGRADES: ProgressiveUpgrade[] = [
+  {
+    id: 'pcxDamage',
+    name: 'Pickaxe Strength',
+    description: 'Increase pickaxe damage',
+    icon: '⛏️',
+    baseValue: 0.001, // +0.1%
+    valuePerLevel: 0.001,
+    baseCost: 1000000000, // 1B
+    costMultiplier: 1.04, // Much slower scaling
+    maxLevel: 500,
+  },
+  {
+    id: 'money',
+    name: 'Money Bonus',
+    description: 'Increase money earned',
+    icon: '💰',
+    baseValue: 0.001,
+    valuePerLevel: 0.001,
+    baseCost: 1000000000, // 1B
+    costMultiplier: 1.04,
+    maxLevel: 500,
+  },
+  {
+    id: 'generalSpeed',
+    name: 'General Speed',
+    description: 'Increase overall speed',
+    icon: '⚡',
+    baseValue: 0.0005, // +0.05%
+    valuePerLevel: 0.0005,
+    baseCost: 2500000000, // 2.5B
+    costMultiplier: 1.05,
+    maxLevel: 300,
+  },
+  {
+    id: 'minerSpeed',
+    name: 'Miner Speed',
+    description: 'Increase miner tick speed',
+    icon: '👷',
+    baseValue: 0.005, // +0.5%
+    valuePerLevel: 0.005,
+    baseCost: 1500000000, // 1.5B
+    costMultiplier: 1.04,
+    maxLevel: 200,
+  },
+  {
+    id: 'minerDamage',
+    name: 'Miner Power',
+    description: 'Increase miner damage',
+    icon: '💪',
+    baseValue: 0.001,
+    valuePerLevel: 0.001,
+    baseCost: 1000000000, // 1B
+    costMultiplier: 1.04,
+    maxLevel: 500,
+  },
+];
+
+// Get progressive upgrade cost at a specific level
+export function getProgressiveUpgradeCost(upgrade: ProgressiveUpgrade, currentLevel: number): number {
+  return Math.floor(upgrade.baseCost * Math.pow(upgrade.costMultiplier, currentLevel));
+}
+
+// Get progressive upgrade total bonus at a specific level
+export function getProgressiveUpgradeBonus(upgrade: ProgressiveUpgrade, currentLevel: number): number {
+  if (currentLevel === 0) return 0;
+  return upgrade.baseValue + (upgrade.valuePerLevel * (currentLevel - 1));
+}
+
+// =====================
+// POWERUP CONSTANTS
+// =====================
+
+export const POWERUPS: Powerup[] = [
+  {
+    id: 'miningFrenzy',
+    name: 'Mining Frenzy',
+    description: '5x click speed for 30 seconds',
+    icon: '🔥',
+    cost: 50000000000, // 50B
+    duration: 30000,
+    effect: { type: 'clickSpeed', value: 4.0 }, // +400% = 5x
+  },
+  {
+    id: 'goldenTouch',
+    name: 'Golden Touch',
+    description: '10x money for 100 clicks',
+    icon: '✨',
+    cost: 100000000000, // 100B
+    duration: null,
+    effect: { type: 'money', value: 9.0, clicks: 100 }, // +900% = 10x
+  },
+  {
+    id: 'timeWarp',
+    name: 'Time Warp',
+    description: 'Instantly gain 1 hour of miner income',
+    icon: '⏰',
+    cost: 250000000000, // 250B
+    duration: null,
+    effect: { type: 'instantMoney', value: 3600 }, // 3600 seconds of income
+  },
+  {
+    id: 'luckyStrike',
+    name: 'Lucky Strike',
+    description: 'Guaranteed coupon drop on next rock break',
+    icon: '🍀',
+    cost: 500000000000, // 500B
+    duration: null,
+    effect: { type: 'guaranteedCoupon', value: 1 },
+  },
+  {
+    id: 'buildingBoost',
+    name: 'Building Boost',
+    description: '2x all building effects for 5 minutes',
+    icon: '🏗️',
+    cost: 1000000000000, // 1T
+    duration: 300000, // 5 minutes
+    effect: { type: 'allStats', value: 1.0 }, // +100% = 2x
+  },
+];
+
+// =====================
+// DEBUFF CONSTANTS
+// =====================
+
+export const DEBUFF_EFFECTS = {
+  moneyLoss: { percentage: 0.15 }, // -15%
+  slowPickaxe: { multiplier: 0.40, durationMin: 30000, durationMax: 60000 }, // 60% slower = 40% speed
+  loseMiners: { percentage: 0.50 }, // Lose 50%
+  loseBuilding: { min: 1, max: 5 },
+  doubleRockHP: { multiplier: 2.0 },
+  cookieCurse: { chance: 0.0010 }, // 0.10% per tick
+  holyUnlicknessCurse: { chance: 0.0009, moneyPenalty: 0.40 }, // 0.09%, 40% harder
+};
+
+// Rotten cookie debuff chances (when Temple rank 3 is active)
+export const ROTTEN_COOKIE_DEBUFF_WEIGHTS = {
+  moneyLoss: 0.25,
+  slowPickaxe: 0.20,
+  loseMiners: 0.15,
+  loseBuilding: 0.10,
+  doubleRockHP: 0.15,
+  healRock: 0.10,
+  cookieCurse: 0.03,
+  holyUnlicknessCurse: 0.02,
+};
+
+// =====================
+// DEFAULT STATE INITIALIZERS
+// =====================
+
+export function getDefaultBuildingStates(): BuildingStates {
+  return {
+    mine: {
+      count: 0,
+      lastTickTime: Date.now(),
+    },
+    bank: {
+      owned: false,
+      depositAmount: 0,
+      depositTimestamp: null,
+      lastInterestClaim: null,
+    },
+    factory: {
+      count: 0,
+      bonusMiners: 0,
+      lastBuffTime: 0,
+      nextBuffTime: 0,
+    },
+    temple: {
+      owned: false,
+      upgrades: [],
+      equippedRank: null,
+      lastBuffTime: 0,
+      nextBuffTime: 0,
+      lastTaxTime: null,
+      goldenCookieClicks: 0,
+      hiddenCurseActive: false,
+      hasCookieCurse: false,
+      hasHolyUnluckinessCurse: false,
+    },
+    wizard_tower: {
+      owned: false,
+      shadowMiners: 0,
+      ritualActive: false,
+      ritualEndTime: null,
+      lastBuffTime: 0,
+      nextBuffTime: 0,
+    },
+    shipment: {
+      count: 0,
+      pendingDeliveries: [],
+      totalDeliveries: 0,
+    },
+  };
+}
+
+export function getDefaultProgressiveUpgradeState(): ProgressiveUpgradeState {
+  return {
+    pcxDamage: 0,
+    money: 0,
+    generalSpeed: 0,
+    minerSpeed: 0,
+    minerDamage: 0,
+  };
+}
+
+export function getDefaultPowerupInventory(): PowerupInventory {
+  return {
+    miningFrenzy: 0,
+    goldenTouch: 0,
+    timeWarp: 0,
+    luckyStrike: 0,
+    buildingBoost: 0,
+  };
+}
+
+// Get building cost at current count
+export function getBuildingCost(building: Building, currentCount: number, currentMoney?: number): number {
+  // Bank is special - costs 60-70% of current money
+  if (building.id === 'bank' && currentMoney !== undefined) {
+    const percentage = BANK_COST_PERCENTAGE_MIN + Math.random() * (BANK_COST_PERCENTAGE_MAX - BANK_COST_PERCENTAGE_MIN);
+    return Math.floor(currentMoney * percentage);
+  }
+  return Math.floor(building.baseCost * Math.pow(building.costMultiplier, currentCount));
+}
+
+// Check if player can buy a building
+export function canBuyBuilding(building: Building, state: GameState): boolean {
+  // Check path restriction
+  if (building.pathRestriction !== null && state.chosenPath !== building.pathRestriction) {
+    return false;
+  }
+  
+  // Check max count
+  const currentCount = getBuildingCount(building.id, state);
+  if (building.maxCount !== -1 && currentCount >= building.maxCount) {
+    return false;
+  }
+  
+  // Check cost
+  const cost = getBuildingCost(building, currentCount, state.yatesDollars);
+  return state.yatesDollars >= cost;
+}
+
+// Get current count of a building type
+export function getBuildingCount(buildingId: BuildingType, state: GameState): number {
+  switch (buildingId) {
+    case 'mine': return state.buildings.mine.count;
+    case 'bank': return state.buildings.bank.owned ? 1 : 0;
+    case 'factory': return state.buildings.factory.count;
+    case 'temple': return state.buildings.temple.owned ? 1 : 0;
+    case 'wizard_tower': return state.buildings.wizard_tower.owned ? 1 : 0;
+    case 'shipment': return state.buildings.shipment.count;
+    default: return 0;
+  }
+}
+
+// Calculate total miner efficiency bonus from mines
+export function getMineEfficiencyBonus(mineCount: number): number {
+  if (mineCount <= 1) return 0;
+  return (mineCount - 1) * MINE_EFFICIENCY_BONUS_PER_MINE;
+}
+
+// Calculate bank interest based on deposit time
+export function calculateBankInterest(depositAmount: number, depositTimestamp: number, now: number): number {
+  const minutesDeposited = (now - depositTimestamp) / 60000;
+  const interestRate = BANK_BASE_INTEREST_RATE + (minutesDeposited * BANK_TIME_MULTIPLIER);
+  return Math.floor(depositAmount * interestRate * minutesDeposited);
+}
+
+// Generate a random factory buff
+export function generateFactoryBuff(): ActiveBuff {
+  const buffTypes: BuffType[] = ['clickSpeed', 'damage', 'money'];
+  const type = buffTypes[Math.floor(Math.random() * buffTypes.length)];
+  const ranges = FACTORY_BUFF_RANGES[type as keyof typeof FACTORY_BUFF_RANGES];
+  
+  const multiplier = ranges.min + Math.random() * (ranges.max - ranges.min);
+  const duration = ranges.durationMin + Math.random() * (ranges.durationMax - ranges.durationMin);
+  
+  const names: Record<string, string> = {
+    clickSpeed: 'Factory Speed Boost',
+    damage: 'Factory Power Surge',
+    money: 'Factory Profit Rush',
+  };
+  
+  const icons: Record<string, string> = {
+    clickSpeed: '⚡',
+    damage: '💥',
+    money: '💰',
+  };
+  
+  return {
+    id: `factory_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    type,
+    multiplier,
+    duration,
+    startTime: Date.now(),
+    source: 'factory',
+    name: names[type],
+    icon: icons[type],
+  };
+}
+
+// Get next factory buff time (reduces by 5 seconds per factory owned)
+export function getNextFactoryBuffTime(factoryCount: number = 1): number {
+  const reduction = (factoryCount - 1) * FACTORY_BUFF_REDUCTION_PER_FACTORY;
+  const minInterval = Math.max(60000, FACTORY_BUFF_MIN_INTERVAL - reduction); // Min 1 minute
+  const maxInterval = Math.max(90000, FACTORY_BUFF_MAX_INTERVAL - reduction); // Min 1.5 minutes
+  return Date.now() + minInterval + Math.random() * (maxInterval - minInterval);
+}
+
+// Get next shipment delivery time based on shipment count
+export function getNextShipmentDeliveryTime(shipmentCount: number): number {
+  // More shipments = faster deliveries (diminishing returns)
+  const speedBonus = Math.min(0.5, shipmentCount * 0.05); // Max 50% faster
+  const baseTime = SHIPMENT_DELIVERY_TIME_MIN + Math.random() * (SHIPMENT_DELIVERY_TIME_MAX - SHIPMENT_DELIVERY_TIME_MIN);
+  return Date.now() + Math.floor(baseTime * (1 - speedBonus));
+}
+
+// Generate a random shipment delivery
+export function generateShipmentDelivery(shipmentCount: number): ShipmentDelivery {
+  const roll = Math.random();
+  let type: ShipmentDelivery['type'];
+  let value: string | number;
+  
+  if (roll < SHIPMENT_REWARDS.exoticRock) {
+    type = 'exotic_rock';
+    value = 'exotic_' + Math.floor(Math.random() * 5); // 5 exotic rock types
+  } else if (roll < SHIPMENT_REWARDS.exoticRock + SHIPMENT_REWARDS.trinket) {
+    type = 'trinket';
+    value = 'shipment_trinket_' + Math.floor(Math.random() * 3);
+  } else if (roll < SHIPMENT_REWARDS.exoticRock + SHIPMENT_REWARDS.trinket + SHIPMENT_REWARDS.prestigeTokens) {
+    type = 'prestige_tokens';
+    value = 1 + Math.floor(Math.random() * 3); // 1-3 tokens
+  } else if (roll < 1 - SHIPMENT_REWARDS.title) {
+    type = 'money';
+    value = Math.floor(1000000 * Math.pow(10, Math.random() * 6)); // 1M - 1T random
+  } else {
+    type = 'title';
+    value = 'dimensional_traveler';
+  }
+  
+  return {
+    id: `shipment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    type,
+    value,
+    arrivalTime: getNextShipmentDeliveryTime(shipmentCount),
+  };
 }

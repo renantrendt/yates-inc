@@ -169,3 +169,31 @@ body::before {
 .dark .employee-gallery::-webkit-scrollbar-thumb:hover {
   background: #6b7280;
 }
+
+/* Building idle animation - subtle bob */
+@keyframes building-idle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.animate-building-idle {
+  animation: building-idle 2s ease-in-out infinite;
+}
+
+/* Building production glow */
+@keyframes building-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.6));
+  }
+}
+
+.animate-building-glow {
+  animation: building-glow 1.5s ease-in-out infinite;
+}

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
-import { PICKAXES } from '@/lib/gameData';
+import { PICKAXES, BUILDINGS, PROGRESSIVE_UPGRADES, POWERUPS } from '@/lib/gameData';
 import { 
   getPrestigePriceMultiplier, 
   PRESTIGE_UPGRADES,
@@ -12,6 +12,11 @@ import {
   DARKNESS_PICKAXE_IDS,
   LIGHT_PICKAXE_IDS,
   YATES_PICKAXE_ID,
+  BuildingType,
+  ProgressiveUpgradeType,
+  PowerupType,
+  getProgressiveUpgradeCost,
+  getProgressiveUpgradeBonus,
 } from '@/types/game';
 
 interface GameShopProps {
@@ -24,7 +29,7 @@ interface Toast {
   type: 'success' | 'error';
 }
 
-type ShopTab = 'pickaxes' | 'prestige' | 'miners';
+type ShopTab = 'pickaxes' | 'miners' | 'buildings' | 'upgrades' | 'powerups' | 'prestige';
 
 export default function GameShop({ onClose }: GameShopProps) {
   const { 
@@ -40,6 +45,18 @@ export default function GameShop({ onClose }: GameShopProps) {
     ownsPrestigeUpgrade,
     // Miners
     buyMiners,
+    // Buildings
+    buyBuilding,
+    canAffordBuilding,
+    getBuildingCostForType,
+    // Progressive Upgrades
+    buyProgressiveUpgrade,
+    getProgressiveUpgradeLevel,
+    getProgressiveUpgradeTotalBonus,
+    // Powerups
+    buyPowerup,
+    getPowerupCount,
+    usePowerup,
   } = useGame();
 
   const [activeTab, setActiveTab] = useState<ShopTab>('pickaxes');
@@ -48,12 +65,16 @@ export default function GameShop({ onClose }: GameShopProps) {
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     const id = `toast-${Date.now()}`;
-    setToasts(prev => [...prev, { id, message, type }]);
+    setToasts(prev => {
+      // Only keep the last 1 toast, so max 2 visible at a time
+      const recent = prev.slice(-1);
+      return [...recent, { id, message, type }];
+    });
     
-    // Auto-remove after 3 seconds
+    // Auto-remove after 2 seconds (faster)
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 3000);
+    }, 2000);
   };
 
   const formatNumber = (num: number): string => {
@@ -155,28 +176,58 @@ export default function GameShop({ onClose }: GameShopProps) {
         <div className="flex border-b border-gray-700 overflow-x-auto">
           <button
             onClick={() => setActiveTab('pickaxes')}
-            className={`flex-1 min-w-[80px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
+            className={`flex-1 min-w-[60px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
               activeTab === 'pickaxes'
                 ? 'bg-amber-600/20 text-amber-400 border-b-2 border-amber-400'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            ⛏️ Pickaxes
+            ⛏️ <span className="hidden sm:inline">Pickaxes</span>
           </button>
           <button
             onClick={() => setActiveTab('miners')}
-            className={`flex-1 min-w-[80px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
+            className={`flex-1 min-w-[60px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
               activeTab === 'miners'
                 ? 'bg-orange-600/20 text-orange-400 border-b-2 border-orange-400'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            👷 Miners
+            👷 <span className="hidden sm:inline">Miners</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('buildings')}
+            className={`flex-1 min-w-[60px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
+              activeTab === 'buildings'
+                ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-400'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            🏗️ <span className="hidden sm:inline">Buildings</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('upgrades')}
+            className={`flex-1 min-w-[60px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
+              activeTab === 'upgrades'
+                ? 'bg-green-600/20 text-green-400 border-b-2 border-green-400'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            📈 <span className="hidden sm:inline">Upgrades</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('powerups')}
+            className={`flex-1 min-w-[60px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
+              activeTab === 'powerups'
+                ? 'bg-pink-600/20 text-pink-400 border-b-2 border-pink-400'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            ⚡ <span className="hidden sm:inline">Powerups</span>
           </button>
           <button
             onClick={() => setActiveTab('prestige')}
             disabled={!canAccessPrestige}
-            className={`flex-1 min-w-[80px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
+            className={`flex-1 min-w-[60px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
               activeTab === 'prestige'
                 ? 'bg-purple-600/20 text-purple-400 border-b-2 border-purple-400'
                 : canAccessPrestige
@@ -184,7 +235,7 @@ export default function GameShop({ onClose }: GameShopProps) {
                   : 'text-gray-600 cursor-not-allowed'
             }`}
           >
-            {canAccessPrestige ? '🌟 Prestige' : '🔒 P1+'}
+            {canAccessPrestige ? '🌟' : '🔒'} <span className="hidden sm:inline">{canAccessPrestige ? 'Prestige' : 'P1+'}</span>
           </button>
         </div>
 
@@ -425,6 +476,279 @@ export default function GameShop({ onClose }: GameShopProps) {
               {/* Info */}
               <div className="text-center text-gray-500 text-sm">
                 Miners automatically mine rocks and earn you money!
+              </div>
+            </div>
+          )}
+
+          {/* BUILDINGS TAB */}
+          {activeTab === 'buildings' && (
+            <div className="space-y-4">
+              {/* Buildings Header */}
+              <div className="bg-blue-900/20 border border-blue-600/50 rounded-xl p-4 text-center">
+                <div className="text-2xl mb-2">🏗️</div>
+                <h3 className="text-xl font-bold text-blue-400">Buildings</h3>
+                <p className="text-gray-400 text-sm mt-1">
+                  Construct buildings to boost your mining empire!
+                </p>
+              </div>
+
+              {/* Buildings Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {BUILDINGS.filter(building => {
+                  // Hide Shipment for now (no image yet)
+                  if (building.id === 'shipment') return false;
+                  // Filter by path restriction
+                  if (building.pathRestriction === null) return true;
+                  if (!gameState.chosenPath) return false;
+                  return building.pathRestriction === gameState.chosenPath;
+                }).map(building => {
+                  const count = building.id === 'bank' 
+                    ? (gameState.buildings.bank.owned ? 1 : 0)
+                    : building.id === 'temple'
+                      ? (gameState.buildings.temple.owned ? 1 : 0)
+                      : building.id === 'wizard_tower'
+                        ? (gameState.buildings.wizard_tower.owned ? 1 : 0)
+                        : building.id === 'mine'
+                          ? gameState.buildings.mine.count
+                          : building.id === 'factory'
+                            ? gameState.buildings.factory.count
+                            : gameState.buildings.shipment.count;
+                  
+                  const cost = getBuildingCostForType(building.id);
+                  const canAfford = canAffordBuilding(building.id);
+                  const isMaxed = building.maxCount !== -1 && count >= building.maxCount;
+                  const pathLabel = building.pathRestriction === 'light' ? '☀️ Light' : building.pathRestriction === 'darkness' ? '🌑 Darkness' : null;
+
+                  return (
+                    <div
+                      key={building.id}
+                      className={`relative rounded-xl p-4 border transition-all ${
+                        isMaxed
+                          ? 'bg-green-600/10 border-green-600/30'
+                          : canAfford
+                            ? 'bg-blue-900/20 border-blue-600/50 hover:border-blue-500'
+                            : 'bg-gray-800/50 border-gray-700/50'
+                      }`}
+                    >
+                      {/* Path Label */}
+                      {pathLabel && (
+                        <div className="absolute top-2 right-2 text-xs bg-black/50 px-2 py-1 rounded">
+                          {pathLabel}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-14 h-14 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden">
+                          <Image 
+                            src={`/game/buildings/${building.id}.png`}
+                            alt={building.name}
+                            width={56}
+                            height={56}
+                            className="object-contain"
+                            style={{ imageRendering: 'pixelated' }}
+                          />
+                        </div>
+                        <div>
+                          <h4 className="text-white font-bold">{building.name}</h4>
+                          <div className="text-sm text-gray-400">
+                            Owned: <span className="text-blue-400">{count}</span>
+                            {building.maxCount !== -1 && <span className="text-gray-500">/{building.maxCount}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-gray-400 text-xs mb-3">{building.description}</p>
+
+                      {!isMaxed && (
+                        <button
+                          onClick={() => {
+                            if (buyBuilding(building.id)) {
+                              showToast(`🏗️ Built ${building.name}!`, 'success');
+                            }
+                          }}
+                          disabled={!canAfford}
+                          className={`w-full py-2 rounded-lg font-bold text-sm transition-all ${
+                            canAfford
+                              ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white'
+                              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                          }`}
+                        >
+                          {building.id === 'bank' ? `Buy (${Math.round((cost / gameState.yatesDollars) * 100)}% of money)` : `Buy - $${formatNumber(cost)}`}
+                        </button>
+                      )}
+
+                      {isMaxed && (
+                        <div className="w-full py-2 rounded-lg bg-green-600/20 text-green-400 text-center font-bold text-sm">
+                          ✓ MAX
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* UPGRADES TAB */}
+          {activeTab === 'upgrades' && (
+            <div className="space-y-4">
+              {/* Upgrades Header */}
+              <div className="bg-green-900/20 border border-green-600/50 rounded-xl p-4 text-center">
+                <div className="text-2xl mb-2">📈</div>
+                <h3 className="text-xl font-bold text-green-400">Progressive Upgrades</h3>
+                <p className="text-gray-400 text-sm mt-1">
+                  Permanently increase your stats by purchasing upgrades!
+                </p>
+              </div>
+
+              {/* Upgrades Grid */}
+              <div className="space-y-3">
+                {PROGRESSIVE_UPGRADES.map(upgrade => {
+                  const currentLevel = getProgressiveUpgradeLevel(upgrade.id);
+                  const isMaxed = currentLevel >= upgrade.maxLevel;
+                  const cost = getProgressiveUpgradeCost(upgrade, currentLevel);
+                  const canAfford = gameState.yatesDollars >= cost;
+                  const currentBonus = getProgressiveUpgradeTotalBonus(upgrade.id);
+                  const nextBonus = getProgressiveUpgradeBonus(upgrade, currentLevel + 1);
+
+                  return (
+                    <div
+                      key={upgrade.id}
+                      className={`rounded-xl p-4 border transition-all ${
+                        isMaxed
+                          ? 'bg-green-600/10 border-green-600/30'
+                          : canAfford
+                            ? 'bg-green-900/20 border-green-600/50 hover:border-green-500'
+                            : 'bg-gray-800/50 border-gray-700/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center text-xl">
+                            {upgrade.icon}
+                          </div>
+                          <div>
+                            <h4 className="text-white font-bold">{upgrade.name}</h4>
+                            <div className="text-xs text-gray-400">
+                              Level: <span className="text-green-400">{currentLevel}</span>
+                              <span className="text-gray-500">/{upgrade.maxLevel}</span>
+                              {' | '}
+                              Current: <span className="text-green-400">+{(currentBonus * 100).toFixed(1)}%</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {!isMaxed && (
+                          <button
+                            onClick={() => {
+                              if (buyProgressiveUpgrade(upgrade.id)) {
+                                showToast(`📈 ${upgrade.name} upgraded!`, 'success');
+                              }
+                            }}
+                            disabled={!canAfford}
+                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+                              canAfford
+                                ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white'
+                                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                            }`}
+                          >
+                            ${formatNumber(cost)}
+                          </button>
+                        )}
+
+                        {isMaxed && (
+                          <div className="px-4 py-2 rounded-lg bg-green-600/20 text-green-400 font-bold text-sm">
+                            MAX
+                          </div>
+                        )}
+                      </div>
+
+                      {!isMaxed && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          Next level: +{(nextBonus * 100).toFixed(1)}% {upgrade.description.toLowerCase()}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* POWERUPS TAB */}
+          {activeTab === 'powerups' && (
+            <div className="space-y-4">
+              {/* Powerups Header */}
+              <div className="bg-pink-900/20 border border-pink-600/50 rounded-xl p-4 text-center">
+                <div className="text-2xl mb-2">⚡</div>
+                <h3 className="text-xl font-bold text-pink-400">Powerups</h3>
+                <p className="text-gray-400 text-sm mt-1">
+                  Buy consumable powerups for temporary boosts!
+                </p>
+              </div>
+
+              {/* Powerups Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {POWERUPS.map(powerup => {
+                  const count = getPowerupCount(powerup.id);
+                  const canAfford = gameState.yatesDollars >= powerup.cost;
+
+                  return (
+                    <div
+                      key={powerup.id}
+                      className={`rounded-xl p-4 border transition-all ${
+                        canAfford
+                          ? 'bg-pink-900/20 border-pink-600/50 hover:border-pink-500'
+                          : 'bg-gray-800/50 border-gray-700/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center text-2xl">
+                          {powerup.icon}
+                        </div>
+                        <div>
+                          <h4 className="text-white font-bold">{powerup.name}</h4>
+                          <div className="text-sm text-gray-400">
+                            Owned: <span className="text-pink-400">{count}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-gray-400 text-xs mb-3">{powerup.description}</p>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            if (buyPowerup(powerup.id)) {
+                              showToast(`⚡ Bought ${powerup.name}!`, 'success');
+                            }
+                          }}
+                          disabled={!canAfford}
+                          className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${
+                            canAfford
+                              ? 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white'
+                              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                          }`}
+                        >
+                          Buy - ${formatNumber(powerup.cost)}
+                        </button>
+
+                        {count > 0 && (
+                          <button
+                            onClick={() => {
+                              if (usePowerup(powerup.id)) {
+                                showToast(`⚡ ${powerup.name} activated!`, 'success');
+                              }
+                            }}
+                            className="px-4 py-2 rounded-lg font-bold text-sm bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white transition-all"
+                          >
+                            USE
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

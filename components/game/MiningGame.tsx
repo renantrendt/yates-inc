@@ -21,6 +21,8 @@ import PathSelectionModal from './PathSelectionModal';
 import GoldenCookie from './GoldenCookie';
 import SacrificeModal from './SacrificeModal';
 import TaxPopup from './TaxPopup';
+import BuildingDisplay from './BuildingDisplay';
+import BuffBar from './BuffBar';
 import { MINER_BASE_DAMAGE, getScaledRockHP } from '@/types/game';
 import { ROCKS, getRockById } from '@/lib/gameData';
 
@@ -527,15 +529,6 @@ export default function MiningGame({ onExit }: MiningGameProps) {
           {/* Prestige Button - appears when eligible */}
           <PrestigeButton />
 
-          {/* Sacrifice Button - Darkness path only */}
-          {gameState.chosenPath === 'darkness' && (
-            <button
-              onClick={() => setShowSacrifice(true)}
-              className="w-full bg-gradient-to-r from-purple-700 to-red-700 hover:from-purple-600 hover:to-red-600 text-white font-bold py-2.5 px-4 rounded-xl shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] text-sm sm:text-base"
-            >
-              😈 Sacrifice Miners
-            </button>
-          )}
 
           {/* Achievements */}
           <AchievementsPanel 
@@ -602,7 +595,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
             ref={rockRef}
             onClick={handleMine}
             onTouchEnd={handleMine}
-            className="relative z-40 w-56 h-56 sm:w-64 sm:h-64 md:w-72 md:h-72 cursor-pointer touch-manipulation flex items-center justify-center select-none"
+            className="relative z-40 w-56 h-56 sm:w-64 sm:h-64 md:w-72 md:h-72 cursor-pointer touch-manipulation flex items-center justify-center select-none pointer-events-auto"
             style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             {/* Rock visual inside the hitbox */}
@@ -666,6 +659,14 @@ export default function MiningGame({ onExit }: MiningGameProps) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Building Display - Left side, mirrors miners on right */}
+      <BuildingDisplay />
+
+      {/* Buff Bar - Above bottom stats */}
+      <div className="fixed bottom-28 sm:bottom-36 left-1/2 -translate-x-1/2 z-25 px-2">
+        <BuffBar />
       </div>
 
       {/* Bottom Stats */}

@@ -1,4 +1,21 @@
-import { Pickaxe, Rock, HARD_MODE_PRESTIGE_THRESHOLD, HARD_MODE_MULTIPLIER } from '@/types/game';
+import { 
+  Pickaxe, 
+  Rock, 
+  Building,
+  BuildingType,
+  HARD_MODE_PRESTIGE_THRESHOLD, 
+  HARD_MODE_MULTIPLIER,
+  BUILDINGS,
+  PROGRESSIVE_UPGRADES,
+  POWERUPS,
+  ProgressiveUpgrade,
+  Powerup,
+  PowerupType,
+  ProgressiveUpgradeType,
+} from '@/types/game';
+
+// Re-export building and upgrade data for convenience
+export { BUILDINGS, PROGRESSIVE_UPGRADES, POWERUPS } from '@/types/game';
 
 export const PICKAXES: Pickaxe[] = [
   {
@@ -570,3 +587,39 @@ export const getNextRockUnlockInfo = (totalClicks: number, prestigeCount: number
   return { nextRock, progress, clicksNeeded };
 };
 
+// =====================
+// BUILDING HELPERS
+// =====================
+
+export const getBuildingById = (id: BuildingType): Building | undefined => {
+  return BUILDINGS.find((b) => b.id === id);
+};
+
+export const getAllBuildings = (): Building[] => {
+  return BUILDINGS;
+};
+
+// Get buildings available for a specific path (null path = path not chosen yet)
+export const getBuildingsForPath = (path: 'light' | 'darkness' | null): Building[] => {
+  return BUILDINGS.filter((b) => {
+    if (b.pathRestriction === null) return true;
+    if (path === null) return false; // Can't buy path-restricted buildings without a path
+    return b.pathRestriction === path;
+  });
+};
+
+// =====================
+// PROGRESSIVE UPGRADE HELPERS
+// =====================
+
+export const getProgressiveUpgradeById = (id: ProgressiveUpgradeType): ProgressiveUpgrade | undefined => {
+  return PROGRESSIVE_UPGRADES.find((u) => u.id === id);
+};
+
+// =====================
+// POWERUP HELPERS
+// =====================
+
+export const getPowerupById = (id: PowerupType): Powerup | undefined => {
+  return POWERUPS.find((p) => p.id === id);
+};

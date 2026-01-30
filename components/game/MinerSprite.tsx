@@ -46,7 +46,16 @@ export default function MinerSprites() {
     return () => clearInterval(interval);
   }, [gameState.minerCount]);
 
-  if (gameState.minerCount === 0) return null;
+  // Hide miners if any buildings are owned (buildings replace miner display)
+  const hasAnyBuilding = 
+    gameState.buildings.mine.count > 0 ||
+    gameState.buildings.bank.owned ||
+    gameState.buildings.factory.count > 0 ||
+    gameState.buildings.temple.owned ||
+    gameState.buildings.wizard_tower.owned ||
+    gameState.buildings.shipment.count > 0;
+
+  if (gameState.minerCount === 0 || hasAnyBuilding) return null;
 
   // Create array of visible miners
   const minerArray = Array.from({ length: visibleCount }, (_, i) => i);
