@@ -41,7 +41,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const terminalRef = useRef<HTMLDivElement>(null);
   const cmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory, addMoney, addMiners, addPrestigeTokens, giveTrinket, givePickaxe, setTotalClicks, toggleAutoPrestige, giveTitle, equipTitle, unlockAllAchievements, selectPath } = useGame();
+  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory, addMoney, addMiners, addPrestigeTokens, giveTrinket, givePickaxe, setTotalClicks, toggleAutoPrestige, giveTitle, equipTitle, unlockAllAchievements, selectPath, maxAll } = useGame();
   const { employee } = useAuth();
   const { client } = useClient();
   
@@ -583,6 +583,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory('');
         addToHistory('🔨 ADMIN COMMANDS (Bernardo/Logan only):');
         addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        addToHistory('maxall         - Max Progressive Upgrades ⬆️');
         addToHistory(`pcx [id]       - Yoink a pickaxe (1-${PICKAXES.length})`);
         addToHistory('allpcx         - Give me ALL the pickaxes 😈');
         addToHistory(`allrocks       - Unlock all ${ROCKS.length} rocks`);
@@ -632,6 +633,24 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         equipPickaxe(PICKAXES[PICKAXES.length - 1].id);
         addToHistory(`⛏️ ALL ${PICKAXES.length} pickaxes acquired!`);
         addToHistory('   You absolute menace 😈');
+      }
+    }
+    // MAX ALL UPGRADES - Admin command (ADMIN ONLY)
+    else if (trimmed === 'maxall') {
+      if (!isBanAdmin) {
+        addToHistory(`❌ Nice try. maxall is admin-only. 🖕`);
+      } else {
+        maxAll();
+        addToHistory('');
+        addToHistory('⬆️ PROGRESSIVE UPGRADES MAXED ⬆️');
+        addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        addToHistory('⛏️ Pickaxe Strength: 500/500');
+        addToHistory('💰 Money Bonus: 500/500');
+        addToHistory('⚡ General Speed: 300/300');
+        addToHistory('👷 Miner Speed: 200/200');
+        addToHistory('💪 Miner Damage: 500/500');
+        addToHistory('');
+        addToHistory('All upgrades maxed out! 🚀');
       }
     }
     // All rocks command (ADMIN ONLY)
@@ -888,7 +907,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory(`❌ Unknown command: ${trimmed}`);
       addToHistory('Type help for available commands');
     }
-  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers, giveToPlayer, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, prestige, toggleAutoPrestige, gameState.autoPrestigeEnabled, gameState.isBlocked, dismissWarning, clearClickHistory, givePickaxe, selectPath]);
+  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers, giveToPlayer, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, prestige, toggleAutoPrestige, gameState.autoPrestigeEnabled, gameState.isBlocked, dismissWarning, clearClickHistory, givePickaxe, selectPath, maxAll]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

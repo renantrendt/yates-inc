@@ -141,6 +141,7 @@ interface GameContextType {
   givePickaxe: (pickaxeId: number) => void;
   setTotalClicks: (clicks: number) => void;
   unlockAllAchievements: () => void;
+  maxAll: () => void; // Admin command - max out everything
   // Title functions
   giveTitle: (titleId: string) => boolean;
   equipTitle: (titleId: string) => boolean;
@@ -2471,6 +2472,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  // MAX ALL UPGRADES - Admin command to max out Progressive Upgrades
+  const maxAll = useCallback(() => {
+    setGameState(prev => ({
+      ...prev,
+      // Max out all Progressive Upgrades to their max levels
+      progressiveUpgrades: {
+        pcxDamage: 500,    // Pickaxe Strength max
+        money: 500,        // Money Bonus max
+        generalSpeed: 300, // General Speed max
+        minerSpeed: 200,   // Miner Speed max
+        minerDamage: 500,  // Miner Damage max
+      },
+    }));
+  }, []);
+
   // =====================
   // TITLE FUNCTIONS
   // =====================
@@ -3650,6 +3666,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         givePickaxe,
         setTotalClicks,
         unlockAllAchievements,
+        maxAll,
         // Title functions
         giveTitle,
         equipTitle,
