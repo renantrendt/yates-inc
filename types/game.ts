@@ -1457,6 +1457,7 @@ export const BUILDINGS: Building[] = [
 // Mine constants - Each mine = 10 miners at 2x efficiency = 20 miner-equivalents
 export const MINE_MINER_EQUIVALENTS_PER_MINE = 20; // Each mine generates income like 20 miners
 export const MINE_TICK_INTERVAL = 1000; // Every 1 second for passive income
+export const MINE_EFFICIENCY_BONUS_PER_MINE = 0.05; // 5% efficiency bonus per additional mine
 
 // Bank constants
 export const BANK_COST_PERCENTAGE_MIN = 0.60; // 60% of current money
