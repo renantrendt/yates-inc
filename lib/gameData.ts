@@ -589,7 +589,9 @@ export const getNextRockUnlockInfo = (totalClicks: number, prestigeCount: number
 
 // =====================
 // BUILDING HELPERS
-// =====================export const getBuildingById = (id: BuildingType): Building | undefined => {
+// =====================
+
+export const getBuildingById = (id: BuildingType): Building | undefined => {
   return BUILDINGS.find((b) => b.id === id);
 };
 
