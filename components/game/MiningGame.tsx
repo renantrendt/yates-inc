@@ -804,8 +804,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
         onClose={() => setShowTrinketIndex(false)}
       />
 
-      {/* Ability Button - bottom right (for pickaxes with active abilities) */}
-      <AbilityButton />
+      {/* Ability Button - DISABLED: abilities are now passive bonuses shown in HUD */}
+      {/* <AbilityButton /> */}
 
       {/* Game Terminal (employees only) */}
       {isEmployee && (

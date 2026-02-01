@@ -32,6 +32,9 @@ export interface UserGameData {
   trinket_shop_last_refresh?: number;
   has_totem_protection?: boolean;
   has_stocks_unlocked?: boolean;
+  // Relics & Talismans
+  owned_relic_ids?: string[];
+  owned_talisman_ids?: string[];
   // Miners
   miner_count?: number;
   miner_last_tick?: number;
@@ -129,6 +132,8 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       trinket_shop_last_refresh: data.trinket_shop_last_refresh,
       has_totem_protection: data.has_totem_protection,
       has_stocks_unlocked: data.has_stocks_unlocked,
+      owned_relic_ids: data.owned_relic_ids,
+      owned_talisman_ids: data.owned_talisman_ids,
       miner_count: data.miner_count,
       miner_last_tick: data.miner_last_tick,
       prestige_tokens: data.prestige_tokens,
@@ -423,6 +428,8 @@ export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; u
     trinket_shop_last_refresh: data.trinket_shop_last_refresh,
     has_totem_protection: data.has_totem_protection,
     has_stocks_unlocked: data.has_stocks_unlocked,
+    owned_relic_ids: data.owned_relic_ids,
+    owned_talisman_ids: data.owned_talisman_ids,
     miner_count: data.miner_count,
     miner_last_tick: data.miner_last_tick,
     prestige_tokens: data.prestige_tokens,

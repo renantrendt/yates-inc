@@ -107,10 +107,6 @@ export default function GoldenCookie() {
         return { emoji: '⛏️', text: 'YATES PICKAXE!', color: 'text-yellow-400' };
       case 'yates_totem':
         return { emoji: '🗿', text: 'YATES TOTEM!', color: 'text-red-400' };
-      case 'money_12':
-        return { emoji: '💰', text: `+$${formatNumber(value as number)} (12%)`, color: 'text-green-400' };
-      case 'money_24':
-        return { emoji: '💰', text: `+$${formatNumber(value as number)} (24%)`, color: 'text-green-400' };
       case 'money':
         return { emoji: '💵', text: `+$${formatNumber(value as number)}`, color: 'text-green-400' };
       case 'trinket': {

@@ -691,7 +691,15 @@ export default function GameShop({ onClose }: GameShopProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {POWERUPS.map(powerup => {
                   const count = getPowerupCount(powerup.id);
-                  const canAfford = gameState.yatesDollars >= powerup.cost;
+                  // Golden Touch, Mining Frenzy, Building Boost cost 80% of current money
+                  const dynamicCostIds = ['goldenTouch', 'miningFrenzy', 'buildingBoost'];
+                  const isDynamicCost = dynamicCostIds.includes(powerup.id);
+                  const cost = isDynamicCost 
+                    ? Math.floor(gameState.yatesDollars * 0.80) 
+                    : powerup.cost;
+                  const canAfford = isDynamicCost 
+                    ? gameState.yatesDollars >= 1000 
+                    : gameState.yatesDollars >= cost;
 
                   return (
                     <div
@@ -730,7 +738,7 @@ export default function GameShop({ onClose }: GameShopProps) {
                               : 'bg-gray-700 text-gray-500 cursor-not-allowed'
                           }`}
                         >
-                          Buy - ${formatNumber(powerup.cost)}
+                          {isDynamicCost ? `Buy - 80% ($${formatNumber(cost)})` : `Buy - $${formatNumber(cost)}`}
                         </button>
 
                         {count > 0 && (

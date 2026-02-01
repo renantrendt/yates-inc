@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
-import { TRINKETS, RARITY_COLORS, Trinket } from '@/types/game';
+import { TRINKETS, RARITY_COLORS, Trinket, RELIC_MULTIPLIERS, TALISMAN_MULTIPLIERS } from '@/types/game';
 
 export default function TrinketSlot() {
   const [showSelector, setShowSelector] = useState(false);
@@ -19,6 +19,9 @@ export default function TrinketSlot() {
     getTotalBonuses,
     getActiveBuffs,
     isWizardRitualActive,
+    currentPickaxe,
+    ownsRelic,
+    ownsTalisman,
   } = useGame();
   
   // Update time every second for buff timers
@@ -28,9 +31,53 @@ export default function TrinketSlot() {
   }, []);
   
   const equippedTrinkets = getEquippedTrinkets();
-  const ownedTrinkets = gameState.ownedTrinketIds
-    .map(id => TRINKETS.find(t => t.id === id))
-    .filter((t): t is Trinket => t !== undefined);
+  
+  // Build list of all equippable items: trinkets, relics, and talismans
+  type EquippableItem = {
+    id: string;
+    baseTrinket: Trinket;
+    type: 'trinket' | 'relic' | 'talisman';
+    multiplier: number;
+  };
+  
+  const equippableItems: EquippableItem[] = [];
+  
+  // Add regular trinkets
+  for (const id of gameState.ownedTrinketIds) {
+    const trinket = TRINKETS.find(t => t.id === id);
+    if (trinket) {
+      equippableItems.push({ id, baseTrinket: trinket, type: 'trinket', multiplier: 1 });
+    }
+  }
+  
+  // Add relics (Light path conversions)
+  for (const relicId of (gameState.ownedRelicIds || [])) {
+    const baseTrinketId = relicId.replace('_relic', '');
+    const trinket = TRINKETS.find(t => t.id === baseTrinketId);
+    if (trinket) {
+      equippableItems.push({ 
+        id: relicId, 
+        baseTrinket: trinket, 
+        type: 'relic', 
+        multiplier: RELIC_MULTIPLIERS[trinket.rarity] 
+      });
+    }
+  }
+  
+  // Add talismans (Dark path conversions)
+  for (const talismanId of (gameState.ownedTalismanIds || [])) {
+    const baseTrinketId = talismanId.replace('_talisman', '');
+    const trinket = TRINKETS.find(t => t.id === baseTrinketId);
+    if (trinket) {
+      equippableItems.push({ 
+        id: talismanId, 
+        baseTrinket: trinket, 
+        type: 'talisman', 
+        multiplier: TALISMAN_MULTIPLIERS[trinket.rarity] 
+      });
+    }
+  }
+  
   const maxSlots = canEquipTripleTrinkets() ? 3 : canEquipDualTrinkets() ? 2 : 1;
   const bonuses = getTotalBonuses();
   
@@ -55,29 +102,64 @@ export default function TrinketSlot() {
       {/* Equipped Trinket Slots */}
       <div className="flex gap-2">
         {Array.from({ length: maxSlots }).map((_, i) => {
-          const trinket = equippedTrinkets[i];
+          const equippedId = gameState.equippedTrinketIds[i];
+          const equippedItem = equippableItems.find(item => item.id === equippedId);
+          const trinket = equippedItem?.baseTrinket;
           const slotColor = trinket ? RARITY_COLORS[trinket.rarity] : '#4b5563';
+          
+          // Visual distinction for relics (golden) and talismans (dark cosmic)
+          const isRelic = equippedItem?.type === 'relic';
+          const isTalisman = equippedItem?.type === 'talisman';
+          const glowColor = isRelic 
+            ? '#fbbf24' // Golden glow for relics
+            : isTalisman 
+              ? '#a855f7' // Purple cosmic glow for talismans
+              : slotColor;
+          const extraGlow = isRelic 
+            ? '0 0 15px #fbbf2480, 0 0 25px #fbbf2440' 
+            : isTalisman 
+              ? '0 0 15px #a855f780, 0 0 25px #7c3aed40' 
+              : '';
           
           return (
             <button
               key={i}
               onClick={() => setShowSelector(!showSelector)}
-              className="w-12 h-12 rounded-lg border-2 flex items-center justify-center transition-all hover:scale-105"
+              className={`w-12 h-12 rounded-lg border-2 flex items-center justify-center transition-all hover:scale-105 relative ${
+                isRelic ? 'animate-pulse' : isTalisman ? 'animate-pulse' : ''
+              }`}
               style={{ 
-                borderColor: slotColor,
-                backgroundColor: `${slotColor}20`,
-                boxShadow: trinket ? `0 0 10px ${slotColor}50` : 'none',
+                borderColor: isRelic ? '#fbbf24' : isTalisman ? '#a855f7' : slotColor,
+                backgroundColor: isRelic 
+                  ? 'rgba(251, 191, 36, 0.15)' 
+                  : isTalisman 
+                    ? 'rgba(168, 85, 247, 0.15)' 
+                    : `${slotColor}20`,
+                boxShadow: trinket 
+                  ? `0 0 10px ${glowColor}50${extraGlow ? ', ' + extraGlow : ''}` 
+                  : 'none',
               }}
-              title={trinket ? `${trinket.name}: ${trinket.description}` : 'Empty slot - click to equip'}
+              title={trinket 
+                ? `${trinket.name}${isRelic ? ' (Relic)' : isTalisman ? ' (Talisman)' : ''}: ${trinket.description}${equippedItem && equippedItem.multiplier > 1 ? ` (${equippedItem.multiplier}x)` : ''}` 
+                : 'Empty slot - click to equip'}
             >
               {trinket ? (
-                <Image
-                  src={trinket.image}
-                  alt={trinket.name}
-                  width={36}
-                  height={36}
-                  className="object-contain"
-                />
+                <>
+                  <Image
+                    src={trinket.image}
+                    alt={trinket.name}
+                    width={36}
+                    height={36}
+                    className="object-contain"
+                  />
+                  {/* Type indicator */}
+                  {isRelic && (
+                    <span className="absolute -top-1 -right-1 text-[10px] text-yellow-400">✦</span>
+                  )}
+                  {isTalisman && (
+                    <span className="absolute -top-1 -right-1 text-[10px] text-purple-400">✧</span>
+                  )}
+                </>
               ) : (
                 <span className="text-gray-500 text-xl">+</span>
               )}
@@ -124,42 +206,58 @@ export default function TrinketSlot() {
             </div>
           )}
           
-          {/* Cookie status - below path indicator */}
-          {gameState.chosenPath === 'light' && (
-            <div className="text-[9px] text-yellow-300 animate-pulse">
-              🍪 Golden Cookies Active
-            </div>
-          )}
-          {gameState.chosenPath === 'darkness' && (
-            <div className={`text-[9px] ${gameState.goldenCookieRitualActive ? 'text-purple-300 animate-pulse' : 'text-gray-500'}`}>
-              {gameState.goldenCookieRitualActive ? '🟣 Dark Cookies Active' : '🟣 Dark Cookies (need ritual)'}
+          {/* Cookie status - only show for Darkness path since Light is always active */}
+          {gameState.chosenPath === 'darkness' && !gameState.goldenCookieRitualActive && (
+            <div className="text-[9px] text-gray-500">
+              🟣 Do ritual for Dark Cookies
             </div>
           )}
           
-          {/* Active Buffs */}
+          {/* Pickaxe Passive Bonuses */}
+          {currentPickaxe && (currentPickaxe.moneyMultiplier || currentPickaxe.couponLuckBonus) && (
+            <div className="mt-0.5 text-[8px] text-gray-400">
+              {currentPickaxe.moneyMultiplier && currentPickaxe.moneyMultiplier > 1 && (
+                <span className="text-green-400">💰+{Math.round((currentPickaxe.moneyMultiplier - 1) * 100)}% money </span>
+              )}
+              {currentPickaxe.couponLuckBonus && currentPickaxe.couponLuckBonus > 0 && (
+                <span className="text-purple-400">🎟️+{Math.round(currentPickaxe.couponLuckBonus * 100)}% luck</span>
+              )}
+            </div>
+          )}
+          
+          {/* Active Buffs with detailed descriptions */}
           <div className="mt-0.5 flex flex-wrap gap-1">
-            {/* Sacrifice Buff */}
-            {hasActiveSacrificeBuff && (
-              <span className="text-[9px] text-red-400 animate-pulse">
-                🩸{sacrificeTimeRemaining}s
+            {/* Sacrifice Buff - show actual effect */}
+            {hasActiveSacrificeBuff && gameState.sacrificeBuff && (
+              <span className="text-[9px] text-red-400 animate-pulse" title="Sacrifice buff active">
+                🩸{gameState.sacrificeBuff.allBonus > 0 
+                  ? `+${Math.round(gameState.sacrificeBuff.allBonus * 100)}% all` 
+                  : `+${Math.round(gameState.sacrificeBuff.moneyBonus * 100)}% money`
+                } {sacrificeTimeRemaining}s
               </span>
             )}
             
-            {/* Wizard Ritual */}
+            {/* Wizard Ritual - show what it does */}
             {wizardRitualActive && (
-              <span className="text-[9px] text-purple-400 animate-pulse">
-                🔮3x {wizardTimeRemaining}s
+              <span className="text-[9px] text-purple-400 animate-pulse" title="Wizard Ritual: 3x all stats">
+                🔮3x all {wizardTimeRemaining}s
               </span>
             )}
             
-            {/* Factory Buffs */}
+            {/* Factory Buffs - show what each one does */}
             {activeBuffs.map(buff => {
               const timeLeft = Math.ceil((buff.startTime + buff.duration - now) / 1000);
               if (timeLeft <= 0) return null;
-              const icon = buff.type === 'damage' ? '⚔️' : buff.type === 'money' ? '💰' : buff.type === 'clickSpeed' ? '⚡' : '🏭';
+              // Better descriptions based on buff type
+              const buffInfo = {
+                damage: { icon: '⚔️', label: 'damage' },
+                money: { icon: '💰', label: 'money' },
+                clickSpeed: { icon: '⚡', label: 'speed' },
+                miner: { icon: '👷', label: 'miners' },
+              }[buff.type] || { icon: '🏭', label: buff.type };
               return (
-                <span key={buff.id} className="text-[9px] text-amber-400">
-                  {icon}+{Math.round(buff.multiplier * 100)}% {timeLeft}s
+                <span key={buff.id} className="text-[9px] text-amber-400" title={`Factory buff: +${Math.round(buff.multiplier * 100)}% ${buffInfo.label}`}>
+                  {buffInfo.icon}+{Math.round(buff.multiplier * 100)}% {buffInfo.label} {timeLeft}s
                 </span>
               );
             })}
@@ -273,7 +371,7 @@ export default function TrinketSlot() {
       
       {/* Trinket Selector Dropdown */}
       {showSelector && (
-        <div className="absolute top-full left-0 mt-2 w-64 bg-gray-900 rounded-xl p-3 border border-gray-600 shadow-xl z-[80]">
+        <div className="absolute top-full left-0 mt-2 w-72 bg-gray-900 rounded-xl p-3 border border-gray-600 shadow-xl z-[80]">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-white font-bold text-sm">Your Trinkets</h4>
             <button 
@@ -284,39 +382,80 @@ export default function TrinketSlot() {
             </button>
           </div>
           
-          {ownedTrinkets.length === 0 ? (
+          {equippableItems.length === 0 ? (
             <p className="text-gray-500 text-xs">No trinkets owned. Buy some from the shop!</p>
           ) : (
-            <div className="space-y-1 max-h-48 overflow-y-auto scrollable-touch">
-              {ownedTrinkets.map(trinket => {
-                const isEquipped = gameState.equippedTrinketIds.includes(trinket.id);
-                const rarityColor = RARITY_COLORS[trinket.rarity];
+            <div className="space-y-1 max-h-64 overflow-y-auto scrollable-touch">
+              {equippableItems.map(item => {
+                const isEquipped = gameState.equippedTrinketIds.includes(item.id);
+                const rarityColor = RARITY_COLORS[item.baseTrinket.rarity];
+                const isRelic = item.type === 'relic';
+                const isTalisman = item.type === 'talisman';
+                
+                // Visual styling based on type
+                const bgGradient = isRelic 
+                  ? 'linear-gradient(135deg, rgba(251,191,36,0.2) 0%, transparent 50%)'
+                  : isTalisman 
+                    ? 'linear-gradient(135deg, rgba(168,85,247,0.2) 0%, transparent 50%)'
+                    : undefined;
+                const borderColor = isRelic 
+                  ? '#fbbf2450' 
+                  : isTalisman 
+                    ? '#a855f750' 
+                    : 'transparent';
                 
                 return (
                   <div
-                    key={trinket.id}
-                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-800 cursor-pointer"
+                    key={item.id}
+                    className={`flex items-center gap-2 p-2 rounded-lg hover:bg-gray-800 cursor-pointer border ${
+                      isEquipped ? 'bg-gray-800' : ''
+                    }`}
+                    style={{ 
+                      background: bgGradient,
+                      borderColor: borderColor,
+                    }}
                     onClick={() => {
                       if (isEquipped) {
-                        unequipTrinket(trinket.id);
+                        unequipTrinket(item.id);
                       } else {
-                        equipTrinket(trinket.id);
+                        equipTrinket(item.id);
                       }
                     }}
                   >
-                    <Image
-                      src={trinket.image}
-                      alt={trinket.name}
-                      width={28}
-                      height={28}
-                      className="object-contain"
-                    />
+                    <div className="relative">
+                      <Image
+                        src={item.baseTrinket.image}
+                        alt={item.baseTrinket.name}
+                        width={28}
+                        height={28}
+                        className={`object-contain ${isRelic ? 'drop-shadow-[0_0_4px_#fbbf24]' : isTalisman ? 'drop-shadow-[0_0_4px_#a855f7]' : ''}`}
+                      />
+                      {isRelic && (
+                        <span className="absolute -top-1 -right-1 text-[8px] text-yellow-400">✦</span>
+                      )}
+                      {isTalisman && (
+                        <span className="absolute -top-1 -right-1 text-[8px] text-purple-400">✧</span>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: rarityColor }}>
-                        {trinket.name}
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <p className="text-sm font-medium truncate" style={{ color: isRelic ? '#fbbf24' : isTalisman ? '#a855f7' : rarityColor }}>
+                          {item.baseTrinket.name}
+                        </p>
+                        {isRelic && (
+                          <span className="text-[9px] text-yellow-400 bg-yellow-900/30 px-1 rounded">Relic</span>
+                        )}
+                        {isTalisman && (
+                          <span className="text-[9px] text-purple-400 bg-purple-900/30 px-1 rounded">Talisman</span>
+                        )}
+                      </div>
                       <p className="text-[10px] text-gray-400 truncate">
-                        {trinket.description}
+                        {item.baseTrinket.description}
+                        {item.multiplier > 1 && (
+                          <span className={`ml-1 ${isRelic ? 'text-yellow-400' : 'text-purple-400'}`}>
+                            ({item.multiplier}x)
+                          </span>
+                        )}
                       </p>
                     </div>
                     {isEquipped && (

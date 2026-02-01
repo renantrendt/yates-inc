@@ -8,6 +8,7 @@ import {
   TRINKETS, Trinket, TRINKET_SHOP_REFRESH_INTERVAL, TRINKET_SHOP_MIN_ITEMS, TRINKET_SHOP_MAX_ITEMS,
   MINER_TICK_INTERVAL, MINER_BASE_DAMAGE, MINER_MAX_COUNT, getMinerCost, getPrestigePriceMultiplier,
   PRESTIGE_UPGRADES, PrestigeUpgrade, PRESTIGE_TOKENS_PER_PRESTIGE, RARITY_COLORS,
+  RELIC_CONVERSION_COSTS, TALISMAN_CONVERSION_COSTS, RELIC_MULTIPLIERS, TALISMAN_MULTIPLIERS,
   ACHIEVEMENTS, shouldUnlockAchievement, TITLES,
   // Path system
   GamePath, SacrificeBuff, SACRIFICE_BUFF_TIERS,
@@ -122,6 +123,13 @@ interface GameContextType {
   getEquippedTrinkets: () => Trinket[];
   getTotalBonuses: () => { moneyBonus: number; rockDamageBonus: number; clickSpeedBonus: number; couponBonus: number; minerSpeedBonus: number; minerDamageBonus: number };
   yatesTotemSpawned: boolean;
+  // Relic & Talisman conversion functions
+  convertToRelic: (trinketId: string, payWithTokens: boolean) => boolean;  // payWithTokens: true = tokens, false = money
+  convertToTalisman: (trinketId: string) => boolean;
+  ownsRelic: (trinketId: string) => boolean;
+  ownsTalisman: (trinketId: string) => boolean;
+  getRelicConversionCost: (trinketId: string) => { prestigeTokens: number; money: number } | null;
+  getTalismanConversionCost: (trinketId: string) => { miners: number; money: number } | null;
   // Miner functions
   buyMiner: () => boolean;
   buyMiners: (count: number) => number; // Buy multiple miners, returns how many were bought
@@ -236,6 +244,9 @@ const defaultGameState: GameState = {
   trinketShopLastRefresh: 0,
   hasTotemProtection: false,
   hasStocksUnlocked: false,
+  // Relics & Talismans
+  ownedRelicIds: [],
+  ownedTalismanIds: [],
   // Miners
   minerCount: 0,
   minerLastTick: Date.now(),
@@ -577,6 +588,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 trinketShopLastRefresh: supabaseData.trinket_shop_last_refresh ?? prev.trinketShopLastRefresh,
                 hasTotemProtection: useSupabase ? (supabaseData.has_totem_protection ?? prev.hasTotemProtection) : prev.hasTotemProtection,
                 hasStocksUnlocked: useSupabase ? (supabaseData.has_stocks_unlocked ?? prev.hasStocksUnlocked) : prev.hasStocksUnlocked,
+                // Relics & Talismans - merge from both sources
+                ownedRelicIds: [...new Set([...(prev.ownedRelicIds || []), ...(supabaseData.owned_relic_ids || [])])],
+                ownedTalismanIds: [...new Set([...(prev.ownedTalismanIds || []), ...(supabaseData.owned_talisman_ids || [])])],
                 // Miners
                 minerCount: useSupabase ? (supabaseData.miner_count ?? prev.minerCount) : prev.minerCount,
                 minerLastTick: useSupabase ? (supabaseData.miner_last_tick ?? prev.minerLastTick) : prev.minerLastTick,
@@ -1245,17 +1259,37 @@ export function GameProvider({ children }: { children: ReactNode }) {
       minerDamageBonus: 0,
     };
     
-    // First, calculate trinket bonuses
-    for (const trinketId of gameState.equippedTrinketIds) {
-      const trinket = TRINKETS.find(t => t.id === trinketId);
+    // First, calculate trinket bonuses (including relics and talismans)
+    for (const itemId of gameState.equippedTrinketIds) {
+      // Check if this is a relic or talisman (ends with _relic or _talisman)
+      const isRelic = itemId.endsWith('_relic');
+      const isTalisman = itemId.endsWith('_talisman');
+      
+      // Get base trinket ID by removing _relic or _talisman suffix
+      const baseTrinketId = isRelic 
+        ? itemId.replace('_relic', '') 
+        : isTalisman 
+          ? itemId.replace('_talisman', '') 
+          : itemId;
+      
+      const trinket = TRINKETS.find(t => t.id === baseTrinketId);
       if (trinket) {
         const e = trinket.effects;
-        bonuses.moneyBonus += (e.moneyBonus || 0) + (e.allBonus || 0) + (e.minerMoneyBonus || 0);
-        bonuses.rockDamageBonus += (e.rockDamageBonus || 0) + (e.allBonus || 0);
-        bonuses.clickSpeedBonus += (e.clickSpeedBonus || 0) + (e.allBonus || 0);
-        bonuses.couponBonus += (e.couponBonus || 0) + (e.couponLuckBonus || 0) + (e.allBonus || 0);
-        bonuses.minerSpeedBonus += (e.minerSpeedBonus || 0) + (e.allBonus || 0);
-        bonuses.minerDamageBonus += (e.minerDamageBonus || 0) + (e.allBonus || 0);
+        
+        // Get multiplier based on type: relics use Light multipliers, talismans use Dark multipliers
+        let multiplier = 1;
+        if (isRelic) {
+          multiplier = RELIC_MULTIPLIERS[trinket.rarity] || 1;
+        } else if (isTalisman) {
+          multiplier = TALISMAN_MULTIPLIERS[trinket.rarity] || 1;
+        }
+        
+        bonuses.moneyBonus += ((e.moneyBonus || 0) + (e.allBonus || 0) + (e.minerMoneyBonus || 0)) * multiplier;
+        bonuses.rockDamageBonus += ((e.rockDamageBonus || 0) + (e.allBonus || 0)) * multiplier;
+        bonuses.clickSpeedBonus += ((e.clickSpeedBonus || 0) + (e.allBonus || 0)) * multiplier;
+        bonuses.couponBonus += ((e.couponBonus || 0) + (e.couponLuckBonus || 0) + (e.allBonus || 0)) * multiplier;
+        bonuses.minerSpeedBonus += ((e.minerSpeedBonus || 0) + (e.allBonus || 0)) * multiplier;
+        bonuses.minerDamageBonus += ((e.minerDamageBonus || 0) + (e.allBonus || 0)) * multiplier;
       }
     }
     
@@ -1413,6 +1447,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
           trinket_shop_last_refresh: gameState.trinketShopLastRefresh,
           has_totem_protection: gameState.hasTotemProtection,
           has_stocks_unlocked: gameState.hasStocksUnlocked,
+          // Relics & Talismans
+          owned_relic_ids: gameState.ownedRelicIds,
+          owned_talisman_ids: gameState.ownedTalismanIds,
           // Miners
           miner_count: gameState.minerCount,
           miner_last_tick: gameState.minerLastTick,
@@ -2158,14 +2195,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return gameState.ownedPrestigeUpgradeIds.includes('triple_trinkets');
   }, [gameState.ownedPrestigeUpgradeIds]);
 
-  const equipTrinket = useCallback((trinketId: string) => {
-    if (!gameState.ownedTrinketIds.includes(trinketId)) return false;
-    if (gameState.equippedTrinketIds.includes(trinketId)) return false;
+  const equipTrinket = useCallback((itemId: string) => {
+    // Check if owned - could be trinket, relic, or talisman
+    const isRelic = itemId.endsWith('_relic');
+    const isTalisman = itemId.endsWith('_talisman');
+    
+    let isOwned = false;
+    if (isRelic) {
+      isOwned = (gameState.ownedRelicIds || []).includes(itemId);
+    } else if (isTalisman) {
+      isOwned = (gameState.ownedTalismanIds || []).includes(itemId);
+    } else {
+      isOwned = gameState.ownedTrinketIds.includes(itemId);
+    }
+    
+    if (!isOwned) return false;
+    if (gameState.equippedTrinketIds.includes(itemId)) return false;
     
     const maxEquipped = canEquipTripleTrinkets() ? 3 : canEquipDualTrinkets() ? 2 : 1;
 
     setGameState(prev => {
-      let newEquipped = [...prev.equippedTrinketIds, trinketId];
+      let newEquipped = [...prev.equippedTrinketIds, itemId];
       // If over limit, remove oldest
       if (newEquipped.length > maxEquipped) {
         newEquipped = newEquipped.slice(-maxEquipped);
@@ -2174,7 +2224,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
 
     return true;
-  }, [gameState.ownedTrinketIds, gameState.equippedTrinketIds, canEquipDualTrinkets, canEquipTripleTrinkets]);
+  }, [gameState.ownedTrinketIds, gameState.ownedRelicIds, gameState.ownedTalismanIds, gameState.equippedTrinketIds, canEquipDualTrinkets, canEquipTripleTrinkets]);
 
   const unequipTrinket = useCallback((trinketId: string) => {
     setGameState(prev => ({
@@ -2185,13 +2235,90 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const getEquippedTrinkets = useCallback(() => {
     return gameState.equippedTrinketIds
-      .map(id => TRINKETS.find(t => t.id === id))
+      .map(id => {
+        // Handle relic and talisman IDs by stripping the suffix
+        const baseId = id.replace('_relic', '').replace('_talisman', '');
+        return TRINKETS.find(t => t.id === baseId);
+      })
       .filter((t): t is Trinket => t !== undefined);
   }, [gameState.equippedTrinketIds]);
 
   const getTotalBonuses = useCallback(() => {
     return calculateTotalBonuses();
   }, [calculateTotalBonuses]);
+
+  // =====================
+  // RELIC & TALISMAN FUNCTIONS
+  // =====================
+
+  const ownsRelic = useCallback((trinketId: string): boolean => {
+    return (gameState.ownedRelicIds || []).includes(`${trinketId}_relic`);
+  }, [gameState.ownedRelicIds]);
+
+  const ownsTalisman = useCallback((trinketId: string): boolean => {
+    return (gameState.ownedTalismanIds || []).includes(`${trinketId}_talisman`);
+  }, [gameState.ownedTalismanIds]);
+
+  const getRelicConversionCost = useCallback((trinketId: string) => {
+    return RELIC_CONVERSION_COSTS[trinketId] || null;
+  }, []);
+
+  const getTalismanConversionCost = useCallback((trinketId: string) => {
+    return TALISMAN_CONVERSION_COSTS[trinketId] || null;
+  }, []);
+
+  const convertToRelic = useCallback((trinketId: string, payWithTokens: boolean): boolean => {
+    // Must be on Light path
+    if (gameState.chosenPath !== 'light') return false;
+    // Must own the trinket
+    if (!gameState.ownedTrinketIds.includes(trinketId)) return false;
+    // Can't already have the relic
+    if ((gameState.ownedRelicIds || []).includes(`${trinketId}_relic`)) return false;
+    
+    const cost = RELIC_CONVERSION_COSTS[trinketId];
+    if (!cost) return false;
+    
+    // Check affordability based on payment method
+    if (payWithTokens) {
+      if (gameState.prestigeTokens < cost.prestigeTokens) return false;
+      setGameState(prev => ({
+        ...prev,
+        prestigeTokens: prev.prestigeTokens - cost.prestigeTokens,
+        ownedRelicIds: [...(prev.ownedRelicIds || []), `${trinketId}_relic`],
+      }));
+    } else {
+      if (gameState.yatesDollars < cost.money) return false;
+      setGameState(prev => ({
+        ...prev,
+        yatesDollars: prev.yatesDollars - cost.money,
+        ownedRelicIds: [...(prev.ownedRelicIds || []), `${trinketId}_relic`],
+      }));
+    }
+    return true;
+  }, [gameState.chosenPath, gameState.ownedTrinketIds, gameState.ownedRelicIds, gameState.prestigeTokens, gameState.yatesDollars]);
+
+  const convertToTalisman = useCallback((trinketId: string): boolean => {
+    // Must be on Darkness path
+    if (gameState.chosenPath !== 'darkness') return false;
+    // Must own the trinket
+    if (!gameState.ownedTrinketIds.includes(trinketId)) return false;
+    // Can't already have the talisman
+    if ((gameState.ownedTalismanIds || []).includes(`${trinketId}_talisman`)) return false;
+    
+    const cost = TALISMAN_CONVERSION_COSTS[trinketId];
+    if (!cost) return false;
+    // Check if can afford
+    if (gameState.minerCount < cost.miners) return false;
+    if (gameState.yatesDollars < cost.money) return false;
+    
+    setGameState(prev => ({
+      ...prev,
+      minerCount: prev.minerCount - cost.miners,
+      yatesDollars: prev.yatesDollars - cost.money,
+      ownedTalismanIds: [...(prev.ownedTalismanIds || []), `${trinketId}_talisman`],
+    }));
+    return true;
+  }, [gameState.chosenPath, gameState.ownedTrinketIds, gameState.ownedTalismanIds, gameState.minerCount, gameState.yatesDollars]);
 
   // =====================
   // MINER FUNCTIONS
@@ -2726,14 +2853,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return true;
   }, [canActivateRitual]);
 
-  // Claim a reward from clicking the Golden Cookie
+  // Claim a reward from clicking the Golden/Dark Cookie
+  // Works for Light path (always) and Darkness path (with ritual)
+  // Gives money bonuses and rare rewards
   const claimGoldenCookieReward = useCallback((): { type: string; value: number | string } | null => {
-    if (gameState.chosenPath !== 'darkness' || !gameState.goldenCookieRitualActive) return null;
+    // Check eligibility: Light path always, Darkness path needs ritual
+    const isLightPath = gameState.chosenPath === 'light';
+    const isDarknessWithRitual = gameState.chosenPath === 'darkness' && gameState.goldenCookieRitualActive;
+    
+    if (!isLightPath && !isDarknessWithRitual) return null;
     
     const roll = Math.random();
     let cumulative = 0;
     
-    // 10% - Yates Pickaxe
+    // 10% - Yates Pickaxe (rare!)
     cumulative += 0.10;
     if (roll < cumulative) {
       if (!gameState.ownedPickaxeIds.includes(YATES_PICKAXE_ID)) {
@@ -2741,9 +2874,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setGameState(prev => ({
           ...prev,
           ownedPickaxeIds: newOwnedPickaxes,
-          currentPickaxeId: YATES_PICKAXE_ID, // Auto-equip the Yates pickaxe!
+          currentPickaxeId: YATES_PICKAXE_ID,
         }));
-        // Force immediate save - Yates pickaxe is rare and important!
         if (userId && userType) {
           forceImmediateSave({
             user_id: userId,
@@ -2754,120 +2886,57 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }
         return { type: 'yates_pickaxe', value: YATES_PICKAXE_ID };
       }
-      // Already own it, give money instead (minimum $2000)
+      // Already own it, give 24% money bonus
       const bonus = Math.max(2000, Math.floor(gameState.yatesDollars * 0.24));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money', value: bonus };
     }
     
-    // 1% - Yates Totem
+    // 1% - Yates Totem trinket
     cumulative += 0.01;
     if (roll < cumulative) {
       if (!gameState.ownedTrinketIds.includes('yates_totem')) {
         const newOwnedTrinkets = [...gameState.ownedTrinketIds, 'yates_totem'];
-        setGameState(prev => ({
-          ...prev,
-          ownedTrinketIds: newOwnedTrinkets,
-        }));
-        // Force immediate save - Yates totem is rare!
+        setGameState(prev => ({ ...prev, ownedTrinketIds: newOwnedTrinkets }));
         if (userId && userType) {
-          forceImmediateSave({
-            user_id: userId,
-            user_type: userType,
-            owned_trinket_ids: newOwnedTrinkets,
-          });
+          forceImmediateSave({ user_id: userId, user_type: userType, owned_trinket_ids: newOwnedTrinkets });
         }
         return { type: 'yates_totem', value: 'yates_totem' };
       }
-      // Already own it, give $5000
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + 5000, totalMoneyEarned: (prev.totalMoneyEarned || 0) + 5000 }));
       return { type: 'money', value: 5000 };
     }
     
-    // 0.5% - Golden Trophy (Arghtfavts Trophye)
-    cumulative += 0.005;
-    if (roll < cumulative) {
-      if (!gameState.ownedTrinketIds.includes('golden_trophy')) {
-        const newOwnedTrinkets = [...gameState.ownedTrinketIds, 'golden_trophy'];
-        setGameState(prev => ({
-          ...prev,
-          ownedTrinketIds: newOwnedTrinkets,
-        }));
-        // Force immediate save - trophies are rare!
-        if (userId && userType) {
-          forceImmediateSave({
-            user_id: userId,
-            user_type: userType,
-            owned_trinket_ids: newOwnedTrinkets,
-          });
-        }
-        return { type: 'golden_trophy', value: 'golden_trophy' };
-      }
-      // Already own it, give money (minimum $2000)
-      const bonus = Math.max(2000, Math.floor(gameState.yatesDollars * 0.24));
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
-      return { type: 'money', value: bonus };
-    }
-    
-    // 0.5% - Silver Trophy (Nrahgrvaths Trphye)
-    cumulative += 0.005;
-    if (roll < cumulative) {
-      if (!gameState.ownedTrinketIds.includes('silver_trophy')) {
-        const newOwnedTrinkets = [...gameState.ownedTrinketIds, 'silver_trophy'];
-        setGameState(prev => ({
-          ...prev,
-          ownedTrinketIds: newOwnedTrinkets,
-        }));
-        // Force immediate save - trophies are rare!
-        if (userId && userType) {
-          forceImmediateSave({
-            user_id: userId,
-            user_type: userType,
-            owned_trinket_ids: newOwnedTrinkets,
-          });
-        }
-        return { type: 'silver_trophy', value: 'silver_trophy' };
-      }
-      // Already own it, give money (minimum $1000)
-      const bonus = Math.max(1000, Math.floor(gameState.yatesDollars * 0.12));
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
-      return { type: 'money', value: bonus };
-    }
-    
-    // 36% - +0.5% of current money (minimum $500)
+    // 36% - Small money bonus (+0.5% of current, min $500)
     cumulative += 0.36;
     if (roll < cumulative) {
       const bonus = Math.max(500, Math.floor(gameState.yatesDollars * 0.005));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
-      return { type: 'money_12', value: bonus };
+      return { type: 'money', value: bonus };
     }
     
-    // 50% - +1% of current money (minimum $1000)
+    // 50% - Medium money bonus (+1% of current, min $1000)
     cumulative += 0.50;
     if (roll < cumulative) {
       const bonus = Math.max(1000, Math.floor(gameState.yatesDollars * 0.01));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
-      return { type: 'money_24', value: bonus };
+      return { type: 'money', value: bonus };
     }
     
     // 1% - Secret "OwO" title (+500% everything!)
     cumulative += 0.01;
     if (roll < cumulative) {
       if (!gameState.ownedTitleIds?.includes('owo_secret')) {
-        setGameState(prev => ({
-          ...prev,
-          ownedTitleIds: [...(prev.ownedTitleIds || []), 'owo_secret'],
-        }));
+        setGameState(prev => ({ ...prev, ownedTitleIds: [...(prev.ownedTitleIds || []), 'owo_secret'] }));
         return { type: 'owo_title', value: 'owo_secret' };
       }
-      // Already have it, give money (minimum $2000)
       const bonus = Math.max(2000, Math.floor(gameState.yatesDollars * 0.24));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
       return { type: 'money', value: bonus };
     }
     
-    // 1% - 5min admin commands
-    const adminExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes
+    // 2% - 5min admin commands (fallback)
+    const adminExpiry = Date.now() + 5 * 60 * 1000;
     setGameState(prev => ({ ...prev, adminCommandsUntil: adminExpiry }));
     return { type: 'admin_commands', value: adminExpiry };
   }, [gameState.chosenPath, gameState.goldenCookieRitualActive, gameState.yatesDollars, gameState.ownedPickaxeIds, gameState.ownedTrinketIds, gameState.ownedTitleIds, userId, userType]);
@@ -3284,14 +3353,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [gameState.progressiveUpgrades]);
 
   // Powerups
+  // Golden Touch, Mining Frenzy, Building Boost cost 80% of current money
+  // Other powerups use fixed costs
   const buyPowerup = useCallback((powerupId: PowerupType): boolean => {
     const powerup = POWERUPS.find(p => p.id === powerupId);
     if (!powerup) return false;
-    if (gameState.yatesDollars < powerup.cost) return false;
+    
+    // These three powerups cost 80% of current money
+    const dynamicCostPowerups: PowerupType[] = ['goldenTouch', 'miningFrenzy', 'buildingBoost'];
+    const cost = dynamicCostPowerups.includes(powerupId) 
+      ? Math.floor(gameState.yatesDollars * 0.80)  // 80% of current money
+      : powerup.cost;  // Fixed cost for others
+    
+    // Need at least some money for dynamic cost powerups
+    if (dynamicCostPowerups.includes(powerupId) && gameState.yatesDollars < 1000) return false;
+    if (!dynamicCostPowerups.includes(powerupId) && gameState.yatesDollars < cost) return false;
 
     setGameState(prev => ({
       ...prev,
-      yatesDollars: prev.yatesDollars - powerup.cost,
+      yatesDollars: prev.yatesDollars - cost,
       powerupInventory: {
         ...prev.powerupInventory,
         [powerupId]: (prev.powerupInventory[powerupId] || 0) + 1,
@@ -3647,6 +3727,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         getEquippedTrinkets,
         getTotalBonuses,
         yatesTotemSpawned,
+        // Relic & Talisman functions
+        convertToRelic,
+        convertToTalisman,
+        ownsRelic,
+        ownsTalisman,
+        getRelicConversionCost,
+        getTalismanConversionCost,
         // Miner functions
         buyMiner,
         buyMiners,

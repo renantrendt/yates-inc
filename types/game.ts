@@ -135,6 +135,9 @@ export interface GameState {
   trinketShopLastRefresh: number;  // timestamp
   hasTotemProtection: boolean;     // Totem active for next prestige
   hasStocksUnlocked: boolean;      // Stock market unlocked (persists across prestige)
+  // Relics & Talismans (converted trinkets with boosted stats)
+  ownedRelicIds: string[];         // e.g., ['avatar_ring_relic'] - Light path only
+  ownedTalismanIds: string[];      // e.g., ['avatar_ring_talisman'] - Dark path only
   // Miners
   minerCount: number;
   minerLastTick: number;           // timestamp of last miner tick
@@ -538,8 +541,93 @@ export const RARITY_COLORS: Record<TrinketRarity, string> = {
   rare: '#3b82f6',      // blue
   epic: '#a855f7',      // purple
   legendary: '#f59e0b', // orange/gold
-  mythic: '#ec4899',    // pink
-  secret: '#ef4444',    // red
+  mythic: '#dc2626',    // red (shiny)
+  secret: '#1f2937',    // dark/black (shiny)
+};
+
+// =====================
+// RELIC & TALISMAN SYSTEM
+// =====================
+
+// Relic multipliers (Light path) - lower but still good
+export const RELIC_MULTIPLIERS: Record<TrinketRarity, number> = {
+  common: 2,
+  rare: 2.5,
+  epic: 2.7,
+  legendary: 4.1,
+  mythic: 5.7,
+  secret: 7,
+};
+
+// Talisman multipliers (Dark path) - higher risk, higher reward
+export const TALISMAN_MULTIPLIERS: Record<TrinketRarity, number> = {
+  common: 2,
+  rare: 2.5,
+  epic: 3.2,
+  legendary: 5,
+  mythic: 7,
+  secret: 12,
+};
+
+// Legacy export for backwards compatibility
+export const RARITY_CONVERSION_MULTIPLIERS = RELIC_MULTIPLIERS;
+
+// Relic conversion costs (Light path only) - Prestige Tokens OR Money (player chooses)
+export interface RelicConversionCost {
+  prestigeTokens: number;  // Option 1: pay with tokens
+  money: number;           // Option 2: pay with money
+}
+
+export const RELIC_CONVERSION_COSTS: Record<string, RelicConversionCost> = {
+  avatar_ring: { prestigeTokens: 5, money: 1e12 },           // 1T
+  rainbow_collar: { prestigeTokens: 5, money: 5e12 },       // 5T
+  miners_lucky_charm: { prestigeTokens: 5, money: 10e12 },  // 10T
+  ancient_compass: { prestigeTokens: 5, money: 25e12 },     // 25T
+  eternal_hourglass: { prestigeTokens: 7, money: 50e12 },   // 50T
+  cosmic_crown: { prestigeTokens: 10, money: 100e12 },      // 100T
+  spike: { prestigeTokens: 10, money: 250e12 },             // 250T
+  earth_ball: { prestigeTokens: 10, money: 500e12 },        // 500T
+  solar_collar: { prestigeTokens: 12, money: 1e15 },        // 1Q
+  dragon_scale: { prestigeTokens: 12, money: 3e15 },        // 3Q
+  obsidian_heart: { prestigeTokens: 12, money: 5e15 },      // 5Q
+  crystal_prism: { prestigeTokens: 12, money: 10e15 },      // 10Q
+  totem: { prestigeTokens: 15, money: 25e15 },              // 25Q
+  dream_collar: { prestigeTokens: 15, money: 50e15 },       // 50Q
+  phoenix_feather: { prestigeTokens: 15, money: 100e15 },   // 100Q
+  void_stone: { prestigeTokens: 17, money: 250e15 },        // 250Q
+  elder_ring: { prestigeTokens: 20, money: 500e15 },        // 500Q
+  silver_trophy: { prestigeTokens: 30, money: 750e15 },     // 750Q (Nrahgrvaths)
+  golden_trophy: { prestigeTokens: 40, money: 1e18 },       // 1Qi (Arghtfavts)
+  yates_totem: { prestigeTokens: 50, money: 3e18 },         // 3Qi
+};
+
+// Talisman conversion costs (Dark path only) - Miners + Money
+export interface TalismanConversionCost {
+  miners: number;
+  money: number;
+}
+
+export const TALISMAN_CONVERSION_COSTS: Record<string, TalismanConversionCost> = {
+  avatar_ring: { miners: 5, money: 5e12 },           // 5T
+  rainbow_collar: { miners: 5, money: 10e12 },       // 10T
+  miners_lucky_charm: { miners: 5, money: 25e12 },   // 25T
+  ancient_compass: { miners: 5, money: 50e12 },      // 50T
+  eternal_hourglass: { miners: 7, money: 100e12 },   // 100T
+  cosmic_crown: { miners: 10, money: 250e12 },       // 250T
+  spike: { miners: 15, money: 500e12 },              // 500T
+  earth_ball: { miners: 20, money: 1e15 },           // 1Q
+  solar_collar: { miners: 25, money: 3e15 },         // 3Q
+  dragon_scale: { miners: 30, money: 5e15 },         // 5Q
+  obsidian_heart: { miners: 45, money: 10e15 },      // 10Q
+  crystal_prism: { miners: 50, money: 25e15 },       // 25Q
+  totem: { miners: 75, money: 50e15 },               // 50Q
+  dream_collar: { miners: 100, money: 100e15 },      // 100Q
+  phoenix_feather: { miners: 150, money: 250e15 },   // 250Q
+  void_stone: { miners: 200, money: 500e15 },        // 500Q
+  elder_ring: { miners: 250, money: 750e15 },        // 750Q
+  silver_trophy: { miners: 300, money: 1e18 },       // 1Qi (Nrahgrvaths)
+  golden_trophy: { miners: 350, money: 3e18 },       // 3Qi (Arghtfavts)
+  yates_totem: { miners: 420, money: 5e18 },         // 5Qi
 };
 
 // =====================
