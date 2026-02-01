@@ -124,6 +124,18 @@ export default function TrinketSlot() {
             </div>
           )}
           
+          {/* Cookie status - below path indicator */}
+          {gameState.chosenPath === 'light' && (
+            <div className="text-[9px] text-yellow-300 animate-pulse">
+              🍪 Golden Cookies Active
+            </div>
+          )}
+          {gameState.chosenPath === 'darkness' && (
+            <div className={`text-[9px] ${gameState.goldenCookieRitualActive ? 'text-purple-300 animate-pulse' : 'text-gray-500'}`}>
+              {gameState.goldenCookieRitualActive ? '🟣 Dark Cookies Active' : '🟣 Dark Cookies (need ritual)'}
+            </div>
+          )}
+          
           {/* Active Buffs */}
           <div className="mt-0.5 flex flex-wrap gap-1">
             {/* Sacrifice Buff */}

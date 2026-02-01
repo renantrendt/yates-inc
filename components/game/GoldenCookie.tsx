@@ -14,6 +14,28 @@ interface RewardPopup {
   y: number;
 }
 
+// Cookie styles based on path
+const COOKIE_STYLES = {
+  light: {
+    image: '/game/cookieclicker.jpeg',
+    alt: 'Golden Cookie',
+    glowColor: 'bg-yellow-400/30',
+    sparkleColor: 'bg-yellow-300',
+    hintColor: 'text-yellow-300',
+    borderColor: 'border-yellow-500',
+    dropShadow: 'drop-shadow-[0_0_20px_rgba(234,179,8,0.8)]',
+  },
+  darkness: {
+    image: '/game/darkCookie.png',
+    alt: 'Dark Cookie',
+    glowColor: 'bg-purple-500/40',
+    sparkleColor: 'bg-purple-400',
+    hintColor: 'text-purple-300',
+    borderColor: 'border-purple-500',
+    dropShadow: 'drop-shadow-[0_0_20px_rgba(147,51,234,0.8)]',
+  },
+};
+
 export default function GoldenCookie() {
   const { gameState, claimGoldenCookieReward } = useGame();
   const [isVisible, setIsVisible] = useState(false);
@@ -49,9 +71,18 @@ export default function GoldenCookie() {
     }, spawnTime);
   }, []);
 
-  // Only spawn cookies if on darkness path with ritual active
+  // Determine if cookies should spawn based on path
+  // Light path: Always spawn (Temple feature)
+  // Darkness path: Only spawn if ritual is active
+  const shouldSpawnCookies = gameState.chosenPath === 'light' || 
+    (gameState.chosenPath === 'darkness' && gameState.goldenCookieRitualActive);
+
+  // Get cookie style based on path
+  const cookieStyle = gameState.chosenPath === 'darkness' ? COOKIE_STYLES.darkness : COOKIE_STYLES.light;
+
+  // Spawn cookies based on path conditions
   useEffect(() => {
-    if (gameState.chosenPath !== 'darkness' || !gameState.goldenCookieRitualActive) {
+    if (!shouldSpawnCookies) {
       setIsVisible(false);
       if (spawnTimeoutRef.current) {
         clearTimeout(spawnTimeoutRef.current);
@@ -67,7 +98,7 @@ export default function GoldenCookie() {
         clearTimeout(spawnTimeoutRef.current);
       }
     };
-  }, [gameState.chosenPath, gameState.goldenCookieRitualActive, scheduleNextSpawn]);
+  }, [shouldSpawnCookies, scheduleNextSpawn]);
 
   // Get reward display text
   const getRewardText = (type: string, value: number | string): { emoji: string; text: string; color: string } => {
@@ -141,7 +172,7 @@ export default function GoldenCookie() {
 
   return (
     <>
-      {/* Golden Cookie */}
+      {/* Golden/Dark Cookie */}
       {isVisible && (
         <div
           className={`fixed z-[150] cursor-pointer transition-all duration-300 ${
@@ -154,15 +185,15 @@ export default function GoldenCookie() {
           }}
           onClick={handleClick}
         >
-          {/* Glow effect */}
-          <div className="absolute inset-0 -m-4 bg-yellow-400/30 rounded-full blur-xl animate-pulse" />
+          {/* Glow effect - changes based on path */}
+          <div className={`absolute inset-0 -m-4 ${cookieStyle.glowColor} rounded-full blur-xl animate-pulse`} />
           
-          {/* Sparkle particles */}
+          {/* Sparkle particles - changes based on path */}
           <div className="absolute inset-0 -m-8">
             {[...Array(8)].map((_, i) => (
               <div
                 key={i}
-                className="absolute w-2 h-2 bg-yellow-300 rounded-full animate-sparkle"
+                className={`absolute w-2 h-2 ${cookieStyle.sparkleColor} rounded-full animate-sparkle`}
                 style={{
                   left: `${50 + Math.cos(i * 45 * Math.PI / 180) * 40}%`,
                   top: `${50 + Math.sin(i * 45 * Math.PI / 180) * 40}%`,
@@ -172,19 +203,19 @@ export default function GoldenCookie() {
             ))}
           </div>
           
-          {/* Cookie image - using provided cookie image */}
+          {/* Cookie image - changes based on path */}
           <div className="relative w-24 h-24 sm:w-32 sm:h-32 animate-bounce-slow">
             <Image
-              src="/game/cookieclicker.jpeg"
-              alt="Golden Cookie"
+              src={cookieStyle.image}
+              alt={cookieStyle.alt}
               fill
-              className="object-contain rounded-full drop-shadow-[0_0_20px_rgba(234,179,8,0.8)]"
+              className={`object-contain rounded-full ${cookieStyle.dropShadow}`}
               unoptimized
             />
           </div>
           
-          {/* Click hint */}
-          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-yellow-300 text-xs font-bold whitespace-nowrap animate-pulse">
+          {/* Click hint - changes based on path */}
+          <div className={`absolute -bottom-6 left-1/2 -translate-x-1/2 ${cookieStyle.hintColor} text-xs font-bold whitespace-nowrap animate-pulse`}>
             CLICK ME!
           </div>
         </div>
@@ -203,11 +234,11 @@ export default function GoldenCookie() {
               transform: 'translate(-50%, -50%)',
             }}
           >
-            <div className={`bg-black/90 border-2 border-yellow-500 rounded-xl px-6 py-4 text-center shadow-2xl ${reward.color}`}>
+            <div className={`bg-black/90 border-2 ${cookieStyle.borderColor} rounded-xl px-6 py-4 text-center shadow-2xl ${reward.color}`}>
               <div className="text-4xl mb-2">{reward.emoji}</div>
               <div className="text-xl font-bold">{reward.text}</div>
               {(popup.type === 'yates_pickaxe' || popup.type === 'yates_totem' || popup.type === 'owo_title') && (
-                <div className="text-yellow-400 text-sm mt-1 animate-pulse">LEGENDARY!</div>
+                <div className={`${cookieStyle.hintColor} text-sm mt-1 animate-pulse`}>LEGENDARY!</div>
               )}
             </div>
           </div>
