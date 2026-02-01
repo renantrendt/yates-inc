@@ -15,7 +15,8 @@ export default function WanderingTrader() {
     gameState, 
     isWanderingTraderVisible, 
     getWanderingTraderTimeLeft,
-    dismissWanderingTrader 
+    dismissWanderingTrader,
+    clearWanderingTraderTimer,
   } = useGame();
   
   const [position, setPosition] = useState({ x: 100, y: 100 });
@@ -106,8 +107,9 @@ export default function WanderingTrader() {
   }, [isWanderingTraderVisible, getWanderingTraderTimeLeft]);
 
   const handleClick = useCallback(() => {
+    clearWanderingTraderTimer(); // Stop the timer - player interacted
     setIsShopOpen(true);
-  }, []);
+  }, [clearWanderingTraderTimer]);
 
   const handleCloseShop = useCallback(() => {
     setIsShopOpen(false);
@@ -158,10 +160,12 @@ export default function WanderingTrader() {
           />
         </div>
 
-        {/* Time remaining */}
-        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-purple-300 text-xs font-bold whitespace-nowrap bg-black/70 px-2 py-0.5 rounded-full">
-          ⏱️ {timeLeft}s
-        </div>
+        {/* Time remaining - only show if timer is active (not interacted yet) */}
+        {timeLeft > 0 && !isShopOpen && (
+          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-purple-300 text-xs font-bold whitespace-nowrap bg-black/70 px-2 py-0.5 rounded-full">
+            ⏱️ {timeLeft}s
+          </div>
+        )}
 
         {/* Click hint */}
         <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-purple-300 text-xs font-bold whitespace-nowrap animate-bounce">

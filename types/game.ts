@@ -197,6 +197,13 @@ export interface GameState {
   wanderingTraderNextSpawn: number;          // Timestamp of next auto spawn
   wanderingTraderShopItems: WanderingTraderOffer[]; // Current shop offers (3 items)
   wanderingTraderDespawnTime: number | null; // When trader will disappear
+  // Wandering Trader Deal System
+  wtDealLevel: 0 | 1 | 2 | 3;               // 0=none, 1=5% tax +3 offers, 2=15% all boosts, 3=25% all offers
+  wtBanned: boolean;                         // Rejected final offer - never appears again
+  wtSuspicious: boolean;                     // Chose "sketchy" - 50% rare chances, 2x spawn time
+  wtRedeemed: boolean;                       // Completed redemption path after ban
+  wtDialogCompleted: boolean;                // Browse More button disappears after deal/redemption
+  wtMoneyTax: number;                        // Percentage of money earned that goes to WT (0, 0.05, 0.15, 0.25)
 }
 
 // Prestige requirements (Rock 19 = Titanium Quartz, Pickaxe 16 = Pin)
@@ -2206,20 +2213,32 @@ export function getWanderingTraderNextSpawn(): number {
     Math.random() * (WANDERING_TRADER_MAX_SPAWN - WANDERING_TRADER_MIN_SPAWN);
 }
 
-// Generate 3 random offers for Wandering Trader shop
-export function generateWanderingTraderOffers(): WanderingTraderOffer[] {
+// Generate random offers for Wandering Trader shop
+// offerCount: number of offers to generate (default 3, deal level 1 = 6, deal level 2/3 = 10)
+// rareChanceMultiplier: multiplier for rare offer chances (1 = normal, 0.5 = suspicious)
+export function generateWanderingTraderOffers(offerCount: number = 3, rareChanceMultiplier: number = 1): WanderingTraderOffer[] {
   const offers: WanderingTraderOffer[] = [];
   const usedTypes = new Set<string>();
   
-  // Calculate total weight
-  const totalWeight = WANDERING_TRADER_OFFER_CONFIGS.reduce((sum, c) => sum + c.chance, 0);
+  // Adjust weights for rare offers based on multiplier
+  const adjustedConfigs = WANDERING_TRADER_OFFER_CONFIGS.map(config => {
+    // Rare offers: special_relic, title_disgusting, roulette, stokens
+    const isRare = ['special_relic', 'title_disgusting', 'roulette', 'stokens'].includes(config.type);
+    return {
+      ...config,
+      chance: isRare ? config.chance * rareChanceMultiplier : config.chance,
+    };
+  });
   
-  while (offers.length < 3) {
+  // Calculate total weight
+  const totalWeight = adjustedConfigs.reduce((sum, c) => sum + c.chance, 0);
+  
+  while (offers.length < offerCount && offers.length < 15) { // Cap at 15 to prevent infinite loop
     // Weighted random selection
     let roll = Math.random() * totalWeight;
-    let selected: typeof WANDERING_TRADER_OFFER_CONFIGS[0] | null = null;
+    let selected: typeof adjustedConfigs[0] | null = null;
     
-    for (const config of WANDERING_TRADER_OFFER_CONFIGS) {
+    for (const config of adjustedConfigs) {
       roll -= config.chance;
       if (roll <= 0) {
         selected = config;
@@ -2227,7 +2246,7 @@ export function generateWanderingTraderOffers(): WanderingTraderOffer[] {
       }
     }
     
-    if (!selected) selected = WANDERING_TRADER_OFFER_CONFIGS[0];
+    if (!selected) selected = adjustedConfigs[0];
     
     // Pick a variant if applicable
     const variant = selected.variants 
@@ -2240,7 +2259,7 @@ export function generateWanderingTraderOffers(): WanderingTraderOffer[] {
     usedTypes.add(uniqueKey);
     
     // Generate the offer
-    const offer = createWanderingTraderOffer(selected.type, variant);
+    const offer = createWanderingTraderOffer(selected.type as WanderingTraderOfferType, variant);
     if (offer) offers.push(offer);
   }
   

@@ -6,6 +6,7 @@ import { useGame } from '@/contexts/GameContext';
 import { WanderingTraderOffer, TRINKETS } from '@/types/game';
 import TrinketSelectionModal from './TrinketSelectionModal';
 import RouletteWheel from './RouletteWheel';
+import WanderingTraderDialog from './WanderingTraderDialog';
 
 interface WanderingTraderShopModalProps {
   isOpen: boolean;
@@ -51,17 +52,16 @@ export default function WanderingTraderShopModal({ isOpen, onClose }: WanderingT
     gameState, 
     getWanderingTraderOffers, 
     purchaseWanderingTraderOffer,
-    getWanderingTraderTimeLeft,
     dismissWanderingTrader,
     getStokens,
   } = useGame();
   
   const [mounted, setMounted] = useState(false);
   const [offers, setOffers] = useState<WanderingTraderOffer[]>([]);
-  const [timeLeft, setTimeLeft] = useState(60);
   const [selectedOffer, setSelectedOffer] = useState<WanderingTraderOffer | null>(null);
   const [showTrinketPicker, setShowTrinketPicker] = useState(false);
   const [showRoulette, setShowRoulette] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
   const [purchaseMessage, setPurchaseMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -74,20 +74,7 @@ export default function WanderingTraderShopModal({ isOpen, onClose }: WanderingT
     }
   }, [isOpen, getWanderingTraderOffers]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const interval = setInterval(() => {
-      const remaining = Math.ceil(getWanderingTraderTimeLeft() / 1000);
-      setTimeLeft(remaining);
-      
-      if (remaining <= 0) {
-        onClose();
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isOpen, getWanderingTraderTimeLeft, onClose]);
+  // Timer is cleared when shop opens - player has unlimited time to browse
 
   // Clear message after 3 seconds
   useEffect(() => {
@@ -182,83 +169,103 @@ export default function WanderingTraderShopModal({ isOpen, onClose }: WanderingT
               </div>
             </div>
             <div className="text-right">
-              <div className="text-purple-300 font-bold">⏱️ {timeLeft}s</div>
-              <div className="text-purple-400 text-xs">💎 {getStokens()} Stokens</div>
+              <div className="text-purple-400 text-sm">💎 {getStokens()} Stokens</div>
             </div>
           </div>
         </div>
 
-        {/* Purchase message */}
-        {purchaseMessage && (
-          <div className={`mx-6 mt-4 p-3 rounded-lg text-center font-bold ${
-            purchaseMessage.type === 'success' 
-              ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
-              : 'bg-red-500/20 text-red-300 border border-red-500/30'
-          }`}>
-            {purchaseMessage.text}
-          </div>
-        )}
+        {/* Show Dialog OR Shop Content - not both */}
+        {showDialog ? (
+          /* Dialog Content - replaces shop content when browsing more */
+          <WanderingTraderDialog
+            isOpen={showDialog}
+            onClose={() => {
+              setShowDialog(false);
+              setOffers(getWanderingTraderOffers());
+            }}
+            isInline={true}
+          />
+        ) : (
+          <>
+            {/* Purchase message */}
+            {purchaseMessage && (
+              <div className={`mx-6 mt-4 p-3 rounded-lg text-center font-bold ${
+                purchaseMessage.type === 'success' 
+                  ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
+                  : 'bg-red-500/20 text-red-300 border border-red-500/30'
+              }`}>
+                {purchaseMessage.text}
+              </div>
+            )}
 
-        {/* Offers */}
-        <div className="p-6 space-y-4">
-          {offers.length === 0 ? (
-            <div className="text-center text-purple-400 py-8">
-              <span className="text-4xl">🤷</span>
-              <p className="mt-2">No more offers available...</p>
-            </div>
-          ) : (
-            offers.map((offer) => (
-              <div 
-                key={offer.id}
-                className="bg-gray-800/50 border border-purple-500/20 rounded-xl p-4 hover:border-purple-400/50 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-purple-200">{offer.name}</h3>
-                    <p className="text-gray-400 text-sm mt-1">{offer.description}</p>
-                    <div className="mt-2 text-sm">
-                      <span className="text-purple-400">Cost: </span>
-                      <span className={`font-bold ${
-                        offer.cost.type === 'free' ? 'text-green-400' :
-                        offer.cost.type === 'all_money' ? 'text-red-400' :
-                        'text-yellow-400'
-                      }`}>
-                        {getCostDisplay(offer)}
-                      </span>
+            {/* Offers */}
+            <div className="p-6 space-y-4">
+              {offers.length === 0 ? (
+                <div className="text-center text-purple-400 py-8">
+                  <span className="text-4xl">🤷</span>
+                  <p className="mt-2">No more offers available...</p>
+                </div>
+              ) : (
+                offers.map((offer) => (
+                  <div 
+                    key={offer.id}
+                    className="bg-gray-800/50 border border-purple-500/20 rounded-xl p-4 hover:border-purple-400/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-purple-200">{offer.name}</h3>
+                        <p className="text-gray-400 text-sm mt-1">{offer.description}</p>
+                        <div className="mt-2 text-sm">
+                          <span className="text-purple-400">Cost: </span>
+                          <span className={`font-bold ${
+                            offer.cost.type === 'free' ? 'text-green-400' :
+                            offer.cost.type === 'all_money' ? 'text-red-400' :
+                            'text-yellow-400'
+                          }`}>
+                            {getCostDisplay(offer)}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handlePurchase(offer)}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors whitespace-nowrap"
+                      >
+                        {offer.effect.type === 'roulette' ? '🎰 SPIN' : '🛒 BUY'}
+                      </button>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handlePurchase(offer)}
-                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors whitespace-nowrap"
-                  >
-                    {offer.effect.type === 'roulette' ? '🎰 SPIN' : '🛒 BUY'}
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+                ))
+              )}
+            </div>
 
-        {/* Footer */}
-        <div className="bg-gray-900/50 px-6 py-4 border-t border-purple-500/30 rounded-b-2xl flex justify-between items-center">
-          <p className="text-purple-400/60 text-xs italic">
-            "The void whispers many secrets..."
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors"
-            >
-              Browse More
-            </button>
-            <button
-              onClick={handleLeave}
-              className="px-4 py-2 bg-red-600/50 hover:bg-red-600 text-red-200 rounded-lg transition-colors"
-            >
-              Leave
-            </button>
-          </div>
-        </div>
+            {/* Footer */}
+            <div className="bg-gray-900/50 px-6 py-4 border-t border-purple-500/30 rounded-b-2xl flex justify-between items-center">
+              <p className="text-purple-400/60 text-xs italic">
+                {gameState.wtDialogCompleted 
+                  ? `"${gameState.wtMoneyTax * 100}% of your earnings are mine now..."`
+                  : '"The void whispers many secrets..."'
+                }
+              </p>
+              <div className="flex gap-2">
+                {/* Browse More - only shows before dialog completed */}
+                {!gameState.wtDialogCompleted && (
+                  <button
+                    onClick={() => setShowDialog(true)}
+                    className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-purple-200 rounded-lg transition-colors"
+                  >
+                    Browse More
+                  </button>
+                )}
+                <button
+                  onClick={handleLeave}
+                  className="px-4 py-2 bg-red-600/50 hover:bg-red-600 text-red-200 rounded-lg transition-colors"
+                >
+                  Leave
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Trinket Selection Modal */}

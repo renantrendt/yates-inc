@@ -221,7 +221,9 @@ interface GameContextType {
   // =====================
   spawnWanderingTrader: () => boolean;
   dismissWanderingTrader: () => void;
+  clearWanderingTraderTimer: () => void;
   isWanderingTraderVisible: () => boolean;
+  applyWTDialogEffect: (effect: 'suspicious' | 'deal_5' | 'deal_15' | 'deal_25' | 'ban' | 'gift' | 'redemption') => void;
   getWanderingTraderOffers: () => WanderingTraderOffer[];
   purchaseWanderingTraderOffer: (offerId: string, selectedTrinketIds?: string[]) => boolean;
   getWanderingTraderTimeLeft: () => number;
@@ -320,6 +322,13 @@ const defaultGameState: GameState = {
   wanderingTraderNextSpawn: Date.now() + 5 * 60 * 1000, // First spawn in 5 minutes
   wanderingTraderShopItems: [],
   wanderingTraderDespawnTime: null,
+  // Wandering Trader Deal System
+  wtDealLevel: 0,
+  wtBanned: false,
+  wtSuspicious: false,
+  wtRedeemed: false,
+  wtDialogCompleted: false,
+  wtMoneyTax: 0,
 };
 
 const STORAGE_KEY_PREFIX = 'yates-mining-game';
@@ -1813,6 +1822,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       earnedMoney *= factoryMoneyMultiplier; // Factory money buff
       earnedMoney *= templeCurseMoneyPenalty; // Temple curse penalties
       earnedMoney = Math.ceil(earnedMoney);
+      
+      // Wandering Trader money tax (if deal is active)
+      if (prev.wtMoneyTax > 0) {
+        earnedMoney = Math.ceil(earnedMoney * (1 - prev.wtMoneyTax));
+      }
 
       // Update totals
       const newTotalClicks = prev.totalClicks + clickPower;
@@ -3507,21 +3521,37 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const spawnWanderingTrader = useCallback((): boolean => {
     // Only available on Darkness path
     if (gameState.chosenPath !== 'darkness') return false;
+    // Don't spawn if banned (unless using admin command)
+    if (gameState.wtBanned) return false;
     
-    // Generate 3 random offers
-    const offers = generateWanderingTraderOffers();
+    // Determine number of offers based on deal level
+    // Default 3, Deal 1 = 6 offers, Deal 2/3 = ALL offers available
+    let offerCount = 3;
+    if (gameState.wtDealLevel === 1) offerCount = 6;
+    if (gameState.wtDealLevel >= 2) offerCount = 10; // Basically all types
+    
+    // Generate offers with rare chance modifier if suspicious
+    const rareChanceMultiplier = gameState.wtSuspicious ? 0.5 : 1;
+    const offers = generateWanderingTraderOffers(offerCount, rareChanceMultiplier);
+    
+    // Calculate next spawn time with modifiers
+    let spawnMultiplier = 1;
+    if (gameState.wtSuspicious) spawnMultiplier = 2; // 2x slower
+    if (gameState.wtRedeemed) spawnMultiplier = 0.8; // 1.25x faster
+    const baseNextSpawn = getWanderingTraderNextSpawn();
+    const adjustedNextSpawn = Date.now() + (baseNextSpawn - Date.now()) * spawnMultiplier;
     
     setGameState(prev => ({
       ...prev,
       wanderingTraderVisible: true,
       wanderingTraderLastSpawn: Date.now(),
-      wanderingTraderNextSpawn: getWanderingTraderNextSpawn(),
+      wanderingTraderNextSpawn: adjustedNextSpawn,
       wanderingTraderShopItems: offers,
       wanderingTraderDespawnTime: Date.now() + WANDERING_TRADER_DURATION,
     }));
     
     return true;
-  }, [gameState.chosenPath]);
+  }, [gameState.chosenPath, gameState.wtBanned, gameState.wtDealLevel, gameState.wtSuspicious, gameState.wtRedeemed]);
 
   const dismissWanderingTrader = useCallback(() => {
     setGameState(prev => ({
@@ -3530,6 +3560,39 @@ export function GameProvider({ children }: { children: ReactNode }) {
       wanderingTraderShopItems: [],
       wanderingTraderDespawnTime: null,
     }));
+  }, []);
+
+  // Clear the despawn timer when player interacts with the trader (opens shop)
+  const clearWanderingTraderTimer = useCallback(() => {
+    setGameState(prev => ({
+      ...prev,
+      wanderingTraderDespawnTime: null,
+    }));
+  }, []);
+
+  // Apply WT dialog effects (deal accepted, ban, suspicious, etc.)
+  const applyWTDialogEffect = useCallback((effect: 'suspicious' | 'deal_5' | 'deal_15' | 'deal_25' | 'ban' | 'gift' | 'redemption') => {
+    setGameState(prev => {
+      switch (effect) {
+        case 'suspicious':
+          return { ...prev, wtSuspicious: true };
+        case 'deal_5':
+          return { ...prev, wtDealLevel: 1 as const, wtMoneyTax: 0.05, wtDialogCompleted: true };
+        case 'deal_15':
+          return { ...prev, wtDealLevel: 2 as const, wtMoneyTax: 0.15, wtDialogCompleted: true };
+        case 'deal_25':
+          return { ...prev, wtDealLevel: 3 as const, wtMoneyTax: 0.25, wtDialogCompleted: true };
+        case 'ban':
+          return { ...prev, wtBanned: true };
+        case 'gift':
+          // Take 80% of money
+          return { ...prev, yatesDollars: Math.floor(prev.yatesDollars * 0.2) };
+        case 'redemption':
+          return { ...prev, wtBanned: false, wtRedeemed: true, wtDealLevel: 2 as const, wtMoneyTax: 0.15, wtDialogCompleted: true };
+        default:
+          return prev;
+      }
+    });
   }, []);
 
   const isWanderingTraderVisible = useCallback((): boolean => {
@@ -4139,7 +4202,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         // Wandering Trader functions
         spawnWanderingTrader,
         dismissWanderingTrader,
+        clearWanderingTraderTimer,
         isWanderingTraderVisible,
+        applyWTDialogEffect,
         getWanderingTraderOffers,
         purchaseWanderingTraderOffer,
         getWanderingTraderTimeLeft,

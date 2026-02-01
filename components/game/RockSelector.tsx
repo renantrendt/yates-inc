@@ -1,9 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { ROCKS, getScaledUnlockThreshold } from '@/lib/gameData';
 import { getScaledRockHP } from '@/types/game';
+import WanderingTraderDialog from './WanderingTraderDialog';
 
 interface RockSelectorProps {
   onClose: () => void;
@@ -11,6 +13,7 @@ interface RockSelectorProps {
 
 export default function RockSelector({ onClose }: RockSelectorProps) {
   const { gameState, selectRock, currentRock } = useGame();
+  const [showRedemptionDialog, setShowRedemptionDialog] = useState(false);
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000000000000000) return `${(num / 1000000000000000000).toFixed(1)}Qi`;
@@ -110,7 +113,21 @@ export default function RockSelector({ onClose }: RockSelectorProps) {
                   <p className="text-gray-400 text-[10px] sm:text-xs text-center">
                     ${formatNumber(rock.moneyPerBreak)}/break
                   </p>
-                  <p className="text-gray-500 text-[10px] sm:text-xs text-center">
+                  {/* HP - clickable for redemption when banned */}
+                  <p 
+                    className={`text-gray-500 text-[10px] sm:text-xs text-center ${
+                      gameState.wtBanned && !gameState.wtRedeemed 
+                        ? 'cursor-pointer hover:text-purple-400 transition-colors' 
+                        : ''
+                    }`}
+                    onClick={(e) => {
+                      if (gameState.wtBanned && !gameState.wtRedeemed) {
+                        e.stopPropagation();
+                        setShowRedemptionDialog(true);
+                      }
+                    }}
+                    title={gameState.wtBanned && !gameState.wtRedeemed ? '🧙 A familiar presence...' : undefined}
+                  >
                     {formatNumber(getScaledRockHP(rock.clicksToBreak, gameState.prestigeCount))} HP
                   </p>
                 </button>
@@ -135,8 +152,26 @@ export default function RockSelector({ onClose }: RockSelectorProps) {
               </div>
             </div>
           </div>
+
+          {/* Hint when banned - shows that HP can be clicked */}
+          {gameState.wtBanned && !gameState.wtRedeemed && (
+            <div className="mt-3 text-center">
+              <p className="text-purple-400/60 text-xs italic animate-pulse">
+                💀 A familiar presence lingers... perhaps click on a rock&apos;s HP?
+              </p>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Wandering Trader Redemption Dialog */}
+      {showRedemptionDialog && (
+        <WanderingTraderDialog
+          isOpen={showRedemptionDialog}
+          onClose={() => setShowRedemptionDialog(false)}
+          isRedemption={true}
+        />
+      )}
     </div>
   );
 }

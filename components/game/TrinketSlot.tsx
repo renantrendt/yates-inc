@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { TRINKETS, RARITY_COLORS, Trinket, RELIC_MULTIPLIERS, TALISMAN_MULTIPLIERS } from '@/types/game';
+import BuffBar from './BuffBar';
 
 export default function TrinketSlot() {
   const [showSelector, setShowSelector] = useState(false);
@@ -205,6 +206,11 @@ export default function TrinketSlot() {
               {gameState.chosenPath === 'light' ? '☀️ Light Path' : '🌑 Darkness Path'}
             </div>
           )}
+          
+          {/* Active Buffs/Debuffs Bar - below path indicator */}
+          <div className="mt-1">
+            <BuffBar />
+          </div>
           
           {/* Cookie status - only show for Darkness path since Light is always active */}
           {gameState.chosenPath === 'darkness' && !gameState.goldenCookieRitualActive && (

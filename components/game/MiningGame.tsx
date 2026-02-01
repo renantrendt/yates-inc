@@ -683,10 +683,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       {/* Building Display - Left side, mirrors miners on right */}
       <BuildingDisplay />
 
-      {/* Buff Bar - Above bottom stats */}
-      <div className="fixed bottom-28 sm:bottom-36 left-1/2 -translate-x-1/2 z-25 px-2">
-        <BuffBar />
-      </div>
+{/* BuffBar moved to TrinketSlot component - below path indicator */}
 
       {/* Bottom Stats */}
       <div className="fixed bottom-0 left-0 right-0 p-2 sm:p-4 z-30">
