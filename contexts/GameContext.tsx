@@ -485,13 +485,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 return {
                 ...prev,
                 // Use whichever source has more progress
-                yatesDollars: useSupabase ? (supabaseData.yates_dollars ?? prev.yatesDollars) : prev.yatesDollars,
+                // Take max for money to preserve gifts from admins
+                yatesDollars: Math.max(prev.yatesDollars || 0, supabaseData.yates_dollars || 0),
                 totalClicks: useSupabase ? (supabaseData.total_clicks ?? prev.totalClicks) : prev.totalClicks,
                 currentPickaxeId: useSupabase ? (supabaseData.current_pickaxe_id ?? prev.currentPickaxeId) : prev.currentPickaxeId,
                 currentRockId: useSupabase ? (supabaseData.current_rock_id ?? prev.currentRockId) : prev.currentRockId,
                 currentRockHP: useSupabase ? (supabaseData.current_rock_hp ?? prev.currentRockHP) : prev.currentRockHP,
                 rocksMinedCount: useSupabase ? (supabaseData.rocks_mined_count ?? prev.rocksMinedCount) : prev.rocksMinedCount,
-                ownedPickaxeIds: useSupabase ? (supabaseData.owned_pickaxe_ids?.length ? supabaseData.owned_pickaxe_ids : prev.ownedPickaxeIds) : prev.ownedPickaxeIds,
+                // Merge pickaxes from both sources - ensures gifted pickaxes are never lost
+                ownedPickaxeIds: [...new Set([...(prev.ownedPickaxeIds || [1]), ...(supabaseData.owned_pickaxe_ids || [])])],
                 coupons: useSupabase ? {
                   discount30: supabaseData.coupons_30 ?? prev.coupons.discount30,
                   discount50: supabaseData.coupons_50 ?? prev.coupons.discount50,
@@ -509,8 +511,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 isOnWatchlist: supabaseData.is_on_watchlist ?? prev.isOnWatchlist,
                 isBlocked: supabaseData.is_blocked ?? prev.isBlocked,
                 appealPending: supabaseData.appeal_pending ?? prev.appealPending,
-                // Trinkets
-                ownedTrinketIds: useSupabase ? (supabaseData.owned_trinket_ids?.length ? supabaseData.owned_trinket_ids : prev.ownedTrinketIds) : prev.ownedTrinketIds,
+                // Trinkets - merge from both sources to preserve gifted trinkets
+                ownedTrinketIds: [...new Set([...(prev.ownedTrinketIds || []), ...(supabaseData.owned_trinket_ids || [])])],
                 equippedTrinketIds: useSupabase ? (supabaseData.equipped_trinket_ids?.length ? supabaseData.equipped_trinket_ids : prev.equippedTrinketIds) : prev.equippedTrinketIds,
                 trinketShopItems: supabaseData.trinket_shop_items?.length 
                   ? (supabaseData.trinket_shop_items as string[]) 
@@ -518,11 +520,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
                 trinketShopLastRefresh: supabaseData.trinket_shop_last_refresh ?? prev.trinketShopLastRefresh,
                 hasTotemProtection: useSupabase ? (supabaseData.has_totem_protection ?? prev.hasTotemProtection) : prev.hasTotemProtection,
                 hasStocksUnlocked: useSupabase ? (supabaseData.has_stocks_unlocked ?? prev.hasStocksUnlocked) : prev.hasStocksUnlocked,
-                // Miners
-                minerCount: useSupabase ? (supabaseData.miner_count ?? prev.minerCount) : prev.minerCount,
+                // Miners - take max to preserve gifted miners
+                minerCount: Math.max(prev.minerCount || 0, supabaseData.miner_count || 0),
                 minerLastTick: useSupabase ? (supabaseData.miner_last_tick ?? prev.minerLastTick) : prev.minerLastTick,
-                // Prestige upgrades
-                prestigeTokens: useSupabase ? (supabaseData.prestige_tokens ?? prev.prestigeTokens) : prev.prestigeTokens,
+                // Prestige upgrades - take max to preserve gifted tokens
+                prestigeTokens: Math.max(prev.prestigeTokens || 0, supabaseData.prestige_tokens || 0),
                 ownedPrestigeUpgradeIds: useSupabase ? (supabaseData.owned_prestige_upgrade_ids?.length ? supabaseData.owned_prestige_upgrade_ids : prev.ownedPrestigeUpgradeIds) : prev.ownedPrestigeUpgradeIds,
                 // Auto-prestige
                 autoPrestigeEnabled: useSupabase ? (supabaseData.auto_prestige_enabled ?? prev.autoPrestigeEnabled) : prev.autoPrestigeEnabled,

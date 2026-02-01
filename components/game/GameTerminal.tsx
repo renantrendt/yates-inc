@@ -546,6 +546,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       } else if (type.toLowerCase() === 'miners') {
         addToHistory(`   👷 ${updateData.miner_count} miners`);
       }
+      addToHistory(`💡 Items will sync on ${targetName}'s next page load`);
     } catch (err) {
       addToHistory(`❌ Error: ${err}`);
     }
