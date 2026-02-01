@@ -41,7 +41,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const terminalRef = useRef<HTMLDivElement>(null);
   const cmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory, addMoney, addMiners, addPrestigeTokens, giveTrinket, givePickaxe, setTotalClicks, toggleAutoPrestige, giveTitle, equipTitle, unlockAllAchievements, selectPath, maxAll } = useGame();
+  const { gameState, resetGame, buyPickaxe, equipPickaxe, prestige, dismissWarning, clearClickHistory, addMoney, addMiners, addPrestigeTokens, giveTrinket, givePickaxe, setTotalClicks, toggleAutoPrestige, giveTitle, equipTitle, unlockAllAchievements, selectPath, maxAll, spawnWanderingTrader, addStokens } = useGame();
   const { employee } = useAuth();
   const { client } = useClient();
   
@@ -597,6 +597,8 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory('ban [id/email/name] [reason]');
         addToHistory('unban [id]     - Unban a user');
         addToHistory('banned         - List all banned');
+        addToHistory('wt.spwn        - Spawn Wandering Trader 🧙');
+        addToHistory('stks [amt]     - Give yourself Stokens 💎');
       }
       addToHistory('');
     } 
@@ -903,11 +905,44 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         }
       }
     }
+    // Spawn Wandering Trader (ADMIN ONLY)
+    else if (trimmed === 'wt.spwn') {
+      if (!isBanAdmin) {
+        addToHistory(`❌ Wandering Trader spawn is admin-only.`);
+      } else if (gameState.chosenPath !== 'darkness') {
+        addToHistory(`❌ Wandering Trader only appears on Darkness path!`);
+        addToHistory('   Use: side d');
+      } else {
+        const success = spawnWanderingTrader();
+        if (success) {
+          addToHistory('🧙 A Wandering Trader approaches...');
+          addToHistory('   Click on him to see his wares!');
+        } else {
+          addToHistory('❌ Failed to spawn trader');
+        }
+      }
+    }
+    // Give Stokens (ADMIN ONLY)
+    else if (trimmed.startsWith('stks ')) {
+      if (!isBanAdmin) {
+        addToHistory(`❌ Stokens command is admin-only.`);
+      } else {
+        const amtStr = trimmed.slice(5).trim();
+        const amt = parseInt(amtStr, 10);
+        if (isNaN(amt) || amt <= 0) {
+          addToHistory('❌ Invalid amount. Use: stks [number]');
+        } else {
+          addStokens(amt);
+          addToHistory(`💎 +${amt} Stokens added!`);
+          addToHistory(`   Total: ${gameState.stokens + amt} Stokens`);
+        }
+      }
+    }
     else {
       addToHistory(`❌ Unknown command: ${trimmed}`);
       addToHistory('Type help for available commands');
     }
-  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers, giveToPlayer, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, prestige, toggleAutoPrestige, gameState.autoPrestigeEnabled, gameState.isBlocked, dismissWarning, clearClickHistory, givePickaxe, selectPath, maxAll]);
+  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers, giveToPlayer, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, prestige, toggleAutoPrestige, gameState.autoPrestigeEnabled, gameState.isBlocked, gameState.chosenPath, gameState.stokens, dismissWarning, clearClickHistory, givePickaxe, selectPath, maxAll, spawnWanderingTrader, addStokens]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

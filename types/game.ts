@@ -188,6 +188,15 @@ export interface GameState {
   activePowerups: ActivePowerup[];
   // Guaranteed coupon flag (from Lucky Strike powerup)
   guaranteedCouponDrop: boolean;
+  // =====================
+  // WANDERING TRADER SYSTEM (Darkness path only)
+  // =====================
+  stokens: number;                           // Special currency from Wandering Trader
+  wanderingTraderVisible: boolean;           // Is trader currently on screen
+  wanderingTraderLastSpawn: number;          // Timestamp of last spawn
+  wanderingTraderNextSpawn: number;          // Timestamp of next auto spawn
+  wanderingTraderShopItems: WanderingTraderOffer[]; // Current shop offers (3 items)
+  wanderingTraderDespawnTime: number | null; // When trader will disappear
 }
 
 // Prestige requirements (Rock 19 = Titanium Quartz, Pickaxe 16 = Pin)
@@ -534,6 +543,35 @@ export const TRINKETS: Trinket[] = [
     },
     description: '+75% money, +115% click speed, +22.5% pcx/miner dmg, +50% miner speed',
   },
+  // =====================
+  // WANDERING TRADER SPECIAL TRINKETS
+  // =====================
+  {
+    id: 'void_merchants_pact',
+    name: "Void Merchant's Pact",
+    image: '/game/accessories/wtRelic.png',
+    rarity: 'secret',
+    cost: 140000000000000000, // 140Q - only from Wandering Trader
+    shopChance: 0, // Wandering Trader only
+    effects: { 
+      moneyBonus: 1.0,           // +100% money
+      clickSpeedBonus: 1.0,      // +100% click speed
+      allBonus: 1.0,             // +100% all (buildings get special treatment in-game)
+    },
+    description: '+100% money, click speed, buildings mega buffed! (Bank 1% interest, Factory +30% faster +15 miners, Mine 30 miners & 40% boost)',
+  },
+  {
+    id: 'fortunes_gambit',
+    name: "Fortune's Gambit",
+    image: '/game/accessories/fbRelic.png',
+    rarity: 'secret',
+    cost: 999999999999999, // Priceless - only from Roulette
+    shopChance: 0, // Roulette only
+    effects: { 
+      allBonus: 1.0,             // +100% to EVERYTHING
+    },
+    description: '+100% to ALL stats! A true gambler\'s reward.',
+  },
 ];
 
 export const RARITY_COLORS: Record<TrinketRarity, string> = {
@@ -542,7 +580,7 @@ export const RARITY_COLORS: Record<TrinketRarity, string> = {
   epic: '#a855f7',      // purple
   legendary: '#f59e0b', // orange/gold
   mythic: '#dc2626',    // red (shiny)
-  secret: '#1f2937',    // dark/black (shiny)
+  secret: '#ec4899',    // pink/magenta (shiny secret)
 };
 
 // =====================
@@ -889,6 +927,9 @@ export interface TitleBuffs {
   speedBonus?: number;           // % faster (clicks, miners, etc.)
   pcxDiscount?: number;          // % discount on pickaxes
   prestigeMoneyRetention?: number; // % of money kept on prestige
+  minerSpeedBonus?: number;      // % faster miners
+  minerDamageBonus?: number;     // % extra miner damage
+  pcxDamageBonus?: number;       // % extra pickaxe damage
 }
 
 export interface Title {
@@ -998,6 +1039,23 @@ export const TITLES: Title[] = [
     placement: 'secret',
     buffs: { moneyBonus: 0.60 }, // +60% money
     nameStyle: 'gold',
+  },
+  // Wandering Trader exclusive title (Darkness path only)
+  {
+    id: 'disgusting',
+    name: 'Disgusting',
+    description: 'Trading with a Wandering Trader??? EWW (this title is kinda gud tho aint gon lie)',
+    icon: '🤮',
+    category: 'secret',
+    placement: 'secret',
+    buffs: { 
+      minerSpeedBonus: 0.81,    // +81% miner speed
+      minerDamageBonus: 0.81,   // +81% miner damage (applies to Mines too)
+      pcxDamageBonus: 0.41,     // +41% pickaxe damage
+      speedBonus: 0.41,         // +41% click speed
+      moneyBonus: 0.65,         // +65% money
+    },
+    nameStyle: 'diamond',
   },
 ];
 
@@ -1975,4 +2033,382 @@ export function generateShipmentDelivery(shipmentCount: number): ShipmentDeliver
     value,
     arrivalTime: getNextShipmentDeliveryTime(shipmentCount),
   };
+}
+
+// =====================
+// WANDERING TRADER SYSTEM (Darkness path only)
+// =====================
+
+export const WANDERING_TRADER_MIN_SPAWN = 5 * 60 * 1000;  // 5 minutes
+export const WANDERING_TRADER_MAX_SPAWN = 15 * 60 * 1000; // 15 minutes
+export const WANDERING_TRADER_DURATION = 60 * 1000;       // 1 minute on screen
+
+export type WanderingTraderOfferType = 
+  | 'empc_temp'           // 10% EMPC for 1min, -11% click speed
+  | 'empc_perm'           // 40% perm EMPC, costs all money
+  | 'cps_temp'            // 50% CPS for 2min, costs 2 trinkets
+  | 'roulette'            // 1 roulette spin, 50Q
+  | 'special_relic'       // Void Merchant's Pact, 140Q
+  | 'stokens'             // Buy Stokens with money
+  | 'pcx_dmg_temp'        // 10-50% pcx damage for 1min
+  | 'coupon_luck_perm'    // 100-3400% coupon luck perm
+  | 'miner_speed_perm'    // 10-280% miner speed perm
+  | 'miner_speed_temp'    // 10-280% miner speed for 3min
+  | 'miner_dmg_perm'      // 10-400% miner damage perm
+  | 'title_disgusting';   // "Disgusting" title with mega buffs
+
+export interface WanderingTraderOffer {
+  id: string;
+  type: WanderingTraderOfferType;
+  name: string;
+  description: string;
+  cost: WanderingTraderCost;
+  effect: WanderingTraderEffect;
+  variant?: number; // For offers with multiple variants (e.g., 10%, 20%, etc.)
+}
+
+export interface WanderingTraderCost {
+  type: 'money' | 'trinkets' | 'all_money' | 'debuff' | 'free';
+  amount?: number;           // For money costs
+  trinketCount?: number;     // For trinket costs
+  debuff?: {                 // For debuff costs
+    type: 'clickSpeed';
+    value: number;           // e.g., -0.11 = -11%
+    duration: number;        // ms
+  };
+}
+
+export interface WanderingTraderEffect {
+  type: 'buff' | 'perm_buff' | 'roulette' | 'trinket' | 'stokens' | 'title';
+  buffType?: 'money' | 'clickSpeed' | 'pcxDamage' | 'couponLuck' | 'minerSpeed' | 'minerDamage' | 'allStats';
+  value?: number;            // Buff multiplier or Stoken amount
+  duration?: number;         // For temporary buffs (ms)
+  trinketId?: string;        // For trinket rewards
+  titleId?: string;          // For title rewards
+}
+
+// Wandering Trader offer configurations with spawn chances
+export const WANDERING_TRADER_OFFER_CONFIGS: {
+  type: WanderingTraderOfferType;
+  chance: number; // Relative weight (not percentage)
+  variants?: number[]; // For offers with multiple tiers
+}[] = [
+  { type: 'empc_temp', chance: 18 },
+  { type: 'empc_perm', chance: 23 },
+  { type: 'cps_temp', chance: 25 },
+  { type: 'roulette', chance: 15 },
+  { type: 'special_relic', chance: 0.5 },
+  { type: 'stokens', chance: 20 },
+  { type: 'pcx_dmg_temp', chance: 60, variants: [10, 20, 30, 40, 50] },
+  { type: 'coupon_luck_perm', chance: 80, variants: [100, 200, 300, 400, 500, 600, 1000, 2300, 2800, 3400] },
+  { type: 'miner_speed_perm', chance: 40, variants: [10, 20, 40, 80, 120, 280] },
+  { type: 'miner_speed_temp', chance: 40, variants: [10, 20, 40, 80, 120, 280] },
+  { type: 'miner_dmg_perm', chance: 30, variants: [10, 15, 20, 25, 30, 35, 40, 45, 60, 70, 80, 90, 100, 300, 400] },
+  { type: 'title_disgusting', chance: 0.05 },
+];
+
+// Price ranges for variable cost offers
+export const WANDERING_TRADER_PRICES = {
+  pcx_dmg_temp: { // 10-50% variants, base 200T for 50%
+    10: 40e12,    // 40T
+    20: 80e12,    // 80T
+    30: 120e12,   // 120T
+    40: 160e12,   // 160T
+    50: 200e12,   // 200T
+  } as Record<number, number>,
+  coupon_luck_perm: { // 100-3400%, 300M for 100%, 21Q for 3400%
+    100: 300e6,     // 300M
+    200: 1e9,       // 1B
+    300: 5e9,       // 5B
+    400: 25e9,      // 25B
+    500: 100e9,     // 100B
+    600: 500e9,     // 500B
+    1000: 2e12,     // 2T
+    2300: 5e15,     // 5Q
+    2800: 12e15,    // 12Q
+    3400: 21e15,    // 21Q
+  } as Record<number, number>,
+  miner_speed_perm: { // 10-280%, 200B-31Q
+    10: 200e9,      // 200B
+    20: 500e9,      // 500B
+    40: 2e12,       // 2T
+    80: 10e12,      // 10T
+    120: 100e12,    // 100T
+    280: 31e15,     // 31Q
+  } as Record<number, number>,
+  miner_speed_temp: { // 10-280% for 3min, 100M-10Q
+    10: 100e6,      // 100M
+    20: 500e6,      // 500M
+    40: 5e9,        // 5B
+    80: 50e9,       // 50B
+    120: 500e9,     // 500B
+    280: 10e15,     // 10Q
+  } as Record<number, number>,
+  miner_dmg_perm: { // 10-400%, 100T-300QI
+    10: 100e12,     // 100T
+    15: 200e12,     // 200T
+    20: 500e12,     // 500T
+    25: 1e15,       // 1Q
+    30: 2e15,       // 2Q
+    35: 5e15,       // 5Q
+    40: 10e15,      // 10Q
+    45: 20e15,      // 20Q
+    60: 50e15,      // 50Q
+    70: 100e15,     // 100Q
+    80: 200e15,     // 200Q
+    90: 500e15,     // 500Q
+    100: 1e18,      // 1QI
+    300: 100e18,    // 100QI
+    400: 300e18,    // 300QI
+  } as Record<number, number>,
+  roulette: 50e15,        // 50Q
+  special_relic: 140e15,  // 140Q
+};
+
+// Stokens pricing based on money magnitude
+export const STOKENS_PRICING = {
+  K: { min: 1e3, max: 1e6, stokens: 1 },       // Thousands = 1 Stoken
+  M: { min: 1e6, max: 1e9, stokens: 2 },       // Millions = 2 Stokens
+  B: { min: 1e9, max: 1e12, stokens: 3 },      // Billions = 3 Stokens
+  T: { min: 1e12, max: 1e15, stokens: 7 },     // Trillions = 7 Stokens
+  Q: { min: 1e15, max: 1e18, stokens: 10 },    // Quadrillions = 10 Stokens
+  QI: { min: 1e18, max: Infinity, stokens: 13 }, // Quintillions = 13 Stokens
+};
+
+// Roulette wheel segments
+export type RouletteSegment = 
+  | 'nothing'
+  | 'special_trinket'
+  | 'money_loss'
+  | 'prestige_tokens'
+  | 'stokens';
+
+export interface RouletteResult {
+  segment: RouletteSegment;
+  value?: number;      // Amount for tokens/stokens
+  trinketId?: string;  // For special trinket
+}
+
+export const ROULETTE_SEGMENTS: { segment: RouletteSegment; weight: number; value?: number }[] = [
+  { segment: 'nothing', weight: 1 },
+  { segment: 'nothing', weight: 1 },
+  { segment: 'nothing', weight: 1 },
+  { segment: 'nothing', weight: 1 },
+  { segment: 'special_trinket', weight: 1 },
+  { segment: 'money_loss', weight: 1, value: 0.80 }, // Lose 80% of money
+  { segment: 'prestige_tokens', weight: 1, value: 10 },
+  { segment: 'stokens', weight: 1, value: 5 },
+];
+
+// Generate random spawn time for Wandering Trader
+export function getWanderingTraderNextSpawn(): number {
+  return Date.now() + WANDERING_TRADER_MIN_SPAWN + 
+    Math.random() * (WANDERING_TRADER_MAX_SPAWN - WANDERING_TRADER_MIN_SPAWN);
+}
+
+// Generate 3 random offers for Wandering Trader shop
+export function generateWanderingTraderOffers(): WanderingTraderOffer[] {
+  const offers: WanderingTraderOffer[] = [];
+  const usedTypes = new Set<string>();
+  
+  // Calculate total weight
+  const totalWeight = WANDERING_TRADER_OFFER_CONFIGS.reduce((sum, c) => sum + c.chance, 0);
+  
+  while (offers.length < 3) {
+    // Weighted random selection
+    let roll = Math.random() * totalWeight;
+    let selected: typeof WANDERING_TRADER_OFFER_CONFIGS[0] | null = null;
+    
+    for (const config of WANDERING_TRADER_OFFER_CONFIGS) {
+      roll -= config.chance;
+      if (roll <= 0) {
+        selected = config;
+        break;
+      }
+    }
+    
+    if (!selected) selected = WANDERING_TRADER_OFFER_CONFIGS[0];
+    
+    // Pick a variant if applicable
+    const variant = selected.variants 
+      ? selected.variants[Math.floor(Math.random() * selected.variants.length)]
+      : undefined;
+    
+    // Create unique key to avoid duplicates
+    const uniqueKey = variant !== undefined ? `${selected.type}_${variant}` : selected.type;
+    if (usedTypes.has(uniqueKey)) continue;
+    usedTypes.add(uniqueKey);
+    
+    // Generate the offer
+    const offer = createWanderingTraderOffer(selected.type, variant);
+    if (offer) offers.push(offer);
+  }
+  
+  return offers;
+}
+
+// Create a specific offer based on type and variant
+export function createWanderingTraderOffer(
+  type: WanderingTraderOfferType, 
+  variant?: number
+): WanderingTraderOffer | null {
+  const id = `wt_${type}_${variant || ''}_${Date.now()}`;
+  
+  switch (type) {
+    case 'empc_temp':
+      return {
+        id,
+        type,
+        name: '+10% Money/Click (1min)',
+        description: 'Earn 10% more money per click for 1 minute. WARNING: -11% click speed!',
+        cost: { type: 'debuff', debuff: { type: 'clickSpeed', value: -0.11, duration: 60000 } },
+        effect: { type: 'buff', buffType: 'money', value: 0.10, duration: 60000 },
+      };
+      
+    case 'empc_perm':
+      return {
+        id,
+        type,
+        name: '+40% Money/Click (PERM)',
+        description: 'Permanently earn 40% more money per click. Cost: ALL YOUR MONEY!',
+        cost: { type: 'all_money' },
+        effect: { type: 'perm_buff', buffType: 'money', value: 0.40 },
+      };
+      
+    case 'cps_temp':
+      return {
+        id,
+        type,
+        name: '+50% Click Speed (2min)',
+        description: 'Click 50% faster for 2 minutes. Cost: Give away 2 trinkets!',
+        cost: { type: 'trinkets', trinketCount: 2 },
+        effect: { type: 'buff', buffType: 'clickSpeed', value: 0.50, duration: 120000 },
+      };
+      
+    case 'roulette':
+      return {
+        id,
+        type,
+        name: '🎰 Roulette Spin',
+        description: 'Spin the wheel of fortune! Win special trinkets, tokens, or... nothing.',
+        cost: { type: 'money', amount: WANDERING_TRADER_PRICES.roulette },
+        effect: { type: 'roulette' },
+      };
+      
+    case 'special_relic':
+      return {
+        id,
+        type,
+        name: '🌀 Void Merchant\'s Pact',
+        description: '+100% money, click speed, and mega building buffs! (Pre-converted Talisman)',
+        cost: { type: 'money', amount: WANDERING_TRADER_PRICES.special_relic },
+        effect: { type: 'trinket', trinketId: 'void_merchants_pact' },
+      };
+      
+    case 'stokens': {
+      // Random money amount in various magnitudes
+      const magnitudes = Object.entries(STOKENS_PRICING);
+      const [, pricing] = magnitudes[Math.floor(Math.random() * magnitudes.length)];
+      const amount = pricing.min + Math.random() * (Math.min(pricing.max, pricing.min * 1000) - pricing.min);
+      return {
+        id,
+        type,
+        name: `💎 ${pricing.stokens} Stokens`,
+        description: `Purchase ${pricing.stokens} Stokens for use in special shops.`,
+        cost: { type: 'money', amount },
+        effect: { type: 'stokens', value: pricing.stokens },
+      };
+    }
+      
+    case 'pcx_dmg_temp':
+      if (!variant) return null;
+      return {
+        id,
+        type,
+        name: `+${variant}% Pickaxe Damage (1min)`,
+        description: `Boost pickaxe damage by ${variant}% for 1 minute.`,
+        cost: { type: 'money', amount: WANDERING_TRADER_PRICES.pcx_dmg_temp[variant] || 100e12 },
+        effect: { type: 'buff', buffType: 'pcxDamage', value: variant / 100, duration: 60000 },
+        variant,
+      };
+      
+    case 'coupon_luck_perm':
+      if (!variant) return null;
+      return {
+        id,
+        type,
+        name: `+${variant}% Coupon Luck (PERM)`,
+        description: `Permanently increase coupon drop rate by ${variant}%!`,
+        cost: { type: 'money', amount: WANDERING_TRADER_PRICES.coupon_luck_perm[variant] || 1e9 },
+        effect: { type: 'perm_buff', buffType: 'couponLuck', value: variant / 100 },
+        variant,
+      };
+      
+    case 'miner_speed_perm':
+      if (!variant) return null;
+      return {
+        id,
+        type,
+        name: `+${variant}% Miner Speed (PERM)`,
+        description: `Permanently increase miner tick speed by ${variant}%!`,
+        cost: { type: 'money', amount: WANDERING_TRADER_PRICES.miner_speed_perm[variant] || 1e12 },
+        effect: { type: 'perm_buff', buffType: 'minerSpeed', value: variant / 100 },
+        variant,
+      };
+      
+    case 'miner_speed_temp':
+      if (!variant) return null;
+      return {
+        id,
+        type,
+        name: `+${variant}% Miner Speed (3min)`,
+        description: `Boost miner speed by ${variant}% for 3 minutes.`,
+        cost: { type: 'money', amount: WANDERING_TRADER_PRICES.miner_speed_temp[variant] || 1e9 },
+        effect: { type: 'buff', buffType: 'minerSpeed', value: variant / 100, duration: 180000 },
+        variant,
+      };
+      
+    case 'miner_dmg_perm':
+      if (!variant) return null;
+      return {
+        id,
+        type,
+        name: `+${variant}% Miner Damage (PERM)`,
+        description: `Permanently increase miner damage by ${variant}%! (Applies to Mines too)`,
+        cost: { type: 'money', amount: WANDERING_TRADER_PRICES.miner_dmg_perm[variant] || 1e15 },
+        effect: { type: 'perm_buff', buffType: 'minerDamage', value: variant / 100 },
+        variant,
+      };
+      
+    case 'title_disgusting':
+      return {
+        id,
+        type,
+        name: '🤮 Title: "Disgusting"',
+        description: 'Trading with a Wandering Trader??? EWW! (+81% miner stats, +41% click/pcx, +65% money)',
+        cost: { type: 'free' },
+        effect: { type: 'title', titleId: 'disgusting' },
+      };
+      
+    default:
+      return null;
+  }
+}
+
+// Spin the roulette and get result
+export function spinRoulette(): RouletteResult {
+  const totalWeight = ROULETTE_SEGMENTS.reduce((sum, s) => sum + s.weight, 0);
+  let roll = Math.random() * totalWeight;
+  
+  for (const segment of ROULETTE_SEGMENTS) {
+    roll -= segment.weight;
+    if (roll <= 0) {
+      if (segment.segment === 'special_trinket') {
+        return { segment: segment.segment, trinketId: 'fortunes_gambit' };
+      }
+      return { segment: segment.segment, value: segment.value };
+    }
+  }
+  
+  return { segment: 'nothing' };
 }

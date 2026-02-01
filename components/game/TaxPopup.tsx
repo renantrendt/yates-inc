@@ -25,29 +25,21 @@ export default function TaxPopup() {
   
   const { gameState } = useGame();
 
-  // Check for pending tax notification on mount
-  useEffect(() => {
-    const pendingTax = localStorage.getItem('yates-game-tax-pending');
-    if (pendingTax) {
-      const data = JSON.parse(pendingTax);
-      setTaxData(data);
-      setShow(true);
-      localStorage.removeItem('yates-game-tax-pending');
-    }
-  }, []);
-
-  // Listen for new tax events
+  // Listen for tax events (single source of truth - no localStorage)
   useEffect(() => {
     const handleTaxEvent = (e: CustomEvent) => {
-      setTaxData(e.detail);
-      setShow(true);
+      // Only show if not already showing to prevent duplicates
+      if (!show) {
+        setTaxData(e.detail);
+        setShow(true);
+      }
     };
     
     window.addEventListener('yates-tax-collected' as string, handleTaxEvent as EventListener);
     return () => {
       window.removeEventListener('yates-tax-collected' as string, handleTaxEvent as EventListener);
     };
-  }, []);
+  }, [show]);
 
   const handleDismiss = () => {
     setShow(false);

@@ -163,6 +163,12 @@ export default function GameShop({ onClose }: GameShopProps) {
                 <span className="text-purple-300 font-bold text-xs sm:text-sm">{gameState.prestigeTokens}</span>
               </div>
             )}
+            {gameState.chosenPath === 'darkness' && gameState.stokens > 0 && (
+              <div className="bg-black/30 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1">
+                <span className="text-sm sm:text-base">💎</span>
+                <span className="text-blue-300 font-bold text-xs sm:text-sm">{gameState.stokens}</span>
+              </div>
+            )}
             <button
               onClick={onClose}
               className="text-white/80 hover:text-white text-2xl sm:text-3xl leading-none touch-manipulation p-2"

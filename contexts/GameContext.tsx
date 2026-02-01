@@ -28,6 +28,10 @@ import {
   TEMPLE_MINER_MONEY_MULTIPLIER, TEMPLE_BUFF_INTERVAL_MIN, TEMPLE_BUFF_INTERVAL_MAX,
   getProgressiveUpgradeCost, getProgressiveUpgradeBonus,
   generateShipmentDelivery,
+  // Wandering Trader system
+  WanderingTraderOffer, RouletteResult,
+  WANDERING_TRADER_DURATION, 
+  generateWanderingTraderOffers, getWanderingTraderNextSpawn, spinRoulette,
 } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
@@ -212,6 +216,28 @@ interface GameContextType {
   buyPowerup: (powerupId: PowerupType) => boolean;
   usePowerup: (powerupId: PowerupType) => boolean;
   getPowerupCount: (powerupId: PowerupType) => number;
+  // =====================
+  // WANDERING TRADER SYSTEM (Darkness path only)
+  // =====================
+  spawnWanderingTrader: () => boolean;
+  dismissWanderingTrader: () => void;
+  isWanderingTraderVisible: () => boolean;
+  getWanderingTraderOffers: () => WanderingTraderOffer[];
+  purchaseWanderingTraderOffer: (offerId: string, selectedTrinketIds?: string[]) => boolean;
+  getWanderingTraderTimeLeft: () => number;
+  // Stokens
+  addStokens: (amount: number) => void;
+  spendStokens: (amount: number) => boolean;
+  getStokens: () => number;
+  // Roulette
+  spinRouletteWheel: () => RouletteResult;
+  // Permanent buffs from Wandering Trader
+  wanderingTraderPermBuffs: {
+    moneyBonus: number;
+    couponLuckBonus: number;
+    minerSpeedBonus: number;
+    minerDamageBonus: number;
+  };
 }
 
 const defaultGameState: GameState = {
@@ -287,6 +313,13 @@ const defaultGameState: GameState = {
   powerupInventory: getDefaultPowerupInventory(),
   activePowerups: [],
   guaranteedCouponDrop: false,
+  // Wandering Trader system (Darkness path only)
+  stokens: 0,
+  wanderingTraderVisible: false,
+  wanderingTraderLastSpawn: 0,
+  wanderingTraderNextSpawn: Date.now() + 5 * 60 * 1000, // First spawn in 5 minutes
+  wanderingTraderShopItems: [],
+  wanderingTraderDespawnTime: null,
 };
 
 const STORAGE_KEY_PREFIX = 'yates-mining-game';
@@ -1168,6 +1201,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           prestigeCount: newPrestigeCount,
           prestigeMultiplier: newMultiplier,
           prestigeTokens: prev.prestigeTokens + tokensToAdd,
+          // Give 1 Stoken every 5 prestiges
+          stokens: prev.stokens + (newPrestigeCount % 5 === 0 ? 1 : 0),
           hasTotemProtection: false,
           // Remove totem from inventory if used
           ownedTrinketIds: ownsTotem ? prev.ownedTrinketIds.filter(id => id !== 'totem') : prev.ownedTrinketIds,
@@ -2078,6 +2113,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       prestigeCount: newPrestigeCount,
       prestigeMultiplier: newMultiplier,
       prestigeTokens: prev.prestigeTokens + tokensToAdd,
+      // Give 1 Stoken every 5 prestiges (Darkness path only, tracked for all)
+      stokens: prev.stokens + (newPrestigeCount % 5 === 0 ? 1 : 0),
       // Consume totem protection if it was used
       hasTotemProtection: false,
       // Ranking: track fastest prestige time and reset game start
@@ -3455,6 +3492,296 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return gameState.powerupInventory[powerupId] || 0;
   }, [gameState.powerupInventory]);
 
+  // =====================
+  // WANDERING TRADER SYSTEM
+  // =====================
+  
+  // Track permanent buffs from Wandering Trader purchases
+  const [wanderingTraderPermBuffs, setWanderingTraderPermBuffs] = useState({
+    moneyBonus: 0,
+    couponLuckBonus: 0,
+    minerSpeedBonus: 0,
+    minerDamageBonus: 0,
+  });
+
+  const spawnWanderingTrader = useCallback((): boolean => {
+    // Only available on Darkness path
+    if (gameState.chosenPath !== 'darkness') return false;
+    
+    // Generate 3 random offers
+    const offers = generateWanderingTraderOffers();
+    
+    setGameState(prev => ({
+      ...prev,
+      wanderingTraderVisible: true,
+      wanderingTraderLastSpawn: Date.now(),
+      wanderingTraderNextSpawn: getWanderingTraderNextSpawn(),
+      wanderingTraderShopItems: offers,
+      wanderingTraderDespawnTime: Date.now() + WANDERING_TRADER_DURATION,
+    }));
+    
+    return true;
+  }, [gameState.chosenPath]);
+
+  const dismissWanderingTrader = useCallback(() => {
+    setGameState(prev => ({
+      ...prev,
+      wanderingTraderVisible: false,
+      wanderingTraderShopItems: [],
+      wanderingTraderDespawnTime: null,
+    }));
+  }, []);
+
+  const isWanderingTraderVisible = useCallback((): boolean => {
+    return gameState.wanderingTraderVisible && 
+           (gameState.wanderingTraderDespawnTime === null || 
+            Date.now() < gameState.wanderingTraderDespawnTime);
+  }, [gameState.wanderingTraderVisible, gameState.wanderingTraderDespawnTime]);
+
+  const getWanderingTraderOffers = useCallback((): WanderingTraderOffer[] => {
+    return gameState.wanderingTraderShopItems;
+  }, [gameState.wanderingTraderShopItems]);
+
+  const getWanderingTraderTimeLeft = useCallback((): number => {
+    if (!gameState.wanderingTraderDespawnTime) return 0;
+    return Math.max(0, gameState.wanderingTraderDespawnTime - Date.now());
+  }, [gameState.wanderingTraderDespawnTime]);
+
+  // Stokens functions
+  const addStokens = useCallback((amount: number) => {
+    setGameState(prev => ({
+      ...prev,
+      stokens: prev.stokens + amount,
+    }));
+  }, []);
+
+  const spendStokens = useCallback((amount: number): boolean => {
+    if (gameState.stokens < amount) return false;
+    setGameState(prev => ({
+      ...prev,
+      stokens: prev.stokens - amount,
+    }));
+    return true;
+  }, [gameState.stokens]);
+
+  const getStokens = useCallback((): number => {
+    return gameState.stokens;
+  }, [gameState.stokens]);
+
+  // Roulette spin
+  const spinRouletteWheel = useCallback((): RouletteResult => {
+    const result = spinRoulette();
+    
+    // Apply the result
+    switch (result.segment) {
+      case 'money_loss':
+        const lossAmount = Math.floor(gameState.yatesDollars * (result.value || 0.80));
+        setGameState(prev => ({
+          ...prev,
+          yatesDollars: prev.yatesDollars - lossAmount,
+        }));
+        break;
+      case 'prestige_tokens':
+        setGameState(prev => ({
+          ...prev,
+          prestigeTokens: prev.prestigeTokens + (result.value || 10),
+        }));
+        break;
+      case 'stokens':
+        setGameState(prev => ({
+          ...prev,
+          stokens: prev.stokens + (result.value || 5),
+        }));
+        break;
+      case 'special_trinket':
+        if (result.trinketId) {
+          // Fortune's Gambit comes pre-converted as a Relic
+          // Add to ownedTrinketIds as base ID, and to ownedRelicIds with _relic suffix
+          setGameState(prev => ({
+            ...prev,
+            ownedTrinketIds: [...prev.ownedTrinketIds, result.trinketId!],
+            ownedRelicIds: [...prev.ownedRelicIds, `${result.trinketId!}_relic`],
+          }));
+        }
+        break;
+      // 'nothing' - no action needed
+    }
+    
+    return result;
+  }, [gameState.yatesDollars]);
+
+  // Purchase Wandering Trader offer
+  const purchaseWanderingTraderOffer = useCallback((offerId: string, selectedTrinketIds?: string[]): boolean => {
+    const offer = gameState.wanderingTraderShopItems.find(o => o.id === offerId);
+    if (!offer) return false;
+
+    // Check and deduct cost
+    switch (offer.cost.type) {
+      case 'money':
+        if (gameState.yatesDollars < (offer.cost.amount || 0)) return false;
+        setGameState(prev => ({
+          ...prev,
+          yatesDollars: prev.yatesDollars - (offer.cost.amount || 0),
+        }));
+        break;
+      case 'all_money':
+        setGameState(prev => ({
+          ...prev,
+          yatesDollars: 0,
+        }));
+        break;
+      case 'trinkets':
+        const requiredCount = offer.cost.trinketCount || 2;
+        if (!selectedTrinketIds || selectedTrinketIds.length !== requiredCount) return false;
+        // Check ownership and remove trinkets
+        for (const trinketId of selectedTrinketIds) {
+          if (!gameState.ownedTrinketIds.includes(trinketId)) return false;
+        }
+        setGameState(prev => ({
+          ...prev,
+          ownedTrinketIds: prev.ownedTrinketIds.filter(id => !selectedTrinketIds.includes(id)),
+          equippedTrinketIds: prev.equippedTrinketIds.filter(id => !selectedTrinketIds.includes(id)),
+        }));
+        break;
+      case 'debuff':
+        // Apply debuff along with the purchase
+        if (offer.cost.debuff) {
+          const debuff: ActiveDebuff = {
+            id: `wt_debuff_${Date.now()}`,
+            type: 'slowPickaxe',
+            severity: Math.abs(offer.cost.debuff.value),
+            duration: offer.cost.debuff.duration,
+            startTime: Date.now(),
+            name: `${Math.round(Math.abs(offer.cost.debuff.value) * 100)}% Slower Clicks`,
+            icon: '🐌',
+          };
+          setGameState(prev => ({
+            ...prev,
+            activeDebuffs: [...prev.activeDebuffs, debuff],
+          }));
+        }
+        break;
+      case 'free':
+        // No cost
+        break;
+    }
+
+    // Apply effect
+    switch (offer.effect.type) {
+      case 'buff':
+        if (offer.effect.buffType && offer.effect.value !== undefined) {
+          const buff: ActiveBuff = {
+            id: `wt_buff_${Date.now()}`,
+            type: offer.effect.buffType === 'pcxDamage' ? 'damage' : 
+                  offer.effect.buffType === 'couponLuck' ? 'money' : 
+                  offer.effect.buffType as any,
+            multiplier: offer.effect.value,
+            duration: offer.effect.duration || 60000,
+            startTime: Date.now(),
+            source: 'event',
+            name: offer.name,
+            icon: '🧙',
+          };
+          setGameState(prev => ({
+            ...prev,
+            activeBuffs: [...prev.activeBuffs, buff],
+          }));
+        }
+        break;
+      case 'perm_buff':
+        if (offer.effect.buffType && offer.effect.value !== undefined) {
+          setWanderingTraderPermBuffs(prev => ({
+            ...prev,
+            [offer.effect.buffType === 'money' ? 'moneyBonus' :
+             offer.effect.buffType === 'couponLuck' ? 'couponLuckBonus' :
+             offer.effect.buffType === 'minerSpeed' ? 'minerSpeedBonus' :
+             offer.effect.buffType === 'minerDamage' ? 'minerDamageBonus' : 'moneyBonus'
+            ]: prev[offer.effect.buffType === 'money' ? 'moneyBonus' :
+                    offer.effect.buffType === 'couponLuck' ? 'couponLuckBonus' :
+                    offer.effect.buffType === 'minerSpeed' ? 'minerSpeedBonus' :
+                    offer.effect.buffType === 'minerDamage' ? 'minerDamageBonus' : 'moneyBonus'
+            ] + offer.effect.value,
+          }));
+        }
+        break;
+      case 'trinket':
+        if (offer.effect.trinketId) {
+          // Void Merchant's Pact comes pre-converted as a Talisman
+          // Add to ownedTrinketIds as base ID, and to ownedTalismanIds with _talisman suffix
+          setGameState(prev => ({
+            ...prev,
+            ownedTrinketIds: [...prev.ownedTrinketIds, offer.effect.trinketId!],
+            ownedTalismanIds: [...prev.ownedTalismanIds, `${offer.effect.trinketId!}_talisman`],
+          }));
+        }
+        break;
+      case 'stokens':
+        if (offer.effect.value) {
+          setGameState(prev => ({
+            ...prev,
+            stokens: prev.stokens + offer.effect.value!,
+          }));
+        }
+        break;
+      case 'title':
+        if (offer.effect.titleId) {
+          setGameState(prev => ({
+            ...prev,
+            ownedTitleIds: [...prev.ownedTitleIds, offer.effect.titleId!],
+          }));
+        }
+        break;
+      case 'roulette':
+        // Roulette is handled separately via spinRouletteWheel
+        // This just indicates the purchase was successful
+        break;
+    }
+
+    // Remove the purchased offer from shop
+    setGameState(prev => ({
+      ...prev,
+      wanderingTraderShopItems: prev.wanderingTraderShopItems.filter(o => o.id !== offerId),
+    }));
+
+    return true;
+  }, [gameState.wanderingTraderShopItems, gameState.yatesDollars, gameState.ownedTrinketIds, gameState.stokens]);
+
+  // Auto-spawn Wandering Trader (Darkness path only)
+  useEffect(() => {
+    if (gameState.chosenPath !== 'darkness') return;
+    if (gameState.wanderingTraderVisible) return;
+
+    const timeUntilSpawn = gameState.wanderingTraderNextSpawn - Date.now();
+    if (timeUntilSpawn <= 0) {
+      // Spawn immediately if time has passed
+      spawnWanderingTrader();
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      spawnWanderingTrader();
+    }, timeUntilSpawn);
+
+    return () => clearTimeout(timeout);
+  }, [gameState.chosenPath, gameState.wanderingTraderVisible, gameState.wanderingTraderNextSpawn, spawnWanderingTrader]);
+
+  // Auto-despawn Wandering Trader after 1 minute
+  useEffect(() => {
+    if (!gameState.wanderingTraderVisible || !gameState.wanderingTraderDespawnTime) return;
+
+    const timeUntilDespawn = gameState.wanderingTraderDespawnTime - Date.now();
+    if (timeUntilDespawn <= 0) {
+      dismissWanderingTrader();
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      dismissWanderingTrader();
+    }, timeUntilDespawn);
+
+    return () => clearTimeout(timeout);
+  }, [gameState.wanderingTraderVisible, gameState.wanderingTraderDespawnTime, dismissWanderingTrader]);
+
   // Clear expired buffs periodically
   useEffect(() => {
     const interval = setInterval(() => {
@@ -3646,8 +3973,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Wealth tax for 1QI+ players (10-30% daily)
   const WEALTH_TAX_THRESHOLD = 1000000000000000000; // 1 Quintillion
   const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  const wealthTaxAppliedRef = useRef(false);
   
   useEffect(() => {
+    // Guard against re-triggering during the same session
+    if (wealthTaxAppliedRef.current) return;
+    
     // Only check if player has 1QI+ money
     if (gameState.yatesDollars < WEALTH_TAX_THRESHOLD) return;
     
@@ -3657,6 +3988,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const timeSinceLastTax = now - lastTax;
     
     if (timeSinceLastTax < ONE_DAY_MS) return;
+    
+    // Mark as applying tax to prevent re-triggering
+    wealthTaxAppliedRef.current = true;
     
     // Apply tax: random 10-30%
     const taxRate = 0.10 + (Math.random() * 0.20); // 10% to 30%
@@ -3670,19 +4004,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
       lastTaxTime: now,
     }));
     
-    // Store pending tax notification for popup
+    // Dispatch event for popup (only using event, not localStorage)
     const taxData = {
       originalAmount: gameState.yatesDollars,
       taxRate,
       taxAmount,
       remainingAmount,
     };
-    localStorage.setItem('yates-game-tax-pending', JSON.stringify(taxData));
-    
-    // Dispatch event for immediate popup
     window.dispatchEvent(new CustomEvent('yates-tax-collected', { detail: taxData }));
     
     console.log(`💀 WEALTH TAX: Collected ${Math.round(taxRate * 100)}% ($${taxAmount.toLocaleString()}) from player with $${gameState.yatesDollars.toLocaleString()}`);
+    
+    // Reset the guard after a delay to allow future tax (next day)
+    setTimeout(() => {
+      wealthTaxAppliedRef.current = false;
+    }, 5000);
   }, [gameState.yatesDollars, gameState.lastTaxTime]);
 
   // Always render - game will work with default state while data loads
@@ -3800,6 +4136,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
         buyPowerup,
         usePowerup,
         getPowerupCount,
+        // Wandering Trader functions
+        spawnWanderingTrader,
+        dismissWanderingTrader,
+        isWanderingTraderVisible,
+        getWanderingTraderOffers,
+        purchaseWanderingTraderOffer,
+        getWanderingTraderTimeLeft,
+        addStokens,
+        spendStokens,
+        getStokens,
+        spinRouletteWheel,
+        wanderingTraderPermBuffs,
       }}
     >
       {children}

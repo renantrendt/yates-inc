@@ -19,6 +19,7 @@ import TrinketIndex from './TrinketIndex';
 import RankingPanel from './RankingPanel';
 import PathSelectionModal from './PathSelectionModal';
 import GoldenCookie from './GoldenCookie';
+import WanderingTrader from './WanderingTrader';
 import SacrificeModal from './SacrificeModal';
 import TaxPopup from './TaxPopup';
 import BuildingDisplay from './BuildingDisplay';
@@ -788,6 +789,9 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
       {/* Golden Cookie - Darkness path with ritual active */}
       <GoldenCookie />
+
+      {/* Wandering Trader - Darkness path only */}
+      <WanderingTrader />
 
       {/* Tax Popup - 1QI+ wealth tax */}
       <TaxPopup />
