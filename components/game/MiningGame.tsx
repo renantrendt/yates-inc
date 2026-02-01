@@ -411,25 +411,43 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     );
   }
 
+  // Get background image based on current rock level
+  const getBackgroundForRock = (rockId: number): string | null => {
+    if (rockId >= 26) return '/game/bg-26-29.png';
+    if (rockId >= 21) return '/game/bg-21-25.png';
+    if (rockId >= 16) return '/game/bg-16-20.png';
+    if (rockId >= 11) return '/game/bg-11-15.png';
+    if (rockId >= 6) return '/game/bg-6-10.png';
+    return null; // Default cave gradient for rocks 1-5
+  };
+
+  const backgroundImage = getBackgroundForRock(gameState.currentRockId);
+
   return (
     <div className="fixed inset-0 overflow-hidden select-none z-[100]">
-      {/* Cave Background */}
+      {/* Cave Background - changes based on rock level */}
       <div
-        className="absolute inset-0"
-        style={{
+        className="absolute inset-0 transition-all duration-1000"
+        style={backgroundImage ? {
+          backgroundImage: `url('${backgroundImage}')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        } : {
           background: `
             radial-gradient(ellipse at 50% 30%, #3d2817 0%, #1a0f0a 50%, #0d0705 100%),
             linear-gradient(180deg, #2d1f15 0%, #1a0f0a 100%)
           `,
         }}
       >
-        {/* Rock texture overlay */}
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
-          }}
-        />
+        {/* Rock texture overlay - only for default bg */}
+        {!backgroundImage && (
+          <div
+            className="absolute inset-0 opacity-30"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+            }}
+          />
+        )}
 
         {/* Ambient cave glow */}
         <div
