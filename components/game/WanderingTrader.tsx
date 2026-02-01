@@ -59,11 +59,11 @@ export default function WanderingTrader() {
         let newVx = velocity.vx;
         let newVy = velocity.vy;
 
-        // Bounce off edges
+        // Bounce off edges - keep away from bottom UI (stats panel ~180px from bottom)
         const maxX = window.innerWidth - TRADER_SIZE - 20;
-        const maxY = window.innerHeight - TRADER_SIZE - 20;
+        const maxY = window.innerHeight - TRADER_SIZE - 200; // Stay above bottom stats
         const minX = 20;
-        const minY = 20;
+        const minY = 80; // Stay below top HUD
 
         if (newX <= minX || newX >= maxX) {
           newVx = -velocity.vx;
@@ -167,8 +167,8 @@ export default function WanderingTrader() {
           </div>
         )}
 
-        {/* Click hint */}
-        <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-purple-300 text-xs font-bold whitespace-nowrap animate-bounce">
+        {/* Click hint - hidden on mobile to reduce clutter */}
+        <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-purple-300 text-xs font-bold whitespace-nowrap animate-bounce hidden sm:block">
           🛒 TRADE?
         </div>
       </div>

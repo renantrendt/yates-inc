@@ -47,20 +47,20 @@ export default function TrinketShopButton({ hidden = false }: TrinketShopButtonP
         </div>
       )}
       
-      {/* Trinket Shop Button */}
+      {/* Trinket Shop Button - positioned above the bottom stats panel on mobile */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 left-4 z-30 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95"
+        className="fixed bottom-[180px] sm:bottom-[200px] left-2 sm:left-4 z-30 flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95"
         style={{ 
           backgroundColor: buttonColor,
           boxShadow: `0 0 20px ${buttonColor}50`,
         }}
       >
-        <span className="text-2xl">💎</span>
+        <span className="text-lg sm:text-2xl">💎</span>
         <div className="text-left text-white">
-          <p className="font-bold text-sm">Trinket Shop</p>
-          <p className="text-xs opacity-80">
-            {trinketShopItems.length} items • {minutes}:{seconds.toString().padStart(2, '0')}
+          <p className="font-bold text-xs sm:text-sm">Trinkets</p>
+          <p className="text-[10px] sm:text-xs opacity-80">
+            {trinketShopItems.length} • {minutes}:{seconds.toString().padStart(2, '0')}
           </p>
         </div>
       </button>

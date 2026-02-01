@@ -64,8 +64,37 @@ export default function BuildingDisplay() {
 
   return (
     <>
-      {/* Right side building display - same area as miners */}
-      <div className="fixed right-2 sm:right-4 bottom-36 sm:bottom-44 z-[35] flex flex-col gap-2 pointer-events-auto items-end">
+      {/* Mobile: Compact horizontal bar at bottom-right, above stats */}
+      <div className="fixed right-2 bottom-[180px] z-[35] pointer-events-auto sm:hidden">
+        <div className="bg-black/90 backdrop-blur-sm rounded-lg px-2 py-1.5 border border-amber-600/30 flex flex-wrap gap-1 max-w-[160px] justify-end">
+          {ownedBuildings.map((building) => {
+            const isClickable = clickableBuildings.includes(building.id);
+            const shortName = {
+              mine: '⛏️',
+              bank: '🏦',
+              factory: '🏭',
+              temple: '⛪',
+              wizard_tower: '🧙',
+              shipment: '🚀',
+            }[building.id] || '🏠';
+            
+            return (
+              <button
+                key={building.id}
+                onClick={() => isClickable && handleBuildingClick(building.id)}
+                className={`flex items-center gap-0.5 bg-amber-900/30 rounded px-1.5 py-0.5 ${isClickable ? 'active:bg-amber-700/50' : ''}`}
+                title={`${building.name}${isClickable ? ' (tap to manage)' : ''}`}
+              >
+                <span className="text-sm">{shortName}</span>
+                <span className="text-amber-400 font-bold text-[10px]">{building.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop: Full building display with images */}
+      <div className="hidden sm:flex fixed right-4 bottom-[200px] z-[35] flex-col gap-2 pointer-events-auto items-end">
         {ownedBuildings.map((building) => {
           const isClickable = clickableBuildings.includes(building.id);
           const maxVisible = 2;
@@ -86,7 +115,7 @@ export default function BuildingDisplay() {
                 {Array.from({ length: Math.min(building.count, maxVisible) }).map((_, index) => (
                   <div 
                     key={index}
-                    className="w-10 h-10 sm:w-12 sm:h-12 relative animate-building-idle"
+                    className="w-12 h-12 relative animate-building-idle"
                     style={{ animationDelay: `${index * 150}ms` }}
                   >
                     <Image

@@ -172,10 +172,20 @@ export default function TrinketSlot() {
       {/* Active Bonuses Summary (Compact view below trinkets) */}
       {hasActiveBonuses && (
         <div 
-          className="absolute top-full left-0 mt-1 cursor-pointer"
+          className="absolute top-full left-0 mt-1 cursor-pointer max-w-[120px] sm:max-w-none"
           onClick={() => setShowBonusDetails(!showBonusDetails)}
         >
-          <div className="flex flex-wrap gap-1 text-[10px] whitespace-nowrap">
+          {/* Mobile: Ultra compact single row with just icons and total bonus */}
+          <div className="sm:hidden flex items-center gap-0.5 text-[9px] bg-black/60 rounded px-1 py-0.5">
+            {bonuses.moneyBonus > 0 && <span className="text-green-400">💰</span>}
+            {bonuses.rockDamageBonus > 0 && <span className="text-orange-400">⛏️</span>}
+            {bonuses.minerDamageBonus > 0 && <span className="text-yellow-400">👷</span>}
+            {bonuses.couponBonus > 0 && <span className="text-purple-400">🎟️</span>}
+            <span className="text-gray-300 text-[8px]">tap</span>
+          </div>
+          
+          {/* Desktop: Full bonus display */}
+          <div className="hidden sm:flex flex-wrap gap-1 text-[10px] whitespace-nowrap">
             {bonuses.moneyBonus > 0 && (
               <span className="bg-green-900/50 text-green-400 px-1.5 py-0.5 rounded">
                 💰+{(bonuses.moneyBonus * 100).toFixed(0)}%
@@ -198,30 +208,30 @@ export default function TrinketSlot() {
             )}
           </div>
           
-          {/* Path indicator */}
+          {/* Path indicator - more compact on mobile */}
           {gameState.chosenPath && (
-            <div className={`mt-1 text-[9px] font-bold ${
+            <div className={`mt-0.5 sm:mt-1 text-[8px] sm:text-[9px] font-bold ${
               gameState.chosenPath === 'light' ? 'text-yellow-400' : 'text-purple-400'
             }`}>
-              {gameState.chosenPath === 'light' ? '☀️ Light Path' : '🌑 Darkness Path'}
+              {gameState.chosenPath === 'light' ? '☀️' : '🌑'}<span className="hidden sm:inline"> {gameState.chosenPath === 'light' ? 'Light Path' : 'Darkness Path'}</span>
             </div>
           )}
           
-          {/* Active Buffs/Debuffs Bar - below path indicator */}
-          <div className="mt-1">
+          {/* Active Buffs/Debuffs Bar - hidden on mobile to save space */}
+          <div className="mt-1 hidden sm:block">
             <BuffBar />
           </div>
           
-          {/* Cookie status - only show for Darkness path since Light is always active */}
+          {/* Cookie status - hidden on mobile */}
           {gameState.chosenPath === 'darkness' && !gameState.goldenCookieRitualActive && (
-            <div className="text-[9px] text-gray-500">
+            <div className="text-[9px] text-gray-500 hidden sm:block">
               🟣 Do ritual for Dark Cookies
             </div>
           )}
           
-          {/* Pickaxe Passive Bonuses */}
+          {/* Pickaxe Passive Bonuses - hidden on mobile */}
           {currentPickaxe && (currentPickaxe.moneyMultiplier || currentPickaxe.couponLuckBonus) && (
-            <div className="mt-0.5 text-[8px] text-gray-400">
+            <div className="mt-0.5 text-[8px] text-gray-400 hidden sm:block">
               {currentPickaxe.moneyMultiplier && currentPickaxe.moneyMultiplier > 1 && (
                 <span className="text-green-400">💰+{Math.round((currentPickaxe.moneyMultiplier - 1) * 100)}% money </span>
               )}
@@ -231,30 +241,29 @@ export default function TrinketSlot() {
             </div>
           )}
           
-          {/* Active Buffs with detailed descriptions */}
-          <div className="mt-0.5 flex flex-wrap gap-1">
+          {/* Active Buffs with detailed descriptions - more compact on mobile */}
+          <div className="mt-0.5 flex flex-wrap gap-0.5 sm:gap-1">
             {/* Sacrifice Buff - show actual effect */}
             {hasActiveSacrificeBuff && gameState.sacrificeBuff && (
-              <span className="text-[9px] text-red-400 animate-pulse" title="Sacrifice buff active">
-                🩸{gameState.sacrificeBuff.allBonus > 0 
+              <span className="text-[8px] sm:text-[9px] text-red-400 animate-pulse" title="Sacrifice buff active">
+                🩸<span className="hidden sm:inline">{gameState.sacrificeBuff.allBonus > 0 
                   ? `+${Math.round(gameState.sacrificeBuff.allBonus * 100)}% all` 
                   : `+${Math.round(gameState.sacrificeBuff.moneyBonus * 100)}% money`
-                } {sacrificeTimeRemaining}s
+                }</span> {sacrificeTimeRemaining}s
               </span>
             )}
             
             {/* Wizard Ritual - show what it does */}
             {wizardRitualActive && (
-              <span className="text-[9px] text-purple-400 animate-pulse" title="Wizard Ritual: 3x all stats">
-                🔮3x all {wizardTimeRemaining}s
+              <span className="text-[8px] sm:text-[9px] text-purple-400 animate-pulse" title="Wizard Ritual: 3x all stats">
+                🔮<span className="hidden sm:inline">3x all</span> {wizardTimeRemaining}s
               </span>
             )}
             
-            {/* Factory Buffs - show what each one does */}
+            {/* Factory Buffs - icons only on mobile */}
             {activeBuffs.map(buff => {
               const timeLeft = Math.ceil((buff.startTime + buff.duration - now) / 1000);
               if (timeLeft <= 0) return null;
-              // Better descriptions based on buff type
               const buffInfo = {
                 damage: { icon: '⚔️', label: 'damage' },
                 money: { icon: '💰', label: 'money' },
@@ -262,8 +271,8 @@ export default function TrinketSlot() {
                 miner: { icon: '👷', label: 'miners' },
               }[buff.type] || { icon: '🏭', label: buff.type };
               return (
-                <span key={buff.id} className="text-[9px] text-amber-400" title={`Factory buff: +${Math.round(buff.multiplier * 100)}% ${buffInfo.label}`}>
-                  {buffInfo.icon}+{Math.round(buff.multiplier * 100)}% {buffInfo.label} {timeLeft}s
+                <span key={buff.id} className="text-[8px] sm:text-[9px] text-amber-400" title={`Factory buff: +${Math.round(buff.multiplier * 100)}% ${buffInfo.label}`}>
+                  {buffInfo.icon}<span className="hidden sm:inline">+{Math.round(buff.multiplier * 100)}% {buffInfo.label}</span> {timeLeft}s
                 </span>
               );
             })}
