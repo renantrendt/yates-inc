@@ -855,7 +855,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         // Apply ALL bonuses: trinkets, prestige upgrades, and active abilities
         const totalDamageBonus = bonuses.minerDamageBonus + bonuses.minerSpeedBonus + abilityMinerSpeedBonus + abilityAllBonus;
         const totalMoneyBonus = bonuses.moneyBonus + abilityAllBonus;
-        const damage = Math.ceil(prev.minerCount * MINER_BASE_DAMAGE * (1 + totalDamageBonus));
+        const regularMinerDamage = Math.ceil(prev.minerCount * MINER_BASE_DAMAGE * (1 + totalDamageBonus));
+        // Shadow miners deal 1000 damage per second each (Darkness path Wizard Tower)
+        const shadowMinerDamage = prev.buildings.wizard_tower.shadowMiners * 1000;
+        const damage = regularMinerDamage + shadowMinerDamage;
         
         // Calculate new HP after damage
         const newHP = prev.currentRockHP - damage;
@@ -2864,6 +2867,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Sacrifice miners for temporary buff (Darkness path only)
+  // Sacrificing 100+ miners also grants shadow miners (Apocalyptic Ritual)
   const sacrificeMiners = useCallback((count: number): boolean => {
     if (gameState.chosenPath !== 'darkness') return false;
     if (gameState.minerCount < count) return false;
@@ -2872,10 +2876,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const buffInfo = getSacrificeBuffForCount(count);
     if (!buffInfo) return false;
     
+    // Apocalyptic Ritual: 100+ miners sacrificed grants shadow miners
+    const grantsShadowMiners = count >= 100;
+    // Each sacrifice of 100+ grants 1 shadow miner per 10 miners sacrificed (min 10)
+    const shadowMinersToGrant = grantsShadowMiners ? Math.max(10, Math.floor(count / 10)) : 0;
+    
     setGameState(prev => ({
       ...prev,
       minerCount: prev.minerCount - count,
       sacrificeBuff: buffInfo.buff,
+      buildings: {
+        ...prev.buildings,
+        wizard_tower: {
+          ...prev.buildings.wizard_tower,
+          shadowMiners: prev.buildings.wizard_tower.shadowMiners + shadowMinersToGrant,
+        },
+      },
     }));
     
     return true;

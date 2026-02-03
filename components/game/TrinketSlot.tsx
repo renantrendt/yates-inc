@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { TRINKETS, RARITY_COLORS, Trinket, RELIC_MULTIPLIERS, TALISMAN_MULTIPLIERS } from '@/types/game';
-import BuffBar from './BuffBar';
 
 export default function TrinketSlot() {
   const [showSelector, setShowSelector] = useState(false);
@@ -216,11 +215,6 @@ export default function TrinketSlot() {
               {gameState.chosenPath === 'light' ? '☀️' : '🌑'}<span className="hidden sm:inline"> {gameState.chosenPath === 'light' ? 'Light Path' : 'Darkness Path'}</span>
             </div>
           )}
-          
-          {/* Active Buffs/Debuffs Bar - hidden on mobile to save space */}
-          <div className="mt-1 hidden sm:block">
-            <BuffBar />
-          </div>
           
           {/* Cookie status - hidden on mobile */}
           {gameState.chosenPath === 'darkness' && !gameState.goldenCookieRitualActive && (

@@ -201,7 +201,9 @@ export default function WizardTowerModal({ onClose }: WizardTowerModalProps) {
               {/* Preview buff */}
               {sacrificePreview && (
                 <div className="bg-black/30 rounded-lg p-3 text-xs">
-                  <div className="text-red-400 font-bold mb-1">{sacrificePreview.buff.allBonus > 0 ? 'Powerful Buff!' : 'Buff Preview:'}</div>
+                  <div className="text-red-400 font-bold mb-1">
+                    {sacrificeAmount >= 100 ? '💀 Apocalyptic Ritual!' : sacrificePreview.buff.allBonus > 0 ? 'Powerful Buff!' : 'Buff Preview:'}
+                  </div>
                   <div className="text-gray-300 space-y-0.5">
                     <p>+{(sacrificePreview.buff.pcxDamageBonus * 100).toFixed(0)}% Damage</p>
                     <p>+{(sacrificePreview.buff.moneyBonus * 100).toFixed(0)}% Money</p>
@@ -212,6 +214,11 @@ export default function WizardTowerModal({ onClose }: WizardTowerModalProps) {
                       <p>+{(sacrificePreview.buff.allBonus * 100).toFixed(0)}% All Stats</p>
                     )}
                     <p className="text-gray-500">Duration: {(sacrificePreview.duration / 1000).toFixed(0)}s</p>
+                    {sacrificeAmount >= 100 && (
+                      <p className="text-purple-400 font-bold mt-1">
+                        👻 +{Math.max(10, Math.floor(sacrificeAmount / 10))} Shadow Miners!
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
