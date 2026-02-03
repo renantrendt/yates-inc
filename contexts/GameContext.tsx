@@ -1174,6 +1174,53 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [gameState.buildings.temple.equippedRank, gameState.chosenPath]);
 
+  // Dark Miner money stealing (from Dark Ritual backfire)
+  // Steals 5% of money every 2 minutes per 200 dark miners
+  const darkMinerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (darkMinerIntervalRef.current) {
+      clearInterval(darkMinerIntervalRef.current);
+      darkMinerIntervalRef.current = null;
+    }
+    
+    const darkMiners = gameState.buildings.wizard_tower.darkMiners;
+    if (!darkMiners || darkMiners <= 0) return;
+    
+    // Check every 10 seconds if it's time to steal
+    darkMinerIntervalRef.current = setInterval(() => {
+      setGameState(prev => {
+        const now = Date.now();
+        const nextSteal = prev.buildings.wizard_tower.darkMinerNextSteal;
+        
+        if (!nextSteal || now < nextSteal) return prev;
+        
+        // Steal 5% per 200 dark miners
+        const stealPercent = (prev.buildings.wizard_tower.darkMiners / 200) * 0.05;
+        const amountStolen = Math.floor(prev.yatesDollars * stealPercent);
+        
+        return {
+          ...prev,
+          yatesDollars: prev.yatesDollars - amountStolen,
+          buildings: {
+            ...prev.buildings,
+            wizard_tower: {
+              ...prev.buildings.wizard_tower,
+              darkMinerNextSteal: now + 120000, // Next steal in 2 minutes
+            },
+          },
+        };
+      });
+    }, 10000);
+    
+    return () => {
+      if (darkMinerIntervalRef.current) {
+        clearInterval(darkMinerIntervalRef.current);
+        darkMinerIntervalRef.current = null;
+      }
+    };
+  }, [gameState.buildings.wizard_tower.darkMiners]);
+
   // Auto-prestige logic
   useEffect(() => {
     if (!gameState.autoPrestigeEnabled) return;
@@ -2867,7 +2914,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Sacrifice miners for temporary buff (Darkness path only)
-  // Sacrificing 100+ miners also grants shadow miners (Apocalyptic Ritual)
+  // Sacrificing 100+ miners = Apocalypse (shadow miners) with 60% backfire
+  // Sacrificing <100 miners = Blood Ritual (buff) with 0.5% + 0.5%/miner backfire
   const sacrificeMiners = useCallback((count: number): boolean => {
     if (gameState.chosenPath !== 'darkness') return false;
     if (gameState.minerCount < count) return false;
@@ -2876,23 +2924,50 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const buffInfo = getSacrificeBuffForCount(count);
     if (!buffInfo) return false;
     
-    // Apocalyptic Ritual: 100+ miners sacrificed grants shadow miners
-    const grantsShadowMiners = count >= 100;
-    // Each sacrifice of 100+ grants 1 shadow miner per 10 miners sacrificed (min 10)
-    const shadowMinersToGrant = grantsShadowMiners ? Math.max(10, Math.floor(count / 10)) : 0;
+    const isApocalypse = count >= 100;
     
-    setGameState(prev => ({
-      ...prev,
-      minerCount: prev.minerCount - count,
-      sacrificeBuff: buffInfo.buff,
-      buildings: {
-        ...prev.buildings,
-        wizard_tower: {
-          ...prev.buildings.wizard_tower,
-          shadowMiners: prev.buildings.wizard_tower.shadowMiners + shadowMinersToGrant,
+    if (isApocalypse) {
+      // APOCALYPSE RITUAL: 60% backfire chance
+      const backfired = Math.random() < 0.60;
+      
+      // Calculate shadow miners to grant
+      const baseShadowMiners = Math.max(10, Math.floor(count / 10));
+      // If backfired, random 10-90% of miners just die (don't become shadows)
+      const lossPercent = backfired ? (0.1 + Math.random() * 0.8) : 0;
+      const shadowMinersToGrant = Math.floor(baseShadowMiners * (1 - lossPercent));
+      
+      setGameState(prev => ({
+        ...prev,
+        minerCount: prev.minerCount - count,
+        sacrificeBuff: buffInfo.buff,
+        buildings: {
+          ...prev.buildings,
+          wizard_tower: {
+            ...prev.buildings.wizard_tower,
+            shadowMiners: prev.buildings.wizard_tower.shadowMiners + shadowMinersToGrant,
+          },
         },
-      },
-    }));
+      }));
+    } else {
+      // BLOOD RITUAL: 0.5% + 0.5% per miner backfire chance
+      const backfireChance = 0.005 + (count * 0.005);
+      const backfired = Math.random() < backfireChance;
+      
+      // If backfired, apply DEBUFF (negative values) instead of buff
+      const finalBuff = backfired ? {
+        ...buffInfo.buff,
+        moneyBonus: -buffInfo.buff.moneyBonus,
+        pcxDamageBonus: -buffInfo.buff.pcxDamageBonus,
+        minerDamageBonus: -buffInfo.buff.minerDamageBonus,
+        allBonus: -buffInfo.buff.allBonus,
+      } : buffInfo.buff;
+      
+      setGameState(prev => ({
+        ...prev,
+        minerCount: prev.minerCount - count,
+        sacrificeBuff: finalBuff,
+      }));
+    }
     
     return true;
   }, [gameState.chosenPath, gameState.minerCount, getSacrificeBuffForCount]);
@@ -2908,16 +2983,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [gameState.chosenPath, gameState.goldenCookieRitualActive, gameState.yatesDollars, gameState.minerCount]);
 
   // Activate the Golden Cookie ritual (sacrifices 420 miners)
+  // 30% chance to backfire - miners die but no cookie activation
   const activateGoldenCookieRitual = useCallback((): boolean => {
     if (!canActivateRitual()) return false;
     
+    // 30% backfire chance
+    const backfired = Math.random() < 0.30;
+    
     setGameState(prev => ({
       ...prev,
-      minerCount: prev.minerCount - 420, // Sacrifice 420 miners
-      goldenCookieRitualActive: true,
+      minerCount: prev.minerCount - 420, // Sacrifice 420 miners regardless
+      goldenCookieRitualActive: backfired ? false : true, // Only activate if no backfire
     }));
     
-    return true;
+    return !backfired; // Return false if backfired
   }, [canActivateRitual]);
 
   // Claim a reward from clicking the Golden/Dark Cookie
@@ -3266,6 +3345,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (gameState.buildings.wizard_tower.ritualActive) return false;
     if (gameState.minerCount < WIZARD_RITUAL_MINER_COST) return false; // Need 367 miners
 
+    // 41% chance to backfire - spawns 200 dark miners instead
+    const backfired = Math.random() < 0.41;
+    
+    if (backfired) {
+      // Backfire: Spawn 200 dark miners that steal money
+      setGameState(prev => ({
+        ...prev,
+        buildings: {
+          ...prev.buildings,
+          wizard_tower: {
+            ...prev.buildings.wizard_tower,
+            darkMiners: prev.buildings.wizard_tower.darkMiners + 200,
+            darkMinerNextSteal: prev.buildings.wizard_tower.darkMinerNextSteal || Date.now() + 120000, // 2 min
+          },
+        },
+      }));
+      return false; // Ritual failed
+    }
+
     const ritualEndTime = Date.now() + WIZARD_RITUAL_DURATION_MS;
     
     setGameState(prev => ({
@@ -3570,11 +3668,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [gameState.chosenPath, gameState.wtBanned, gameState.wtDealLevel, gameState.wtSuspicious, gameState.wtRedeemed]);
 
   const dismissWanderingTrader = useCallback(() => {
+    // Set next spawn to 5-10 minutes from now to prevent immediate re-spawn
+    const nextSpawnDelay = (5 + Math.random() * 5) * 60 * 1000; // 5-10 minutes
     setGameState(prev => ({
       ...prev,
       wanderingTraderVisible: false,
       wanderingTraderShopItems: [],
       wanderingTraderDespawnTime: null,
+      wanderingTraderNextSpawn: Date.now() + nextSpawnDelay,
     }));
   }, []);
 

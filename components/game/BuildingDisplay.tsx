@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { BUILDINGS } from '@/types/game';
 import TempleModal from './TempleModal';
-import WizardTowerModal from './WizardTowerModal';
+import WizardTowerSidebar from './WizardTowerSidebar';
 import BankModal from './BankModal';
 
 export default function BuildingDisplay() {
@@ -144,10 +144,11 @@ export default function BuildingDisplay() {
         <TempleModal onClose={() => setShowTempleModal(false)} />
       )}
 
-      {/* Wizard Tower Modal */}
-      {showWizardModal && (
-        <WizardTowerModal onClose={() => setShowWizardModal(false)} />
-      )}
+      {/* Wizard Tower Sidebar */}
+      <WizardTowerSidebar 
+        isOpen={showWizardModal} 
+        onClose={() => setShowWizardModal(false)} 
+      />
 
       {/* Bank Modal */}
       {showBankModal && (

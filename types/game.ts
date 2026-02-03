@@ -1386,6 +1386,8 @@ export interface TempleState {
 export interface WizardTowerState {
   owned: boolean;
   shadowMiners: number;
+  darkMiners: number; // From Dark Ritual backfire - steal money
+  darkMinerNextSteal: number | null; // Timestamp for next money steal
   ritualActive: boolean;
   ritualEndTime: number | null;
   lastBuffTime: number;
@@ -1875,6 +1877,8 @@ export function getDefaultBuildingStates(): BuildingStates {
     wizard_tower: {
       owned: false,
       shadowMiners: 0,
+      darkMiners: 0,
+      darkMinerNextSteal: null,
       ritualActive: false,
       ritualEndTime: null,
       lastBuffTime: 0,
