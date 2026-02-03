@@ -3753,17 +3753,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
         break;
       case 'perm_buff':
         if (offer.effect.buffType && offer.effect.value !== undefined) {
+          const buffValue = offer.effect.value;
+          const buffKey = offer.effect.buffType === 'money' ? 'moneyBonus' :
+                          offer.effect.buffType === 'couponLuck' ? 'couponLuckBonus' :
+                          offer.effect.buffType === 'minerSpeed' ? 'minerSpeedBonus' :
+                          offer.effect.buffType === 'minerDamage' ? 'minerDamageBonus' : 'moneyBonus';
           setWanderingTraderPermBuffs(prev => ({
             ...prev,
-            [offer.effect.buffType === 'money' ? 'moneyBonus' :
-             offer.effect.buffType === 'couponLuck' ? 'couponLuckBonus' :
-             offer.effect.buffType === 'minerSpeed' ? 'minerSpeedBonus' :
-             offer.effect.buffType === 'minerDamage' ? 'minerDamageBonus' : 'moneyBonus'
-            ]: prev[offer.effect.buffType === 'money' ? 'moneyBonus' :
-                    offer.effect.buffType === 'couponLuck' ? 'couponLuckBonus' :
-                    offer.effect.buffType === 'minerSpeed' ? 'minerSpeedBonus' :
-                    offer.effect.buffType === 'minerDamage' ? 'minerDamageBonus' : 'moneyBonus'
-            ] + offer.effect.value,
+            [buffKey]: prev[buffKey] + buffValue,
           }));
         }
         break;
