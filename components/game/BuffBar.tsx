@@ -129,19 +129,19 @@ export default function BuffBar() {
       {allEffects.map(effect => (
         <div 
           key={effect.id}
-          className={`relative flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border backdrop-blur-sm ${
+          className={`relative flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border shadow-lg ${
             effect.type === 'debuff' 
-              ? 'bg-red-900/60 border-red-500/50'
+              ? 'bg-red-950/90 border-red-500/70'
               : effect.type === 'ritual'
-                ? 'bg-purple-900/60 border-purple-500/50 animate-pulse'
+                ? 'bg-purple-950/90 border-purple-500/70 animate-pulse'
                 : effect.type === 'sacrifice'
-                  ? 'bg-red-800/60 border-red-400/50'
-                  : 'bg-green-900/60 border-green-500/50'
+                  ? 'bg-red-950/90 border-red-400/70'
+                  : 'bg-green-950/90 border-green-500/70'
           }`}
         >
           {/* Progress bar background */}
           <div 
-            className={`absolute inset-0 rounded-lg opacity-30 ${
+            className={`absolute inset-0 rounded-lg opacity-40 ${
               effect.type === 'debuff' ? 'bg-red-600' : 
               effect.type === 'ritual' ? 'bg-purple-600' :
               effect.type === 'sacrifice' ? 'bg-red-500' :
@@ -154,15 +154,15 @@ export default function BuffBar() {
           />
           
           {/* Content */}
-          <span className="text-base sm:text-lg relative z-10">{effect.icon}</span>
+          <span className="text-base sm:text-lg relative z-10 drop-shadow-md">{effect.icon}</span>
           <div className="relative z-10 hidden sm:block">
-            <span className="text-white text-xs font-medium">{effect.name}</span>
+            <span className="text-white text-xs font-medium drop-shadow-md">{effect.name}</span>
           </div>
-          <span className={`text-xs font-bold relative z-10 ${
-            effect.type === 'debuff' ? 'text-red-300' : 
-            effect.type === 'ritual' ? 'text-purple-300' :
-            effect.type === 'sacrifice' ? 'text-red-300' :
-            'text-green-300'
+          <span className={`text-xs font-bold relative z-10 drop-shadow-md ${
+            effect.type === 'debuff' ? 'text-red-200' : 
+            effect.type === 'ritual' ? 'text-purple-200' :
+            effect.type === 'sacrifice' ? 'text-red-200' :
+            'text-green-200'
           }`}>
             {effect.timeLeft === -1 ? '∞' : formatTime(effect.timeLeft)}
           </span>

@@ -245,7 +245,7 @@ export default function TrinketSlot() {
           <div className="mt-0.5 flex flex-wrap gap-0.5 sm:gap-1">
             {/* Sacrifice Buff - show actual effect */}
             {hasActiveSacrificeBuff && gameState.sacrificeBuff && (
-              <span className="text-[8px] sm:text-[9px] text-red-400 animate-pulse" title="Sacrifice buff active">
+              <span className="text-[8px] sm:text-[9px] text-red-400 animate-pulse bg-black/60 px-1 rounded" title="Sacrifice buff active">
                 🩸<span className="hidden sm:inline">{gameState.sacrificeBuff.allBonus > 0 
                   ? `+${Math.round(gameState.sacrificeBuff.allBonus * 100)}% all` 
                   : `+${Math.round(gameState.sacrificeBuff.moneyBonus * 100)}% money`
@@ -255,7 +255,7 @@ export default function TrinketSlot() {
             
             {/* Wizard Ritual - show what it does */}
             {wizardRitualActive && (
-              <span className="text-[8px] sm:text-[9px] text-purple-400 animate-pulse" title="Wizard Ritual: 3x all stats">
+              <span className="text-[8px] sm:text-[9px] text-purple-400 animate-pulse bg-black/60 px-1 rounded" title="Wizard Ritual: 3x all stats">
                 🔮<span className="hidden sm:inline">3x all</span> {wizardTimeRemaining}s
               </span>
             )}
@@ -264,14 +264,19 @@ export default function TrinketSlot() {
             {activeBuffs.map(buff => {
               const timeLeft = Math.ceil((buff.startTime + buff.duration - now) / 1000);
               if (timeLeft <= 0) return null;
-              const buffInfo = {
+              const buffInfoMap: Record<string, { icon: string; label: string }> = {
                 damage: { icon: '⚔️', label: 'damage' },
                 money: { icon: '💰', label: 'money' },
                 clickSpeed: { icon: '⚡', label: 'speed' },
                 miner: { icon: '👷', label: 'miners' },
-              }[buff.type] || { icon: '🏭', label: buff.type };
+                allStats: { icon: '✨', label: 'all stats' },
+                goldenCookie: { icon: '🍪', label: 'cookie' },
+                minerSpeed: { icon: '🏃', label: 'miner speed' },
+                minerDamage: { icon: '💪', label: 'miner damage' },
+              };
+              const buffInfo = buffInfoMap[buff.type] || { icon: '🏭', label: buff.type };
               return (
-                <span key={buff.id} className="text-[8px] sm:text-[9px] text-amber-400" title={`Factory buff: +${Math.round(buff.multiplier * 100)}% ${buffInfo.label}`}>
+                <span key={buff.id} className="text-[8px] sm:text-[9px] text-amber-400 bg-black/60 px-1 rounded" title={`Factory buff: +${Math.round(buff.multiplier * 100)}% ${buffInfo.label}`}>
                   {buffInfo.icon}<span className="hidden sm:inline">+{Math.round(buff.multiplier * 100)}% {buffInfo.label}</span> {timeLeft}s
                 </span>
               );
