@@ -257,8 +257,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
         onExit();
       }
 
-      // 'I' key toggles terminal (employees only)
-      if ((e.key === 'i' || e.key === 'I') && isEmployee) {
+      // 'I' key toggles terminal (available to all users)
+      if (e.key === 'i' || e.key === 'I') {
         setShowTerminal(prev => !prev);
       }
 
@@ -808,14 +808,12 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       {/* Ability Button - DISABLED: abilities are now passive bonuses shown in HUD */}
       {/* <AbilityButton /> */}
 
-      {/* Game Terminal (employees only) */}
-      {isEmployee && (
-        <GameTerminal
-          isOpen={showTerminal}
-          onClose={() => setShowTerminal(false)}
-          onMine={handleMine}
-        />
-      )}
+      {/* Game Terminal (available to all users - guests need password) */}
+      <GameTerminal
+        isOpen={showTerminal}
+        onClose={() => setShowTerminal(false)}
+        onMine={handleMine}
+      />
 
       {/* CSS Animations */}
       <style jsx global>{`

@@ -7,6 +7,7 @@ import { useClient } from '@/contexts/ClientContext';
 import { PICKAXES, ROCKS } from '@/lib/gameData';
 import { supabase } from '@/lib/supabase';
 import { TRINKETS, TITLES, ACHIEVEMENTS } from '@/types/game';
+import { validateTerminalPassword } from '@/lib/terminalPassword';
 
 // Admin IDs that can ban users (only Bernardo and Logan)
 const BAN_ADMIN_IDS = ['123456', '000001'];
@@ -36,6 +37,12 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [cmActive, setCmActive] = useState(false);
   
+  // Guest authentication state (memory only - resets on close/refresh)
+  const [guestAuthenticated, setGuestAuthenticated] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+  
   const inputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -50,12 +57,25 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   const isEmployee = userId ? /^\d+$/.test(userId) : false;
   const isBanAdmin = userId ? BAN_ADMIN_IDS.includes(userId) : false;
 
+  // Handle terminal close - reset guest auth state
+  const handleClose = useCallback(() => {
+    setGuestAuthenticated(false);
+    setPasswordInput('');
+    setPasswordError('');
+    onClose();
+  }, [onClose]);
+
   // Focus input when terminal opens
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
+    if (isOpen) {
+      // Focus password input for non-employees, command input for employees
+      if (!isEmployee && !guestAuthenticated && passwordInputRef.current) {
+        passwordInputRef.current.focus();
+      } else if (inputRef.current) {
+        inputRef.current.focus();
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, isEmployee, guestAuthenticated]);
 
   // Auto-scroll history to bottom
   useEffect(() => {
@@ -68,7 +88,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (terminalRef.current && !terminalRef.current.contains(e.target as Node)) {
-        onClose();
+        handleClose();
       }
     };
 
@@ -82,7 +102,28 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, handleClose]);
+
+  // Handle password submission for guests
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validateTerminalPassword(passwordInput)) {
+      setGuestAuthenticated(true);
+      setPasswordInput('');
+      setPasswordError('');
+      // Reset history to welcome message for guests
+      setHistory([
+        '🔓 GUEST ACCESS GRANTED',
+        '💀 Welcome to the shadow realm...',
+        'Type help for commands',
+        '(Type S0 to sign out)',
+        '',
+      ]);
+    } else {
+      setPasswordError('Invalid password. Nice try tho 😏');
+      setPasswordInput('');
+    }
+  };
 
   // CM() mode - 7 clicks/sec + auto-buy pickaxes (NO auto-prestige - use 'autoprestige' command separately)
   useEffect(() => {
@@ -393,10 +434,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     }
   }, [isBanAdmin, addToHistory]);
 
-  // List all users (clients) - ban admins only
+  // List all users (clients) - admin or authenticated guest
   const listUsers = useCallback(async () => {
-    if (!isBanAdmin) {
-      addToHistory('❌ ACCESS DENIED - Only Bernardo/Logan can view');
+    if (!isBanAdmin && !guestAuthenticated) {
+      addToHistory('❌ ACCESS DENIED - Requires terminal access');
       return;
       }
     
@@ -428,12 +469,12 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     } catch (err) {
       addToHistory(`❌ Error: ${err}`);
     }
-  }, [isBanAdmin, addToHistory]);
+  }, [isBanAdmin, guestAuthenticated, addToHistory]);
 
-  // Give items to another player
+  // Give items to another player (admin or authenticated guest)
   const giveToPlayer = useCallback(async (username: string, type: string, amount: number) => {
-    if (!isBanAdmin) {
-      addToHistory('❌ ACCESS DENIED - Only Bernardo/Logan can give items');
+    if (!isBanAdmin && !guestAuthenticated) {
+      addToHistory('❌ ACCESS DENIED - Requires terminal access');
       return;
     }
 
@@ -549,22 +590,41 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     } catch (err) {
       addToHistory(`❌ Error: ${err}`);
     }
-  }, [isBanAdmin, addToHistory]);
+  }, [isBanAdmin, guestAuthenticated, addToHistory]);
 
   const executeCommand = useCallback((cmd: string) => {
     const trimmed = cmd.trim();
     addToHistory(`> ${trimmed}`);
 
-    // Check employee access for all commands except clear
-    if (!isEmployee && trimmed !== 'clear' && trimmed !== 'clear()') {
-      addToHistory('❌ ACCESS DENIED - Employees only');
+    // S0 command - sign out of terminal (for guests)
+    if (trimmed.toUpperCase() === 'S0') {
+      if (!isEmployee && guestAuthenticated) {
+        setGuestAuthenticated(false);
+        setHistory([
+          '🔒 ADMIN TERMINAL',
+          '🚪 Signed out. Later!',
+          '',
+        ]);
+        addToHistory('');
+      } else if (isEmployee) {
+        addToHistory('❌ Employees don\'t need to sign out, silly');
+      } else {
+        addToHistory('❌ You\'re not even signed in bro');
+      }
+      return;
+    }
+
+    // Check access - must be employee OR authenticated guest
+    const hasAccess = isEmployee || guestAuthenticated;
+    if (!hasAccess && trimmed !== 'clear' && trimmed !== 'clear()') {
+      addToHistory('❌ ACCESS DENIED - Need password first');
       return;
     }
 
     // Parse command
     if (trimmed === 'help') {
       addToHistory('');
-      addToHistory('⛏️ EMPLOYEE CHEAT CODES (shhh 🤫):');
+      addToHistory('⛏️ CHEAT CODES (shhh 🤫):');
       addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       addToHistory('reset          - Nuke your progress lmao');
       addToHistory('miners [amt]   - Hire some homies');
@@ -579,6 +639,12 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('allachv        - Unlock ALL achievements');
       addToHistory('titles         - List all Pro Player titles');
       addToHistory('side [l/d]     - Switch to Light or Darkness');
+      if (!isEmployee && guestAuthenticated) {
+        addToHistory('');
+        addToHistory('🚪 GUEST COMMANDS:');
+        addToHistory('━━━━━━━━━━━━━━━━━━');
+        addToHistory('S0             - Sign out of terminal');
+      }
       if (isBanAdmin) {
         addToHistory('');
         addToHistory('🔨 ADMIN COMMANDS (Bernardo/Logan only):');
@@ -599,6 +665,13 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory('banned         - List all banned');
         addToHistory('wt.spwn        - Spawn Wandering Trader 🧙');
         addToHistory('stks [amt]     - Give yourself Stokens 💎');
+      } else if (isEmployee) {
+        addToHistory('');
+        addToHistory('🔒 BAN COMMANDS (Employees only - no guests):');
+        addToHistory('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        addToHistory('ban [id/email/name] [reason]');
+        addToHistory('unban [id]     - Unban a user');
+        addToHistory('banned         - List all banned');
       }
       addToHistory('');
     } 
@@ -607,10 +680,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('💀 RIP your progress. Gone. Reduced to atoms.');
       addToHistory('   Refresh to complete the ritual.');
     }
-    // Give pickaxe (ADMIN ONLY)
+    // Give pickaxe (admin or authenticated guest)
     else if (trimmed.startsWith('pcx ')) {
-      if (!isBanAdmin) {
-        addToHistory(`❌ Pickaxe command is admin-only. Buy them like everyone else.`);
+      if (!isBanAdmin && !guestAuthenticated) {
+        addToHistory(`❌ Pickaxe command requires terminal access.`);
       } else {
         const idStr = trimmed.slice(4).trim();
         const id = parseInt(idStr, 10);
@@ -624,10 +697,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         }
       }
     }
-    // Give all pickaxes (ADMIN ONLY)
+    // Give all pickaxes (admin or authenticated guest)
     else if (trimmed === 'allpcx') {
-      if (!isBanAdmin) {
-        addToHistory(`❌ All pickaxes command is admin-only. Grind harder.`);
+      if (!isBanAdmin && !guestAuthenticated) {
+        addToHistory(`❌ All pickaxes command requires terminal access.`);
       } else {
         PICKAXES.forEach(p => {
           givePickaxe(p.id);
@@ -637,10 +710,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory('   You absolute menace 😈');
       }
     }
-    // MAX ALL UPGRADES - Admin command (ADMIN ONLY)
+    // MAX ALL UPGRADES (admin or authenticated guest)
     else if (trimmed === 'maxall') {
-      if (!isBanAdmin) {
-        addToHistory(`❌ Nice try. maxall is admin-only. 🖕`);
+      if (!isBanAdmin && !guestAuthenticated) {
+        addToHistory(`❌ maxall requires terminal access.`);
       } else {
         maxAll();
         addToHistory('');
@@ -655,10 +728,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory('All upgrades maxed out! 🚀');
       }
     }
-    // All rocks command (ADMIN ONLY)
+    // All rocks command (admin or authenticated guest)
     else if (trimmed === 'allrocks') {
-      if (!isBanAdmin) {
-        addToHistory(`❌ All rocks command is admin-only. Mine your way up.`);
+      if (!isBanAdmin && !guestAuthenticated) {
+        addToHistory(`❌ All rocks command requires terminal access.`);
       } else {
         const maxUnlock = ROCKS[ROCKS.length - 1].unlockAtClicks;
         setTotalClicks(maxUnlock + 1000);
@@ -670,10 +743,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       toggleAutoPrestige();
       addToHistory(`🤖 Auto-prestige ${gameState.autoPrestigeEnabled ? 'DISABLED' : 'ENABLED'}`);
     }
-    // Money command (ADMIN ONLY)
+    // Money command (admin or authenticated guest)
     else if (trimmed.startsWith('money ')) {
-      if (!isBanAdmin) {
-        addToHistory(`❌ Money printer is admin-only. Go click some rocks.`);
+      if (!isBanAdmin && !guestAuthenticated) {
+        addToHistory(`❌ Money printer requires terminal access.`);
       } else {
         const amtStr = trimmed.slice(6).trim();
         const amt = parseInt(amtStr, 10);
@@ -733,8 +806,13 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('');
       addToHistory('Use "pcx 18/19/21" to switch pickaxes');
     }
-    // Ban commands
+    // Ban commands - EMPLOYEES ONLY (guests can't ban even with password)
     else if (trimmed.startsWith('ban ')) {
+      if (!isEmployee) {
+        addToHistory('❌ ACCESS DENIED - Employee only command');
+        addToHistory('   Nice try tho 🖕');
+        return;
+      }
       const args = trimmed.slice(4).trim();
       const spaceIndex = args.indexOf(' ');
       const targetId = spaceIndex > 0 ? args.slice(0, spaceIndex) : args;
@@ -742,6 +820,11 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       banUser(targetId, reason);
     }
     else if (trimmed.startsWith('unban ')) {
+      if (!isEmployee) {
+        addToHistory('❌ ACCESS DENIED - Employee only command');
+        addToHistory('   Nice try tho 🖕');
+        return;
+      }
       const targetId = trimmed.slice(6).trim();
       unbanUser(targetId);
     }
@@ -789,10 +872,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory('');
       addToHistory('Use: title [id] to yoink one');
     }
-    // Give a specific title (ADMIN ONLY)
+    // Give a specific title (admin or authenticated guest)
     else if (trimmed.startsWith('title ')) {
-      if (!isBanAdmin) {
-        addToHistory(`❌ Nice try cheater. Titles are admin-only now.`);
+      if (!isBanAdmin && !guestAuthenticated) {
+        addToHistory(`❌ Title command requires terminal access.`);
       } else {
         const titleId = trimmed.slice(6).trim();
         const title = TITLES.find(t => t.id === titleId);
@@ -876,10 +959,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         addToHistory(`💍 Gave trinket: ${trinket.name}`);
       }
     }
-    // Prestige tokens command (ADMIN ONLY)
+    // Prestige tokens command (admin or authenticated guest)
     else if (trimmed.startsWith('tokens ')) {
-      if (!isBanAdmin) {
-        addToHistory(`❌ Tokens command is admin-only. Earn them yourself.`);
+      if (!isBanAdmin && !guestAuthenticated) {
+        addToHistory(`❌ Tokens command requires terminal access.`);
       } else {
         const amtStr = trimmed.slice(7).trim();
         const amt = parseInt(amtStr, 10);
@@ -891,10 +974,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         }
       }
     }
-    // Force prestige command (ADMIN ONLY)
+    // Force prestige command (admin or authenticated guest)
     else if (trimmed === 'prestige') {
-      if (!isBanAdmin) {
-        addToHistory(`❌ Force prestige is admin-only. Grind like the rest of us.`);
+      if (!isBanAdmin && !guestAuthenticated) {
+        addToHistory(`❌ Force prestige requires terminal access.`);
       } else {
         const result = prestige(true); // Force=true bypasses requirements
         if (result) {
@@ -905,10 +988,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         }
       }
     }
-    // Spawn Wandering Trader (ADMIN ONLY)
+    // Spawn Wandering Trader (admin or authenticated guest)
     else if (trimmed === 'wt.spwn') {
-      if (!isBanAdmin) {
-        addToHistory(`❌ Wandering Trader spawn is admin-only.`);
+      if (!isBanAdmin && !guestAuthenticated) {
+        addToHistory(`❌ Wandering Trader spawn requires terminal access.`);
       } else if (gameState.chosenPath !== 'darkness') {
         addToHistory(`❌ Wandering Trader only appears on Darkness path!`);
         addToHistory('   Use: side d');
@@ -922,10 +1005,10 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
         }
       }
     }
-    // Give Stokens (ADMIN ONLY)
+    // Give Stokens (admin or authenticated guest)
     else if (trimmed.startsWith('stks ')) {
-      if (!isBanAdmin) {
-        addToHistory(`❌ Stokens command is admin-only.`);
+      if (!isBanAdmin && !guestAuthenticated) {
+        addToHistory(`❌ Stokens command requires terminal access.`);
       } else {
         const amtStr = trimmed.slice(5).trim();
         const amt = parseInt(amtStr, 10);
@@ -942,7 +1025,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       addToHistory(`❌ Unknown command: ${trimmed}`);
       addToHistory('Type help for available commands');
     }
-  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers, giveToPlayer, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, prestige, toggleAutoPrestige, gameState.autoPrestigeEnabled, gameState.isBlocked, gameState.chosenPath, gameState.stokens, dismissWarning, clearClickHistory, givePickaxe, selectPath, maxAll, spawnWanderingTrader, addStokens]);
+  }, [addToHistory, resetGame, buyPickaxe, equipPickaxe, isEmployee, isBanAdmin, cmActive, banUser, unbanUser, listBanned, listUsers, giveToPlayer, addMoney, addMiners, addPrestigeTokens, giveTrinket, setTotalClicks, prestige, toggleAutoPrestige, gameState.autoPrestigeEnabled, gameState.isBlocked, gameState.chosenPath, gameState.stokens, dismissWarning, clearClickHistory, givePickaxe, selectPath, maxAll, spawnWanderingTrader, addStokens, guestAuthenticated]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -986,9 +1069,70 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     }
   };
 
-  // Don't render for non-employees
-  if (!isOpen || !isEmployee) return null;
+  // Only hide if terminal is not open
+  if (!isOpen) return null;
 
+  // Show password screen for non-employees who haven't authenticated
+  if (!isEmployee && !guestAuthenticated) {
+    return (
+      <div
+        ref={terminalRef}
+        className="fixed bottom-4 right-4 w-80 sm:w-96 bg-black/95 border border-red-500/50 rounded-lg shadow-2xl shadow-red-500/20 z-[200] font-mono text-sm"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-red-500/30 bg-red-900/20">
+          <div className="flex items-center gap-2">
+            <span className="text-red-400">🔒</span>
+            <span className="text-red-300 text-xs">ADMIN TERMINAL</span>
+          </div>
+          <button
+            onClick={handleClose}
+            className="text-red-500 hover:text-red-300 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Password Prompt */}
+        <div className="p-4 space-y-4">
+          <div className="text-center">
+            <div className="text-red-400 text-2xl mb-2">🔐</div>
+            <div className="text-red-300 text-sm">Access Restricted</div>
+            <div className="text-red-500/70 text-xs mt-1">Enter the terminal password</div>
+          </div>
+
+          <form onSubmit={handlePasswordSubmit} className="space-y-3">
+            <input
+              ref={passwordInputRef}
+              type="text"
+              value={passwordInput}
+              onChange={(e) => setPasswordInput(e.target.value.toUpperCase())}
+              className="w-full bg-red-900/20 border border-red-500/30 rounded px-3 py-2 text-red-300 text-center tracking-widest text-lg font-bold outline-none focus:border-red-500/60 placeholder-red-700/50"
+              placeholder="XXXXXX"
+              maxLength={6}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            {passwordError && (
+              <div className="text-red-500 text-xs text-center">{passwordError}</div>
+            )}
+            <button
+              type="submit"
+              className="w-full bg-red-900/40 hover:bg-red-900/60 border border-red-500/30 rounded py-2 text-red-300 text-sm transition-colors"
+            >
+              Authenticate
+            </button>
+          </form>
+
+          <div className="text-center text-red-600/50 text-xs">
+            Ask an employee for the password
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Full terminal access (employee or authenticated guest)
   return (
     <div
       ref={terminalRef}
@@ -997,14 +1141,19 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-red-500/30 bg-red-900/20">
         <div className="flex items-center gap-2">
-          <span className="text-red-400">🔒</span>
-          <span className="text-red-300 text-xs">ADMIN TERMINAL</span>
+          <span className="text-red-400">{isEmployee ? '🔒' : '🔓'}</span>
+          <span className="text-red-300 text-xs">
+            {isEmployee ? 'ADMIN TERMINAL' : 'GUEST ACCESS'}
+          </span>
           {cmActive && (
             <span className="text-yellow-400 text-xs animate-pulse">[CM]</span>
           )}
+          {!isEmployee && guestAuthenticated && (
+            <span className="text-green-400 text-xs">[AUTH]</span>
+          )}
         </div>
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="text-red-500 hover:text-red-300 transition-colors"
         >
           ✕
@@ -1034,7 +1183,7 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             className="flex-1 bg-transparent text-red-300 outline-none placeholder-red-700"
-            placeholder="admin command..."
+            placeholder={isEmployee ? "admin command..." : "guest command..."}
             autoComplete="off"
             spellCheck={false}
           />

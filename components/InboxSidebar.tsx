@@ -9,6 +9,7 @@ import { Conversation } from '@/types';
 import { supabase } from '@/lib/supabase';
 import MessageDetailSidebar from './MessageDetailSidebar';
 import ComposeMessageModal from './ComposeMessageModal';
+import TerminalPasswordDisplay from './TerminalPasswordDisplay';
 
 interface CheatAppeal {
   id: string;
@@ -36,6 +37,7 @@ export default function InboxSidebar({ isOpen, onClose }: InboxSidebarProps) {
   const [sortOrder, setSortOrder] = useState<SortOrder>('latest');
   const [showCompose, setShowCompose] = useState(false);
   const [showAppeals, setShowAppeals] = useState(false);
+  const [showSystemPanel, setShowSystemPanel] = useState(false);
   const [appeals, setAppeals] = useState<CheatAppeal[]>([]);
   const [processingAppeal, setProcessingAppeal] = useState<string | null>(null);
   
@@ -270,6 +272,32 @@ export default function InboxSidebar({ isOpen, onClose }: InboxSidebarProps) {
 
         {/* Conversations List or Appeals List */}
         <div className="flex-1 overflow-y-auto">
+          {/* System Panel for Employees - Terminal Password */}
+          {isEmployee && !showAppeals && (
+            <div
+              onClick={() => setShowSystemPanel(true)}
+              className="p-4 border-b-2 border-red-500/50 dark:border-red-500/30 cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20 transition bg-gradient-to-r from-red-50 to-transparent dark:from-red-900/10 dark:to-transparent"
+            >
+              <div className="flex justify-between items-start mb-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🔐</span>
+                  <span className="text-sm font-bold text-red-600 dark:text-red-400">
+                    SYSTEM
+                  </span>
+                </div>
+                <span className="text-xs text-red-500/70 dark:text-red-400/70 font-mono">
+                  LIVE
+                </span>
+              </div>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Terminal Access Password
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Click to view current password
+              </p>
+            </div>
+          )}
+
           {showAppeals && canReviewAppeals ? (
             // Appeals List for Admins
             <div>
@@ -395,6 +423,11 @@ export default function InboxSidebar({ isOpen, onClose }: InboxSidebarProps) {
         isOpen={showCompose} 
         onClose={() => setShowCompose(false)} 
       />
+
+      {/* System Panel - Terminal Password Display */}
+      {showSystemPanel && isEmployee && (
+        <TerminalPasswordDisplay onClose={() => setShowSystemPanel(false)} />
+      )}
     </>
   );
 }
