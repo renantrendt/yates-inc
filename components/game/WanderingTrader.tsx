@@ -113,7 +113,9 @@ export default function WanderingTrader() {
 
   const handleCloseShop = useCallback(() => {
     setIsShopOpen(false);
-  }, []);
+    // Despawn trader after user closes the shop (they interacted, so timer was cleared)
+    dismissWanderingTrader();
+  }, [dismissWanderingTrader]);
 
   if (!isWanderingTraderVisible()) return null;
 
