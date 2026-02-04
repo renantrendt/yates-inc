@@ -36,16 +36,31 @@ export default function GitCommitsModal({ isOpen, onClose }: GitCommitsModalProp
       setError(null);
 
       try {
-        // Fetch recent commits from GitHub API (public repo, no auth needed)
-        const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/commits?per_page=10`);
+        // Fetch ALL commits by paginating through GitHub API
+        let allCommits: any[] = [];
+        let page = 1;
+        let hasMore = true;
         
-        if (!response.ok) {
-          throw new Error('Failed to fetch commits');
-        }
+        while (hasMore && page <= 10) { // Max 10 pages (1000 commits)
+          const response = await fetch(
+            `https://api.github.com/repos/${GITHUB_REPO}/commits?per_page=100&page=${page}`
+          );
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch commits');
+          }
 
-        const data = await response.json();
+          const data = await response.json();
+          
+          if (data.length === 0) {
+            hasMore = false;
+          } else {
+            allCommits = [...allCommits, ...data];
+            page++;
+          }
+        }
         
-        const formattedCommits: GitCommit[] = data.map((commit: any) => ({
+        const formattedCommits: GitCommit[] = allCommits.map((commit: any) => ({
           sha: commit.sha.substring(0, 7),
           message: commit.commit.message.split('\n')[0], // First line only
           author: commit.commit.author.name,
@@ -109,9 +124,6 @@ export default function GitCommitsModal({ isOpen, onClose }: GitCommitsModalProp
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <span className="text-2xl">🔧</span> Dev Status
             </h2>
-            <p className="text-gray-400 text-xs mt-1">
-              {GITHUB_REPO}
-            </p>
           </div>
           <button
             onClick={onClose}
@@ -123,22 +135,12 @@ export default function GitCommitsModal({ isOpen, onClose }: GitCommitsModalProp
 
         {/* Deployment Status */}
         <div className="px-6 py-4 bg-gray-800/50 border-b border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${getStatusColor(deployStatus.status)}`} />
-              <div>
-                <p className="text-white font-medium">Deployment Status</p>
-                <p className="text-gray-400 text-sm">{getStatusIcon(deployStatus.status)} {deployStatus.message}</p>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className={`w-3 h-3 rounded-full ${getStatusColor(deployStatus.status)}`} />
+            <div>
+              <p className="text-white font-medium">Deployment Status</p>
+              <p className="text-gray-400 text-sm">{getStatusIcon(deployStatus.status)} {deployStatus.message}</p>
             </div>
-            <a
-              href={`https://github.com/${GITHUB_REPO}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 text-sm"
-            >
-              View on GitHub →
-            </a>
           </div>
         </div>
 
@@ -195,7 +197,7 @@ export default function GitCommitsModal({ isOpen, onClose }: GitCommitsModalProp
         {/* Footer */}
         <div className="px-6 py-3 bg-gray-800/50 border-t border-gray-700 text-center">
           <p className="text-gray-500 text-xs">
-            Click a commit to view on GitHub • Data from GitHub API
+            {commits.length} commits loaded
           </p>
         </div>
       </div>
