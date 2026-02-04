@@ -7,7 +7,7 @@ import { ClientProvider } from "@/contexts/ClientContext";
 import { MailProvider } from "@/contexts/MailContext";
 import { PaycheckProvider } from "@/contexts/PaycheckContext";
 import { GameProvider } from "@/contexts/GameContext";
-import { StockProvider } from "@/contexts/StockContext";
+// Stock feature removed
 import { BudgetProvider } from "@/contexts/BudgetContext";
 import Navbar from "@/components/Navbar";
 import DisclaimerWarning from "@/components/DisclaimerWarning";
@@ -41,10 +41,9 @@ export default function RootLayout({
         <AuthProvider>
           <ClientProvider>
             <GameProvider>
-              <StockProvider>
-                <BudgetProvider>
-                  <PaycheckProvider>
-                    <CartProvider>
+              <BudgetProvider>
+                <PaycheckProvider>
+                  <CartProvider>
                       <MailProvider>
                       <DisclaimerWarning />
                       <Navbar />
@@ -53,10 +52,9 @@ export default function RootLayout({
                         {children}
                       </main>
                     </MailProvider>
-                    </CartProvider>
-                  </PaycheckProvider>
-                </BudgetProvider>
-              </StockProvider>
+                  </CartProvider>
+                </PaycheckProvider>
+              </BudgetProvider>
             </GameProvider>
           </ClientProvider>
         </AuthProvider>

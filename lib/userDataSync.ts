@@ -58,6 +58,8 @@ export interface UserGameData {
   last_tax_time?: number | null;
   // Playtime tracking
   total_playtime_seconds?: number;
+  // Premium products (game buffs)
+  owned_premium_product_ids?: number[];
   // Timestamp (set by Supabase)
   updated_at?: string;
 }
@@ -162,6 +164,8 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       last_tax_time: safeBigInt(data.last_tax_time),
       // Playtime tracking
       total_playtime_seconds: safeBigInt(data.total_playtime_seconds),
+      // Premium products
+      owned_premium_product_ids: data.owned_premium_product_ids,
     };
 
     // FINAL CHECK: If version was provided and has changed, skip this save (a force save happened)
@@ -499,6 +503,8 @@ export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; u
     last_tax_time: data.last_tax_time,
     // Playtime tracking
     total_playtime_seconds: data.total_playtime_seconds,
+    // Premium products
+    owned_premium_product_ids: data.owned_premium_product_ids,
   };
 
   const url = `${supabaseUrl}/rest/v1/user_game_data?on_conflict=user_id`;

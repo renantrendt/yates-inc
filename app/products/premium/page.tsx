@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { useStock } from '@/contexts/StockContext';
+// Stocks removed from the game
 import { useGame } from '@/contexts/GameContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClient } from '@/contexts/ClientContext';
@@ -24,68 +24,68 @@ interface PremiumProduct {
   name: string;
   price: string;
   priceValue: number;
-  stockPrice: number;
   description: string;
   image: string;
   edition?: string;
+  buffDescription: string;
 }
 
 const premiumProducts: PremiumProduct[] = [
   {
+    id: 6,
+    name: '16oz Gold Bar',
+    price: '$100T',
+    priceValue: 100_000_000_000_000, // 100T
+    description: 'Original pure gold investment piece',
+    image: '/premium/16gbar.png',
+    buffDescription: '+120% Money',
+  },
+  {
     id: 1,
     name: 'Patek Philippe Nautilus',
-    price: '$5,000,000',
-    priceValue: 5000000,
-    stockPrice: 20000,
+    price: '$250T',
+    priceValue: 250_000_000_000_000, // 250T
     description: 'Made from pure 100mg of gold',
     image: '/premium/Patek Philippe Nautilus.png',
+    buffDescription: '2x Money Bonus',
   },
   {
     id: 2,
     name: 'Richard Mille',
-    price: '$4,500,000',
-    priceValue: 4500000,
-    stockPrice: 17000,
+    price: '$500T',
+    priceValue: 500_000_000_000_000, // 500T
     description: 'Personalized timer made of 5g of pure diamonds',
     image: '/premium/Richardmille.png',
-  },
-  {
-    id: 3,
-    name: 'Luxury Yacht',
-    price: '$100,000,000',
-    priceValue: 100000000,
-    stockPrice: 70000,
-    description: 'Made personalized to your specifications',
-    image: '/premium/100M$Yatch.png',
+    buffDescription: '2.2x Money Bonus',
   },
   {
     id: 4,
     name: 'McLaren F1',
-    price: '$250,000,000',
-    priceValue: 250000000,
-    stockPrice: 200000,
+    price: '$1Q',
+    priceValue: 1_000_000_000_000_000, // 1Q
     description: 'The legendary supercar',
     image: '/premium/mclaren.png',
     edition: '3rd Edition',
+    buffDescription: '+200% Click/Miner/Building Speed',
+  },
+  {
+    id: 3,
+    name: 'Luxury Yacht',
+    price: '$5Q',
+    priceValue: 5_000_000_000_000_000, // 5Q
+    description: 'Made personalized to your specifications',
+    image: '/premium/100M$Yatch.png',
+    buffDescription: 'Yates Pickaxe: 2x Damage & 2x Money',
   },
   {
     id: 5,
     name: 'Bugatti La Voiture Noire',
-    price: '$20,000,000',
-    priceValue: 20000000,
-    stockPrice: 45000,
+    price: '$10Q',
+    priceValue: 10_000_000_000_000_000, // 10Q
     description: 'The most expensive new car ever sold',
     image: '/premium/Bugatti La Voiture Noire.png',
     edition: '5th Edition',
-  },
-  {
-    id: 6,
-    name: '16oz Gold Bar',
-    price: '$1,000,000',
-    priceValue: 1000000,
-    stockPrice: 10000,
-    description: 'Original pure gold investment piece',
-    image: '/premium/16gbar.png',
+    buffDescription: '+600% Click/Miner/Building Speed',
   },
 ];
 
@@ -93,8 +93,7 @@ export default function PremiumProductsPage() {
   const [hoveredProduct, setHoveredProduct] = useState<number | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [purchasedItems, setPurchasedItems] = useState<number[]>([]);
-  const { ownedStocks, stockProfits, spendStocks } = useStock();
-  const { gameState, spendMoney } = useGame();
+  const { gameState, spendMoney, addPremiumProduct, ownsPremiumProduct } = useGame();
   const { employee } = useAuth();
   const { client } = useClient();
   
@@ -106,16 +105,24 @@ export default function PremiumProductsPage() {
   const premiumCash = Math.floor(gameState.yatesDollars / 2);
 
 
-  // Load purchased items from Supabase on mount
+  // Load purchased items from Supabase on mount and sync to game state for buffs
   useEffect(() => {
     const loadPurchases = async () => {
       if (userId) {
         const purchases = await fetchUserPurchases(userId);
-        setPurchasedItems(purchases.map(p => p.product_id));
+        const productIds = purchases.map(p => p.product_id);
+        setPurchasedItems(productIds);
+        
+        // Sync to game state so buffs apply (for purchases made before buff system)
+        for (const id of productIds) {
+          if (!ownsPremiumProduct(id)) {
+            addPremiumProduct(id);
+          }
+        }
       }
     };
     loadPurchases();
-  }, [userId]);
+  }, [userId, addPremiumProduct, ownsPremiumProduct]);
 
 
   // Buy with cash (spends 2x from game because premium cash is half)
@@ -123,6 +130,7 @@ export default function PremiumProductsPage() {
     const actualCost = product.priceValue * 2; // Need 2x game money since premium is half
     if (gameState.yatesDollars >= actualCost) {
       spendMoney(actualCost);
+      addPremiumProduct(product.id); // Track in game state for buffs
       setPurchasedItems((prev) => [...prev, product.id]);
       
       // Save to Supabase if logged in
@@ -137,45 +145,16 @@ export default function PremiumProductsPage() {
         });
       }
       
-      setNotification({ type: 'success', message: `🎉 Purchased ${product.name} with Cash!` });
+      setNotification({ type: 'success', message: `🎉 Purchased ${product.name} with Cash! Game buff activated!` });
       setTimeout(() => setNotification(null), 4000);
     } else {
-      setNotification({ type: 'error', message: `Not enough Premium Cash! Need $${product.priceValue.toLocaleString()}` });
-      setTimeout(() => setNotification(null), 3000);
-    }
-  };
-
-  // Buy with stocks
-  const handleBuyStocks = async (product: PremiumProduct) => {
-    if (ownedStocks >= product.stockPrice) {
-      const success = spendStocks(product.stockPrice);
-      if (success) {
-        setPurchasedItems((prev) => [...prev, product.id]);
-        
-        // Save to Supabase if logged in
-        if (userId && userType) {
-          await savePurchase({
-            user_id: userId,
-            user_type: userType,
-            product_id: product.id,
-            product_name: product.name,
-            purchase_type: 'stocks',
-            amount_paid: product.stockPrice,
-          });
-        }
-        
-        setNotification({ type: 'success', message: `🎉 Purchased ${product.name} with ${product.stockPrice.toLocaleString()} Stocks!` });
-        setTimeout(() => setNotification(null), 4000);
-      }
-    } else {
-      setNotification({ type: 'error', message: `Not enough Stocks! Need ${product.stockPrice.toLocaleString()}` });
+      setNotification({ type: 'error', message: `Not enough Premium Cash! Need ${formatMoney(product.priceValue)}` });
       setTimeout(() => setNotification(null), 3000);
     }
   };
 
   const canAffordCash = (price: number) => premiumCash >= price;
-  const canAffordStocks = (stockPrice: number) => ownedStocks >= stockPrice;
-  const isPurchased = (productId: number) => purchasedItems.includes(productId);
+  const isPurchased = (productId: number) => purchasedItems.includes(productId) || ownsPremiumProduct(productId);
 
   return (
     <div className="min-h-screen bg-black relative">
@@ -188,27 +167,12 @@ export default function PremiumProductsPage() {
         </div>
         
         {/* Premium Cash (half of game money) */}
-        <div className="mb-3">
+        <div>
           <div className="text-xs text-green-500/80">Premium Cash</div>
           <div className="text-lg font-bold text-green-400 font-mono">
             ${premiumCash.toLocaleString()}
           </div>
-        </div>
-        
-        {/* Stocks */}
-        <div className="mb-3 pt-2 border-t border-yellow-500/20">
-          <div className="text-xs text-yellow-500/80">Stocks Owned</div>
-          <div className="text-lg font-bold text-yellow-400 font-mono flex items-center gap-1">
-            📈 {ownedStocks.toLocaleString()}
-          </div>
-        </div>
-        
-        {/* Stock Profits (for premium purchases) */}
-        <div className="pt-2 border-t border-yellow-500/20">
-          <div className="text-xs text-purple-400/80">Stock Profits</div>
-          <div className="text-lg font-bold text-purple-400 font-mono">
-            {formatMoney(stockProfits)}
-          </div>
+          <div className="text-[10px] text-gray-500 mt-1">= 50% of game money</div>
         </div>
       </div>
 
@@ -274,8 +238,8 @@ export default function PremiumProductsPage() {
           </div>
 
           <p className="mt-6 text-yellow-100/60 text-lg max-w-2xl mx-auto font-light tracking-wide">
-            Exclusive items for the elite. Purchase with{' '}
-            <span className="text-yellow-400 font-semibold">Stocks</span> only.
+            Exclusive items for the elite. Each purchase unlocks{' '}
+            <span className="text-pink-400 font-semibold">permanent game buffs</span>!
           </p>
 
           {/* Decorative line */}
@@ -345,63 +309,38 @@ export default function PremiumProductsPage() {
                     {product.description}
                   </p>
                   
-                  {/* Prices - Cash & Stocks */}
+                  {/* Game Buff */}
+                  <div className="mt-2 px-2 py-1 bg-gradient-to-r from-purple-600/30 to-pink-600/30 border border-purple-500/50 rounded-lg">
+                    <span className="text-purple-300 text-xs font-bold">🎮 Game Buff: </span>
+                    <span className="text-pink-300 text-xs">{product.buffDescription}</span>
+                  </div>
+                  
+                  {/* Price & Buy */}
                   <div className="mt-4 space-y-3">
                     {/* Price display */}
-                    <div className="flex items-center justify-between gap-4">
-                      {/* Cash price */}
-                      <div className="flex-1">
-                        <div className="text-xs text-green-500/80 uppercase tracking-wider flex items-center gap-1">
-                          <span>💵</span> Cash
-                        </div>
-                        <div className="text-xl font-black text-green-400">
-                          {product.price}
-                        </div>
-                      </div>
-                      
-                      {/* Divider */}
-                      <div className="text-yellow-500/40 text-sm">or</div>
-                      
-                      {/* Stock price */}
-                      <div className="flex-1 text-right">
-                        <div className="text-xs text-yellow-500/80 uppercase tracking-wider flex items-center justify-end gap-1">
-                          <span>📈</span> Stocks
-                        </div>
-                        <div className="text-xl font-black bg-gradient-to-r from-yellow-300 via-yellow-500 to-yellow-300 bg-clip-text text-transparent">
-                          {product.stockPrice.toLocaleString()}
-                        </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-green-500/80 uppercase tracking-wider">Price</div>
+                      <div className="text-2xl font-black text-green-400">
+                        {product.price}
                       </div>
                     </div>
                     
-                    {/* Buy buttons */}
-                    <div className="flex gap-2">
-                      {isPurchased(product.id) ? (
-                        <div className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 text-white font-bold rounded-lg text-sm text-center">
-                          ✓ OWNED
-                        </div>
-                      ) : (
-                        <>
-                          <button 
-                            onClick={() => handleBuyCash(product)}
-                            disabled={!canAffordCash(product.priceValue)}
-                            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-500 text-white font-bold rounded-lg hover:from-green-500 hover:to-green-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(34,197,94,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-sm"
-                          >
-                            <span className="flex items-center justify-center gap-1.5">
-                              💵 Buy Cash
-                            </span>
-                          </button>
-                          <button 
-                            onClick={() => handleBuyStocks(product)}
-                            disabled={!canAffordStocks(product.stockPrice)}
-                            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-yellow-600 to-yellow-500 text-black font-bold rounded-lg hover:from-yellow-500 hover:to-yellow-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(234,179,8,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-sm"
-                          >
-                            <span className="flex items-center justify-center gap-1.5">
-                              📈 Buy Stocks
-                            </span>
-                          </button>
-                        </>
-                      )}
-                    </div>
+                    {/* Buy button */}
+                    {isPurchased(product.id) ? (
+                      <div className="w-full px-4 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 text-white font-bold rounded-lg text-sm text-center">
+                        ✓ OWNED - Buff Active
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => handleBuyCash(product)}
+                        disabled={!canAffordCash(product.priceValue)}
+                        className="w-full px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-500 text-white font-bold rounded-lg hover:from-green-500 hover:to-green-400 transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(34,197,94,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-sm"
+                      >
+                        <span className="flex items-center justify-center gap-1.5">
+                          💵 Purchase
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
 

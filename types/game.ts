@@ -204,7 +204,52 @@ export interface GameState {
   wtRedeemed: boolean;                       // Completed redemption path after ban
   wtDialogCompleted: boolean;                // Browse More button disappears after deal/redemption
   wtMoneyTax: number;                        // Percentage of money earned that goes to WT (0, 0.05, 0.15, 0.25)
+  // =====================
+  // PREMIUM PRODUCTS (from /products/premium shop)
+  // =====================
+  ownedPremiumProductIds: number[];          // IDs of purchased premium products
 }
+
+// Premium product buff definitions
+export const PREMIUM_PRODUCT_BUFFS: Record<number, {
+  name: string;
+  moneyMultiplier?: number;      // Multiplies money bonus (e.g., 2 = 2x)
+  clickSpeedBonus?: number;      // Additive % (e.g., 2 = +200%)
+  minerSpeedBonus?: number;      // Additive % (e.g., 2 = +200%)
+  buildingSpeedBonus?: number;   // Additive % (affects temple, bank interest, wizard tower)
+  yatesPcxDamageMultiplier?: number;  // Multiplies Yates pickaxe damage
+  yatesPcxMoneyMultiplier?: number;   // Multiplies Yates pickaxe money
+}> = {
+  6: { // Gold Bar
+    name: '16oz Gold Bar',
+    moneyMultiplier: 1.2, // +120% money (1.2x base)
+  },
+  1: { // Patek Philippe Nautilus
+    name: 'Patek Philippe Nautilus',
+    moneyMultiplier: 2.0, // 2x money
+  },
+  2: { // Richard Mille
+    name: 'Richard Mille',
+    moneyMultiplier: 2.2, // 2.2x money
+  },
+  4: { // McLaren F1
+    name: 'McLaren F1',
+    clickSpeedBonus: 2.0,    // +200%
+    minerSpeedBonus: 2.0,    // +200%
+    buildingSpeedBonus: 2.0, // +200%
+  },
+  3: { // Luxury Yacht
+    name: 'Luxury Yacht',
+    yatesPcxDamageMultiplier: 2.0, // 2x Yates damage
+    yatesPcxMoneyMultiplier: 2.0,  // 2x Yates money
+  },
+  5: { // Bugatti La Voiture Noire
+    name: 'Bugatti La Voiture Noire',
+    clickSpeedBonus: 6.0,    // +600% (3x McLaren)
+    minerSpeedBonus: 6.0,    // +600%
+    buildingSpeedBonus: 6.0, // +600%
+  },
+};
 
 // Prestige requirements (Rock 19 = Titanium Quartz, Pickaxe 16 = Pin)
 export const PRESTIGE_REQUIREMENTS = {

@@ -390,6 +390,13 @@ export default function TrinketSlot() {
                       <span>Wandering Trader Buffs</span>
                     </div>
                   )}
+                  {/* Premium Products */}
+                  {gameState.ownedPremiumProductIds.length > 0 && (
+                    <div className="flex items-center gap-1 text-pink-400">
+                      <span>💎</span>
+                      <span>{gameState.ownedPremiumProductIds.length} Premium Product{gameState.ownedPremiumProductIds.length > 1 ? 's' : ''}</span>
+                    </div>
+                  )}
                   {hasActiveSacrificeBuff && (
                     <div className="flex items-center gap-1 text-red-400">
                       <span>🔥</span>

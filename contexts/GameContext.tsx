@@ -32,12 +32,14 @@ import {
   WanderingTraderOffer, RouletteResult,
   WANDERING_TRADER_DURATION, 
   generateWanderingTraderOffers, getWanderingTraderNextSpawn, spinRoulette,
+  // Premium products
+  PREMIUM_PRODUCT_BUFFS,
 } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
 import { useAuth } from './AuthContext';
 import { useClient } from './ClientContext';
-import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData, savePurchase, forceImmediateSave, keepaliveSave, getPendingData } from '@/lib/userDataSync';
+import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData, savePurchase, forceImmediateSave, keepaliveSave, getPendingData, fetchUserPurchases } from '@/lib/userDataSync';
 import { supabase } from '@/lib/supabase';
 
 // Helper to add product sale contribution to active budget (50% of sale)
@@ -102,6 +104,8 @@ interface GameContextType {
   markCutsceneSeen: () => void;
   useCoupon: (type: 'discount30' | 'discount50' | 'discount100') => boolean;
   spendMoney: (amount: number) => boolean;
+  addPremiumProduct: (productId: number) => void;
+  ownsPremiumProduct: (productId: number) => boolean;
   shopStock: ShopStock;
   buyShopProduct: (productId: number) => boolean;
   getTimeUntilRestock: () => number;
@@ -329,6 +333,8 @@ const defaultGameState: GameState = {
   wtRedeemed: false,
   wtDialogCompleted: false,
   wtMoneyTax: 0,
+  // Premium products
+  ownedPremiumProductIds: [],
 };
 
 const STORAGE_KEY_PREFIX = 'yates-mining-game';
@@ -673,9 +679,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
                   prev.totalPlaytimeSeconds || 0,
                   (supabaseData as unknown as { total_playtime_seconds?: number }).total_playtime_seconds || 0
                 ),
+                // Premium products (merge from both sources)
+                ownedPremiumProductIds: [
+                  ...new Set([
+                    ...(prev.ownedPremiumProductIds || []),
+                    ...((supabaseData as unknown as { owned_premium_product_ids?: number[] }).owned_premium_product_ids || []),
+                  ]),
+                ],
                 // Keep whichever timestamp is newer (for future syncs)
                 localUpdatedAt: useSupabase ? supabaseTime : localTime,
               };
+              });
+            }
+            
+            // Sync premium purchases from purchases table to game state (for buff system)
+            const purchases = await fetchUserPurchases(userId);
+            if (purchases.length > 0) {
+              const purchasedIds = purchases.map(p => p.product_id);
+              setGameState(prev => {
+                const existingIds = new Set(prev.ownedPremiumProductIds);
+                const newIds = purchasedIds.filter(id => !existingIds.has(id));
+                if (newIds.length === 0) return prev;
+                return {
+                  ...prev,
+                  ownedPremiumProductIds: [...prev.ownedPremiumProductIds, ...newIds],
+                };
               });
             }
           } catch {
@@ -1488,9 +1516,29 @@ export function GameProvider({ children }: { children: ReactNode }) {
       bonuses.minerSpeedBonus = (1 + bonuses.minerSpeedBonus) * 3 - 1;
       bonuses.minerDamageBonus = (1 + bonuses.minerDamageBonus) * 3 - 1;
     }
+
+    // PREMIUM PRODUCT BUFFS
+    for (const productId of gameState.ownedPremiumProductIds) {
+      const buff = PREMIUM_PRODUCT_BUFFS[productId];
+      if (buff) {
+        // Money multiplier (multiplicative - e.g., 2x means double)
+        if (buff.moneyMultiplier) {
+          bonuses.moneyBonus = (1 + bonuses.moneyBonus) * buff.moneyMultiplier - 1;
+        }
+        // Click speed bonus (additive)
+        if (buff.clickSpeedBonus) {
+          bonuses.clickSpeedBonus += buff.clickSpeedBonus;
+        }
+        // Miner speed bonus (additive)
+        if (buff.minerSpeedBonus) {
+          bonuses.minerSpeedBonus += buff.minerSpeedBonus;
+        }
+        // Building speed bonus is tracked separately and applied in building calculations
+      }
+    }
     
     return bonuses;
-  }, [gameState.equippedTrinketIds, gameState.ownedPrestigeUpgradeIds, gameState.equippedTitleIds, gameState.chosenPath, gameState.sacrificeBuff, gameState.buildings.temple.equippedRank, gameState.buildings.wizard_tower.ritualActive, gameState.buildings.wizard_tower.ritualEndTime]);
+  }, [gameState.equippedTrinketIds, gameState.ownedPrestigeUpgradeIds, gameState.equippedTitleIds, gameState.chosenPath, gameState.sacrificeBuff, gameState.buildings.temple.equippedRank, gameState.buildings.wizard_tower.ritualActive, gameState.buildings.wizard_tower.ritualEndTime, gameState.ownedPremiumProductIds]);
 
   // Save to localStorage and Supabase whenever state changes
   useEffect(() => {
@@ -1568,6 +1616,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           last_tax_time: gameState.lastTaxTime,
           // Playtime tracking
           total_playtime_seconds: gameState.totalPlaytimeSeconds,
+          // Premium products
+          owned_premium_product_ids: gameState.ownedPremiumProductIds,
         });
       }
     } catch (err) {
@@ -2030,6 +2080,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     return true;
   }, [gameState.yatesDollars]);
+
+  // Premium product functions
+  const addPremiumProduct = useCallback((productId: number) => {
+    setGameState((prev) => {
+      if (prev.ownedPremiumProductIds.includes(productId)) return prev;
+      return {
+        ...prev,
+        ownedPremiumProductIds: [...prev.ownedPremiumProductIds, productId],
+      };
+    });
+  }, []);
+
+  const ownsPremiumProduct = useCallback((productId: number) => {
+    return gameState.ownedPremiumProductIds.includes(productId);
+  }, [gameState.ownedPremiumProductIds]);
 
   const buyShopProduct = useCallback((productId: number) => {
     const stockItem = shopStock.items.find(item => item.productId === productId);
@@ -4231,6 +4296,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         markCutsceneSeen,
         useCoupon,
         spendMoney,
+        addPremiumProduct,
+        ownsPremiumProduct,
         shopStock,
         buyShopProduct,
         getTimeUntilRestock,

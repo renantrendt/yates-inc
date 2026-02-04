@@ -10,7 +10,7 @@ import { useState } from 'react';
 import CartSidebar from './CartSidebar';
 import InboxSidebar from './InboxSidebar';
 import PaycheckSidebar from './PaycheckSidebar';
-import StockMarket from './StockMarket';
+// Stock Market removed - feature deprecated
 import BudgetSidebar from './BudgetSidebar';
 
 // Format money with K, M, B, T, Q suffixes
@@ -32,7 +32,7 @@ export default function Navbar() {
   const [showCart, setShowCart] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
   const [showPaychecks, setShowPaychecks] = useState(false);
-  const [showStockMarket, setShowStockMarket] = useState(false);
+  // Stock market removed
   const [showBudget, setShowBudget] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -75,14 +75,6 @@ export default function Navbar() {
                 EL
               </Link>
 
-              {/* Stock Market button */}
-              <button
-                onClick={() => setShowStockMarket(true)}
-                className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium flex items-center gap-1"
-                title="Stock Market"
-              >
-                📈
-              </button>
 
               {/* Company Budget button - all employees */}
               {isLoggedIn && (
@@ -316,16 +308,6 @@ export default function Navbar() {
                   EL
                 </Link>
 
-                {/* Stock Market - mobile */}
-                <button
-                  onClick={() => {
-                    setShowStockMarket(true);
-                    setMobileMenuOpen(false);
-                  }}
-                  className="text-left text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium flex items-center gap-2"
-                >
-                  📈 Stock Market
-                </button>
 
                 {(isLoggedIn || isClient) && (
                   <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -394,7 +376,6 @@ export default function Navbar() {
       <CartSidebar isOpen={showCart} onClose={() => setShowCart(false)} />
       <InboxSidebar isOpen={showInbox} onClose={() => setShowInbox(false)} />
       {isCEO && <PaycheckSidebar isOpen={showPaychecks} onClose={() => setShowPaychecks(false)} />}
-      <StockMarket isOpen={showStockMarket} onClose={() => setShowStockMarket(false)} />
       {isLoggedIn && <BudgetSidebar isOpen={showBudget} onClose={() => setShowBudget(false)} />}
     </>
   );
