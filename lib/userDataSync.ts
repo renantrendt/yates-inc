@@ -236,9 +236,10 @@ export async function savePurchase(purchase: UserPurchase): Promise<boolean> {
 }
 
 // Throttled save - saves at most every SAVE_INTERVAL ms
-const SAVE_INTERVAL = 3000; // Save every 3 seconds max (balanced reliability vs network)
+const BASE_SAVE_INTERVAL = 3000; // Save every 3 seconds normally
+const ACTIVE_SAVE_INTERVAL = 6000; // Save every 6 seconds when autoclicker/miners active (more time for state to settle)
 const FORCE_SAVE_COOLDOWN = 3000; // Block regular saves for 3s after force save (match interval)
-const IDLE_SAVE_DELAY = 2000; // Save after 2s of no state changes
+const IDLE_SAVE_DELAY = 3000; // Save after 3s of no state changes
 let saveTimeout: NodeJS.Timeout | null = null;
 let idleSaveTimeout: NodeJS.Timeout | null = null; // For idle save mechanism
 let pendingData: (Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }) | null = null;
@@ -246,6 +247,12 @@ let lastSaveTime = 0;
 let isSaving = false;
 let saveVersion = 0; // Increments on force save to invalidate old in-flight saves
 let lastForceSaveTime = 0; // Track when force save happened to block stale saves
+
+// Get save interval based on whether autoclicker/miners are active
+function getSaveInterval(data: Partial<UserGameData>): number {
+  const hasActiveMining = (data.autoclicker_enabled && data.has_autoclicker) || (data.miner_count && data.miner_count > 0);
+  return hasActiveMining ? ACTIVE_SAVE_INTERVAL : BASE_SAVE_INTERVAL;
+}
 
 export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }): void {
   // CRITICAL: Block saves when core data is undefined/null (prevents overwriting with empty data)
@@ -277,13 +284,14 @@ export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_i
   
   const now = Date.now();
   const timeSinceLastSave = now - lastSaveTime;
+  const saveInterval = getSaveInterval(pendingData);
   
   // If enough time has passed and we're not already saving, save immediately
-  if (timeSinceLastSave >= SAVE_INTERVAL && !isSaving) {
+  if (timeSinceLastSave >= saveInterval && !isSaving) {
     executeSave();
   } else if (!saveTimeout) {
     // Schedule a save for when the interval completes
-    const timeUntilNextSave = Math.max(0, SAVE_INTERVAL - timeSinceLastSave);
+    const timeUntilNextSave = Math.max(0, saveInterval - timeSinceLastSave);
     saveTimeout = setTimeout(() => {
       if (pendingData && !isSaving) {
         executeSave();

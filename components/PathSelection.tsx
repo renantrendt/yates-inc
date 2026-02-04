@@ -35,7 +35,7 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
 
                         <p>
                             <span className="text-orange-400 font-bold">Data only saves after ~3 seconds.</span><br />
-                            But with autoclicker it may take ~5-6 seconds.
+                            But with autoclicker/miners active it takes ~6 seconds.
                         </p>
 
                         <p>
