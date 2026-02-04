@@ -22,6 +22,7 @@ export default function TrinketSlot() {
     currentPickaxe,
     ownsRelic,
     ownsTalisman,
+    wanderingTraderPermBuffs,
   } = useGame();
   
   // Update time every second for buff timers
@@ -360,6 +361,33 @@ export default function TrinketSlot() {
                     <div className="flex items-center gap-1 text-yellow-400">
                       <span>☀️</span>
                       <span>Light Path (+50% trinkets, +30% money)</span>
+                    </div>
+                  )}
+                  {/* Buildings */}
+                  {gameState.buildings.temple.equippedRank > 0 && (
+                    <div className="flex items-center gap-1 text-amber-400">
+                      <span>🏛️</span>
+                      <span>Temple Rank {gameState.buildings.temple.equippedRank}</span>
+                    </div>
+                  )}
+                  {wizardRitualActive && (
+                    <div className="flex items-center gap-1 text-purple-400">
+                      <span>🧙</span>
+                      <span>Wizard Ritual ({wizardTimeRemaining}s)</span>
+                    </div>
+                  )}
+                  {hasActiveFactoryBuffs && (
+                    <div className="flex items-center gap-1 text-orange-400">
+                      <span>🏭</span>
+                      <span>{activeBuffs.length} Factory Buff{activeBuffs.length > 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  {/* Wandering Trader permanent buffs */}
+                  {(wanderingTraderPermBuffs.moneyBonus > 0 || wanderingTraderPermBuffs.couponLuckBonus > 0 || 
+                    wanderingTraderPermBuffs.minerSpeedBonus > 0 || wanderingTraderPermBuffs.minerDamageBonus > 0) && (
+                    <div className="flex items-center gap-1 text-emerald-400">
+                      <span>🧳</span>
+                      <span>Wandering Trader Buffs</span>
                     </div>
                   )}
                   {hasActiveSacrificeBuff && (
