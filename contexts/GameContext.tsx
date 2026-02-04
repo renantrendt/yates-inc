@@ -202,6 +202,8 @@ interface GameContextType {
   buyTempleUpgrade: (upgradeType: string, rank: number) => boolean;
   equipTempleRank: (rank: number | null) => boolean;
   getTempleUpgradeBonus: (upgradeType: string) => number;
+  prayAtTemple: () => { success: boolean; message: string };
+  consumePendingGoldenCookie: () => boolean;
   // Wizard Tower functions (Darkness path)
   startWizardRitual: () => boolean;
   isWizardRitualActive: () => boolean;
@@ -3414,6 +3416,80 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return values[equippedRank]?.[upgradeType] || 0;
   }, [gameState.buildings.temple.equippedRank]);
 
+  // Temple Prayer System - 20% chance to spawn golden cookie
+  const PRAYER_COOLDOWN_MS = 3000; // 3 second cooldown between prayers
+  
+  const prayAtTemple = useCallback((): { success: boolean; message: string } => {
+    // Must be on Light path with Temple owned
+    if (gameState.chosenPath !== 'light') {
+      return { success: false, message: 'Only followers of the Light may pray here.' };
+    }
+    if (!gameState.buildings.temple.owned) {
+      return { success: false, message: 'You must own a Temple to pray.' };
+    }
+    
+    // Check cooldown
+    const now = Date.now();
+    const lastPrayer = gameState.buildings.temple.lastPrayerTime;
+    if (lastPrayer && now - lastPrayer < PRAYER_COOLDOWN_MS) {
+      const remaining = Math.ceil((PRAYER_COOLDOWN_MS - (now - lastPrayer)) / 1000);
+      return { success: false, message: `Wait ${remaining}s before praying again.` };
+    }
+    
+    // 20% chance of success
+    const roll = Math.random();
+    const isSuccess = roll < 0.20;
+    
+    setGameState(prev => ({
+      ...prev,
+      buildings: {
+        ...prev.buildings,
+        temple: {
+          ...prev.buildings.temple,
+          prayerCount: (prev.buildings.temple.prayerCount || 0) + 1,
+          lastPrayerTime: now,
+          pendingGoldenCookie: isSuccess ? true : prev.buildings.temple.pendingGoldenCookie,
+        },
+      },
+    }));
+    
+    if (isSuccess) {
+      return { success: true, message: '🍪 The Gods of Yates have blessed you! A Golden Cookie appears!' };
+    } else {
+      const messages = [
+        'The gods remain silent... Keep praying!',
+        'Your prayers echo into the void. Try again!',
+        'The gods are busy. Pray harder!',
+        'Not this time... The gods test your faith.',
+        'Silence. Perhaps pray more fervently?',
+        'Yates is sleeping... Try waking him up! 😴',
+        'A thief stole your mail to Yates. Send another one! 📬',
+        'Yates is having a meeting with the Higherups. Pray harder! 👔',
+        'Maybe a little more? 🤏',
+        '.....Nothing? 😶',
+      ];
+      return { success: false, message: messages[Math.floor(Math.random() * messages.length)] };
+    }
+  }, [gameState.chosenPath, gameState.buildings.temple.owned, gameState.buildings.temple.lastPrayerTime]);
+
+  // Consume the pending golden cookie (called by GoldenCookie component)
+  const consumePendingGoldenCookie = useCallback((): boolean => {
+    if (!gameState.buildings.temple.pendingGoldenCookie) return false;
+    
+    setGameState(prev => ({
+      ...prev,
+      buildings: {
+        ...prev.buildings,
+        temple: {
+          ...prev.buildings.temple,
+          pendingGoldenCookie: false,
+        },
+      },
+    }));
+    
+    return true;
+  }, [gameState.buildings.temple.pendingGoldenCookie]);
+
   // Wizard Tower functions (Darkness path)
   const WIZARD_RITUAL_DURATION_MS = 60000; // 1 minute
   const WIZARD_RITUAL_MINER_COST = 367; // Must have 367 miners
@@ -4381,6 +4457,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         buyTempleUpgrade,
         equipTempleRank,
         getTempleUpgradeBonus,
+        prayAtTemple,
+        consumePendingGoldenCookie,
         startWizardRitual,
         isWizardRitualActive,
         collectShipmentDelivery,

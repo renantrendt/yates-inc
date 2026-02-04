@@ -37,13 +37,14 @@ const COOKIE_STYLES = {
 };
 
 export default function GoldenCookie() {
-  const { gameState, claimGoldenCookieReward } = useGame();
+  const { gameState, claimGoldenCookieReward, consumePendingGoldenCookie } = useGame();
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState({ x: 50, y: 50 });
   const [isClicked, setIsClicked] = useState(false);
   const [rewardPopups, setRewardPopups] = useState<RewardPopup[]>([]);
   const spawnTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const popupIdRef = useRef(0);
+  const lastPendingCheck = useRef(false);
 
   // Get random spawn time between min and max
   const getRandomSpawnTime = () => {
@@ -99,6 +100,23 @@ export default function GoldenCookie() {
       }
     };
   }, [shouldSpawnCookies, scheduleNextSpawn]);
+
+  // Watch for prayer-triggered golden cookies (Light path Temple)
+  useEffect(() => {
+    const pending = gameState.buildings.temple.pendingGoldenCookie;
+    
+    // Only trigger when pendingGoldenCookie changes from false to true
+    if (pending && !lastPendingCheck.current) {
+      // Immediately spawn a golden cookie from prayer
+      setPosition(getRandomPosition());
+      setIsVisible(true);
+      setIsClicked(false);
+      // Consume the pending flag
+      consumePendingGoldenCookie();
+    }
+    
+    lastPendingCheck.current = pending;
+  }, [gameState.buildings.temple.pendingGoldenCookie, consumePendingGoldenCookie]);
 
   // Get reward display text
   const getRewardText = (type: string, value: number | string): { emoji: string; text: string; color: string } => {

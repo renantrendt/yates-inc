@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { TempleUpgradeRank } from '@/types/game';
@@ -47,7 +47,38 @@ const TEMPLE_RANKS: Record<TempleUpgradeRank, {
 };
 
 export default function TempleModal({ onClose }: TempleModalProps) {
-  const { gameState, buyTempleUpgrade, equipTempleRank } = useGame();
+  const { gameState, buyTempleUpgrade, equipTempleRank, prayAtTemple } = useGame();
+  const [prayerMessage, setPrayerMessage] = useState<{ text: string; success: boolean } | null>(null);
+  const [prayerCooldown, setPrayerCooldown] = useState(0);
+  const [isPraying, setIsPraying] = useState(false);
+
+  // Update cooldown timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const lastPrayer = gameState.buildings.temple.lastPrayerTime;
+      if (lastPrayer) {
+        const remaining = Math.max(0, 3000 - (Date.now() - lastPrayer));
+        setPrayerCooldown(Math.ceil(remaining / 1000));
+      } else {
+        setPrayerCooldown(0);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [gameState.buildings.temple.lastPrayerTime]);
+
+  const handlePray = () => {
+    setIsPraying(true);
+    
+    // Small delay for dramatic effect
+    setTimeout(() => {
+      const result = prayAtTemple();
+      setPrayerMessage({ text: result.message, success: result.success });
+      setIsPraying(false);
+      
+      // Clear message after 3 seconds
+      setTimeout(() => setPrayerMessage(null), 3000);
+    }, 500);
+  };
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000000000000000) return `${(num / 1000000000000000000).toFixed(1)}Qi`;
@@ -104,6 +135,51 @@ export default function TempleModal({ onClose }: TempleModalProps) {
             <span className="text-xl">💰</span>
             <span className="text-yellow-400 font-bold text-lg">${formatNumber(gameState.yatesDollars)}</span>
           </div>
+        </div>
+
+        {/* Prayer Section */}
+        <div className="bg-gradient-to-r from-amber-800/50 to-yellow-800/50 px-6 py-4 border-y border-yellow-500/30">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1">
+              <h3 className="text-yellow-300 font-bold flex items-center gap-2">
+                🙏 Pray to the Gods of Yates
+              </h3>
+              <p className="text-yellow-100/60 text-xs mt-1">
+                20% chance to spawn a Golden Cookie • Prayers: {gameState.buildings.temple.prayerCount || 0}
+              </p>
+              <p className="text-amber-400/80 text-[10px] mt-0.5 italic">
+                ✨ Extra cookies! You still get automatic spawns too.
+              </p>
+            </div>
+            <button
+              onClick={handlePray}
+              disabled={prayerCooldown > 0 || isPraying}
+              className={`px-6 py-3 rounded-lg font-bold text-sm transition-all ${
+                prayerCooldown > 0 || isPraying
+                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-black hover:scale-105'
+              }`}
+            >
+              {isPraying ? (
+                <span className="animate-pulse">🙏 Praying...</span>
+              ) : prayerCooldown > 0 ? (
+                <span>Wait {prayerCooldown}s</span>
+              ) : (
+                <span>🙏 PRAY</span>
+              )}
+            </button>
+          </div>
+          
+          {/* Prayer Result Message */}
+          {prayerMessage && (
+            <div className={`mt-3 p-3 rounded-lg text-center font-bold text-sm animate-pulse ${
+              prayerMessage.success 
+                ? 'bg-green-600/50 text-green-200 border border-green-400/50'
+                : 'bg-gray-700/50 text-gray-300 border border-gray-500/50'
+            }`}>
+              {prayerMessage.text}
+            </div>
+          )}
         </div>
 
         {/* Ranks */}

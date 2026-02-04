@@ -1427,6 +1427,10 @@ export interface TempleState {
   hiddenCurseActive: boolean; // 25+ golden cookies = permanent curse until prestige
   hasCookieCurse: boolean; // Permanent until prestige - rock randomly heals to 100%
   hasHolyUnluckinessCurse: boolean; // Permanent until prestige - rock heals + 40% less money
+  // Prayer system - pray for 20% chance to spawn golden cookie
+  prayerCount: number; // Total prayers made
+  lastPrayerTime: number | null; // Cooldown tracking
+  pendingGoldenCookie: boolean; // If true, a golden cookie should spawn
 }
 
 // Wizard Tower: Darkness path only, shadow miners and rituals
@@ -1920,6 +1924,9 @@ export function getDefaultBuildingStates(): BuildingStates {
       hiddenCurseActive: false,
       hasCookieCurse: false,
       hasHolyUnluckinessCurse: false,
+      prayerCount: 0,
+      lastPrayerTime: null,
+      pendingGoldenCookie: false,
     },
     wizard_tower: {
       owned: false,

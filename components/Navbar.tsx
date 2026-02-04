@@ -12,6 +12,7 @@ import InboxSidebar from './InboxSidebar';
 import PaycheckSidebar from './PaycheckSidebar';
 // Stock Market removed - feature deprecated
 import BudgetSidebar from './BudgetSidebar';
+import GitCommitsModal from './GitCommitsModal';
 
 // Format money with K, M, B, T, Q suffixes
 function formatMoney(amount: number): string {
@@ -34,6 +35,7 @@ export default function Navbar() {
   const [showPaychecks, setShowPaychecks] = useState(false);
   // Stock market removed
   const [showBudget, setShowBudget] = useState(false);
+  const [showGitCommits, setShowGitCommits] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Check if current user is Logan (CEO)
@@ -44,9 +46,18 @@ export default function Navbar() {
       <nav className="bg-white dark:bg-gray-900 shadow-md fixed top-0 left-0 right-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-              YATES INC.
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/" className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+                YATES
+              </Link>
+              <button
+                onClick={() => setShowGitCommits(true)}
+                className="text-xl sm:text-2xl font-bold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                title="View Dev Status & Commits"
+              >
+                INC.
+              </button>
+            </div>
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex space-x-6 items-center">
@@ -377,6 +388,7 @@ export default function Navbar() {
       <InboxSidebar isOpen={showInbox} onClose={() => setShowInbox(false)} />
       {isCEO && <PaycheckSidebar isOpen={showPaychecks} onClose={() => setShowPaychecks(false)} />}
       {isLoggedIn && <BudgetSidebar isOpen={showBudget} onClose={() => setShowBudget(false)} />}
+      <GitCommitsModal isOpen={showGitCommits} onClose={() => setShowGitCommits(false)} />
     </>
   );
 }
