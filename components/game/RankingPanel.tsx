@@ -25,10 +25,19 @@ export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
   const [rankings, setRankings] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodEndTime, setPeriodEndTime] = useState<Date | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [, setTick] = useState(0); // Force re-render for "Xs ago" counter
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Update "Xs ago" counter every second
+  useEffect(() => {
+    if (!isOpen || !lastUpdated) return;
+    const tickInterval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(tickInterval);
+  }, [isOpen, lastUpdated]);
 
   // Calculate next period end (every Sunday at midnight)
   const getNextPeriodEnd = useCallback(() => {
@@ -131,6 +140,7 @@ export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
         }
 
         setRankings(rankingsWithNames);
+        setLastUpdated(new Date());
       } catch (err) {
         console.error('Failed to fetch rankings:', err);
         setRankings([]);
@@ -140,7 +150,70 @@ export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
     };
 
     fetchRankings();
+
+    // Auto-refresh every 30 seconds while panel is open
+    const refreshInterval = setInterval(fetchRankings, 30000);
+    return () => clearInterval(refreshInterval);
   }, [isOpen, category, checkAndProcessPeriodEnd]);
+
+  // Manual refresh function
+  const handleRefresh = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
+    
+    try {
+      await checkAndProcessPeriodEnd();
+      
+      let query = supabase
+        .from('user_game_data')
+        .select('user_id, user_type, total_money_earned, fastest_prestige_time, prestige_count')
+        .limit(5);
+
+      switch (category) {
+        case 'money':
+          query = query.gt('total_money_earned', 0).order('total_money_earned', { ascending: false });
+          break;
+        case 'speed':
+          query = query.not('fastest_prestige_time', 'is', null).order('fastest_prestige_time', { ascending: true });
+          break;
+        case 'prestiges':
+          query = query.gt('prestige_count', 0).order('prestige_count', { ascending: false });
+          break;
+      }
+
+      const { data, error } = await query;
+      if (error || !data) {
+        setRankings([]);
+        return;
+      }
+
+      const rankingsWithNames: RankingEntry[] = [];
+      for (const entry of data) {
+        let username = 'Unknown';
+        if (entry.user_type === 'client') {
+          const { data: clientData } = await supabase.from('clients').select('username').eq('id', entry.user_id).maybeSingle();
+          username = clientData?.username || 'Unknown';
+        } else {
+          const { data: empData } = await supabase.from('employees').select('name').eq('id', entry.user_id).maybeSingle();
+          username = empData?.name || 'Unknown';
+        }
+        rankingsWithNames.push({
+          user_id: entry.user_id,
+          username,
+          total_money_earned: entry.total_money_earned || 0,
+          fastest_prestige_time: entry.fastest_prestige_time,
+          total_prestiges: entry.prestige_count || 0,
+        });
+      }
+
+      setRankings(rankingsWithNames);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Failed to refresh rankings:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [loading, category, checkAndProcessPeriodEnd]);
 
   // Format number for display
   const formatNumber = (num: number): string => {
@@ -238,11 +311,28 @@ export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
           </button>
         </div>
 
-        {/* Period countdown */}
-        <div className="text-center mb-4 text-sm">
-          <span className="text-gray-400">Resets in: </span>
-          <span className="text-cyan-300 font-bold">{formatTimeRemaining()}</span>
+        {/* Period countdown + Refresh */}
+        <div className="flex justify-between items-center mb-4 text-sm">
+          <div>
+            <span className="text-gray-400">Resets in: </span>
+            <span className="text-cyan-300 font-bold">{formatTimeRemaining()}</span>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={loading}
+            className="text-cyan-400 hover:text-cyan-300 disabled:text-gray-500 transition-colors flex items-center gap-1"
+          >
+            <span className={loading ? 'animate-spin' : ''}>🔄</span>
+            <span className="text-xs">Refresh</span>
+          </button>
         </div>
+
+        {/* Last updated notice */}
+        {lastUpdated && (
+          <div className="text-center mb-2 text-xs text-gray-500">
+            Updated {Math.floor((Date.now() - lastUpdated.getTime()) / 1000)}s ago • Auto-refreshes every 30s
+          </div>
+        )}
 
         {/* Category Tabs */}
         <div className="flex gap-2 mb-6">
