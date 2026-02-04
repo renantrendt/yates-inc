@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { 
   GameState, COUPON_DROP_RATES, COUPON_REQUIREMENTS, ShopStock, 
   SHOP_RESTOCK_INTERVAL, SHOP_MIN_ITEMS, SHOP_MAX_ITEMS, SHOP_MIN_QUANTITY, SHOP_MAX_QUANTITY, 
-  AUTOCLICKER_COST, PRESTIGE_REQUIREMENTS, YATES_ACCOUNT_ID, getPrestigeMoneyRequirement, getPrestigeRockRequirement, getPrestigePickaxeRequirement, MAX_PRESTIGE_WITH_BUFFS,
+  AUTOCLICKER_COST, PRESTIGE_REQUIREMENTS, YATES_ACCOUNT_ID, getPrestigeRockRequirement, getPrestigePickaxeRequirement, MAX_PRESTIGE_WITH_BUFFS,
   TRINKETS, Trinket, TRINKET_SHOP_REFRESH_INTERVAL, TRINKET_SHOP_MIN_ITEMS, TRINKET_SHOP_MAX_ITEMS,
   MINER_TICK_INTERVAL, MINER_BASE_DAMAGE, MINER_MAX_COUNT, getMinerCost, getPrestigePriceMultiplier,
   PRESTIGE_UPGRADES, PrestigeUpgrade, PRESTIGE_TOKENS_PER_PRESTIGE, RARITY_COLORS,
@@ -1226,12 +1226,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!gameState.autoPrestigeEnabled) return;
     
     const interval = setInterval(() => {
-      const moneyRequired = getPrestigeMoneyRequirement(gameState.prestigeCount);
       const rockRequired = getPrestigeRockRequirement(gameState.prestigeCount);
       const pickaxeRequired = getPrestigePickaxeRequirement(gameState.prestigeCount);
+      // Money requirement removed - just need rock + pickaxe
       const canDo = gameState.currentRockId >= rockRequired &&
-        gameState.ownedPickaxeIds.includes(pickaxeRequired) &&
-        gameState.yatesDollars >= moneyRequired;
+        gameState.ownedPickaxeIds.includes(pickaxeRequired);
       
       if (canDo) {
         // Trigger prestige
@@ -2106,16 +2105,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [gameState.hasAutoclicker]);
 
   // Check if user can prestige (requirements scale with prestige count)
+  // Money requirement removed - just need rock + pickaxe
   const canPrestige = useCallback(() => {
-    const moneyRequired = getPrestigeMoneyRequirement(gameState.prestigeCount);
     const rockRequired = getPrestigeRockRequirement(gameState.prestigeCount);
     const pickaxeRequired = getPrestigePickaxeRequirement(gameState.prestigeCount);
     return (
       gameState.currentRockId >= rockRequired &&
-      gameState.ownedPickaxeIds.includes(pickaxeRequired) &&
-      gameState.yatesDollars >= moneyRequired
+      gameState.ownedPickaxeIds.includes(pickaxeRequired)
     );
-  }, [gameState.currentRockId, gameState.ownedPickaxeIds, gameState.yatesDollars, gameState.prestigeCount]);
+  }, [gameState.currentRockId, gameState.ownedPickaxeIds, gameState.prestigeCount]);
 
   // Perform prestige - reset progress, gain multiplier
   // Yates (000000) keeps all money, others get 1/32 sent to company budget
