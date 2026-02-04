@@ -1618,8 +1618,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           last_tax_time: gameState.lastTaxTime,
           // Playtime tracking
           total_playtime_seconds: gameState.totalPlaytimeSeconds,
-          // Premium products
-          owned_premium_product_ids: gameState.ownedPremiumProductIds,
+          // Premium products - only if has items
+          ...(gameState.ownedPremiumProductIds?.length ? { owned_premium_product_ids: gameState.ownedPremiumProductIds } : {}),
         });
       }
     } catch (err) {

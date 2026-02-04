@@ -164,8 +164,8 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       last_tax_time: safeBigInt(data.last_tax_time),
       // Playtime tracking
       total_playtime_seconds: safeBigInt(data.total_playtime_seconds),
-      // Premium products
-      owned_premium_product_ids: data.owned_premium_product_ids,
+      // Premium products - only include if the array has items (avoid schema issues)
+      ...(data.owned_premium_product_ids?.length ? { owned_premium_product_ids: data.owned_premium_product_ids } : {}),
     };
 
     // FINAL CHECK: If version was provided and has changed, skip this save (a force save happened)
@@ -503,8 +503,8 @@ export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; u
     last_tax_time: data.last_tax_time,
     // Playtime tracking
     total_playtime_seconds: data.total_playtime_seconds,
-    // Premium products
-    owned_premium_product_ids: data.owned_premium_product_ids,
+    // Premium products - only include if the array has items
+    ...(data.owned_premium_product_ids?.length ? { owned_premium_product_ids: data.owned_premium_product_ids } : {}),
   };
 
   const url = `${supabaseUrl}/rest/v1/user_game_data?on_conflict=user_id`;
