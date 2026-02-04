@@ -311,6 +311,7 @@ export interface TrinketEffects {
   allBonus?: number;          // % bonus to everything
   prestigeProtection?: boolean; // Keep money on prestige (consumable)
   trinketBonus?: number;      // % boost to all trinket effects
+  bankInterestBonus?: number; // Multiplier for bank interest (e.g., 10 = 10x = 1% instead of 0.1%)
 }
 
 export interface Trinket {
@@ -564,6 +565,7 @@ export const TRINKETS: Trinket[] = [
       moneyBonus: 1.0,           // +100% money
       clickSpeedBonus: 1.0,      // +100% click speed
       allBonus: 1.0,             // +100% all (buildings get special treatment in-game)
+      bankInterestBonus: 10,     // 10x bank interest (0.1% -> 1%)
     },
     description: '+100% money, click speed, buildings mega buffed! (Bank 1% interest, Factory +30% faster +15 miners, Mine 30 miners & 40% boost)',
   },
@@ -1960,9 +1962,11 @@ export function getMineEfficiencyBonus(mineCount: number): number {
 }
 
 // Calculate bank interest based on deposit time
-export function calculateBankInterest(depositAmount: number, depositTimestamp: number, now: number): number {
+// interestMultiplier: multiplier from trinkets (e.g., 10 for void_merchants_pact = 10x interest)
+export function calculateBankInterest(depositAmount: number, depositTimestamp: number, now: number, interestMultiplier: number = 1): number {
   const minutesDeposited = (now - depositTimestamp) / 60000;
-  const interestRate = BANK_BASE_INTEREST_RATE + (minutesDeposited * BANK_TIME_MULTIPLIER);
+  const baseInterestRate = BANK_BASE_INTEREST_RATE * interestMultiplier;
+  const interestRate = baseInterestRate + (minutesDeposited * BANK_TIME_MULTIPLIER);
   return Math.floor(depositAmount * interestRate * minutesDeposited);
 }
 

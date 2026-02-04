@@ -3204,16 +3204,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return true;
   }, [gameState.buildings.bank, gameState.yatesDollars]);
 
+  // Get bank interest multiplier from equipped trinkets
+  const getBankInterestMultiplier = useCallback((): number => {
+    let multiplier = 1;
+    for (const trinketId of gameState.equippedTrinketIds) {
+      const baseId = trinketId.replace('_relic', '').replace('_talisman', '');
+      const trinket = TRINKETS.find(t => t.id === baseId);
+      if (trinket?.effects.bankInterestBonus) {
+        multiplier *= trinket.effects.bankInterestBonus;
+      }
+    }
+    return multiplier;
+  }, [gameState.equippedTrinketIds]);
+
   const withdrawFromBank = useCallback((): { principal: number; interest: number } | null => {
     if (!gameState.buildings.bank.owned) return null;
     if (gameState.buildings.bank.depositAmount <= 0) return null;
     if (!gameState.buildings.bank.depositTimestamp) return null;
 
     const principal = gameState.buildings.bank.depositAmount;
+    const interestMultiplier = getBankInterestMultiplier();
     const interest = calculateBankInterest(
       principal,
       gameState.buildings.bank.depositTimestamp,
-      Date.now()
+      Date.now(),
+      interestMultiplier
     );
 
     setGameState(prev => ({
@@ -3232,7 +3247,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }));
 
     return { principal, interest };
-  }, [gameState.buildings.bank]);
+  }, [gameState.buildings.bank, getBankInterestMultiplier]);
 
   const getBankBalance = useCallback((): { principal: number; interest: number; totalTime: number } => {
     if (!gameState.buildings.bank.depositTimestamp || gameState.buildings.bank.depositAmount <= 0) {
@@ -3241,10 +3256,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     const principal = gameState.buildings.bank.depositAmount;
     const totalTime = Date.now() - gameState.buildings.bank.depositTimestamp;
-    const interest = calculateBankInterest(principal, gameState.buildings.bank.depositTimestamp, Date.now());
+    const interestMultiplier = getBankInterestMultiplier();
+    const interest = calculateBankInterest(principal, gameState.buildings.bank.depositTimestamp, Date.now(), interestMultiplier);
     
     return { principal, interest, totalTime };
-  }, [gameState.buildings.bank]);
+  }, [gameState.buildings.bank, getBankInterestMultiplier]);
 
   // Factory functions
   const getFactoryBonusMiners = useCallback((): number => {

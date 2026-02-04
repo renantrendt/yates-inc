@@ -14,7 +14,6 @@ import TrinketShopButton from './TrinketShopButton';
 import TrinketSlot from './TrinketSlot';
 import MinerSprites from './MinerSprite';
 import AchievementsPanel from './AchievementsPanel';
-import AbilityButton from './AbilityButton';
 import TrinketIndex from './TrinketIndex';
 import RankingPanel from './RankingPanel';
 import PathSelectionModal from './PathSelectionModal';
@@ -804,9 +803,6 @@ export default function MiningGame({ onExit }: MiningGameProps) {
         isOpen={showTrinketIndex}
         onClose={() => setShowTrinketIndex(false)}
       />
-
-      {/* Ability Button - DISABLED: abilities are now passive bonuses shown in HUD */}
-      {/* <AbilityButton /> */}
 
       {/* Game Terminal (available to all users - guests need password) */}
       <GameTerminal

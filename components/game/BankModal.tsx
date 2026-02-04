@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
-import { BANK_BASE_INTEREST_RATE } from '@/types/game';
+import { BANK_BASE_INTEREST_RATE, TRINKETS } from '@/types/game';
 
 interface BankModalProps {
   onClose: () => void;
@@ -18,6 +18,22 @@ export default function BankModal({ onClose }: BankModalProps) {
   } = useGame();
   
   const [depositPercent, setDepositPercent] = useState(50);
+
+  // Calculate bank interest multiplier from equipped trinkets
+  const getBankInterestMultiplier = (): number => {
+    let multiplier = 1;
+    for (const trinketId of gameState.equippedTrinketIds) {
+      const baseId = trinketId.replace('_relic', '').replace('_talisman', '');
+      const trinket = TRINKETS.find(t => t.id === baseId);
+      if (trinket?.effects.bankInterestBonus) {
+        multiplier *= trinket.effects.bankInterestBonus;
+      }
+    }
+    return multiplier;
+  };
+
+  const interestMultiplier = getBankInterestMultiplier();
+  const effectiveInterestRate = BANK_BASE_INTEREST_RATE * interestMultiplier;
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000000000000000) return `${(num / 1000000000000000000).toFixed(1)}Qi`;
@@ -68,7 +84,10 @@ export default function BankModal({ onClose }: BankModalProps) {
             />
             <div>
               <h2 className="text-2xl font-bold text-white">🏦 Yates Bank</h2>
-              <p className="text-emerald-100 text-sm">{(BANK_BASE_INTEREST_RATE * 100).toFixed(1)}% interest per minute</p>
+              <p className="text-emerald-100 text-sm">
+                {(effectiveInterestRate * 100).toFixed(1)}% interest per minute
+                {interestMultiplier > 1 && <span className="text-yellow-300 ml-1">✨ ({interestMultiplier}x boosted!)</span>}
+              </p>
             </div>
           </div>
           <button
@@ -156,7 +175,7 @@ export default function BankModal({ onClose }: BankModalProps) {
 
           {/* Info */}
           <div className="bg-black/20 rounded-lg p-3 text-gray-400 text-xs">
-            <p>💡 The bank earns {(BANK_BASE_INTEREST_RATE * 100).toFixed(1)}% interest per minute (compounds over time). You can only have one deposit at a time.</p>
+            <p>💡 The bank earns {(effectiveInterestRate * 100).toFixed(1)}% interest per minute (compounds over time). You can only have one deposit at a time.</p>
           </div>
         </div>
       </div>
