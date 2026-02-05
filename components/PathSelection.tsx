@@ -1,7 +1,7 @@
 'use client';
 
 interface PathSelectionProps {
-    onSelectPath: (path: 'lore' | 'gameplay') => void;
+    onSelectPath: (path: 'lore' | 'gameplay' | 'hard') => void;
 }
 
 export default function PathSelection({ onSelectPath }: PathSelectionProps) {
@@ -14,13 +14,22 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
                     <p className="text-gray-400">Read before playing, or don&apos;t. I don&apos;t care.</p>
                 </div>
 
-                {/* Game Button */}
-                <div className="flex justify-center">
+                {/* Game Buttons */}
+                <div className="flex justify-center gap-4">
                     <button
                         onClick={() => onSelectPath('gameplay')}
                         className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-12 py-4 rounded-xl font-bold text-xl shadow-xl hover:scale-105 active:scale-95 transition-all touch-manipulation"
                     >
                         🎮 PLAY GAME
+                    </button>
+                    <button
+                        onClick={() => onSelectPath('hard')}
+                        className="relative bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white px-12 py-4 rounded-xl font-bold text-xl shadow-xl hover:scale-105 active:scale-95 transition-all touch-manipulation"
+                    >
+                        💀 HARD MODE
+                        <span className="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded animate-pulse">
+                            NEW
+                        </span>
                     </button>
                 </div>
 

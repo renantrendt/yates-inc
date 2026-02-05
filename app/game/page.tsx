@@ -6,19 +6,23 @@ import LoreMode from '@/components/LoreMode';
 import MiningGame from '@/components/game/MiningGame';
 import { GameProvider } from '@/contexts/GameContext';
 
-type GameState = 'path-selection' | 'lore' | 'gameplay';
+type GameState = 'path-selection' | 'lore' | 'gameplay' | 'gameplay-hard';
 
-function GameContent() {
+export default function GamePage() {
     const [gameState, setGameState] = useState<GameState>('path-selection');
 
-    const handlePathSelection = (path: 'lore' | 'gameplay') => {
+    const handlePathSelection = (path: 'lore' | 'gameplay' | 'hard') => {
         if (path === 'lore') {
             setGameState('lore');
+        } else if (path === 'hard') {
+            setGameState('gameplay-hard');
         } else {
-            // Go straight to gameplay - no cutscene
             setGameState('gameplay');
         }
     };
+
+    // Determine if we're in hard mode
+    const isHardMode = gameState === 'gameplay-hard';
 
     return (
         <div className="w-full h-screen">
@@ -28,22 +32,15 @@ function GameContent() {
 
             {gameState === 'lore' && (
                 <LoreMode onNavigateToGameplay={() => {
-                    // Go straight to gameplay - no cutscene
                     setGameState('gameplay');
                 }} />
             )}
 
-            {gameState === 'gameplay' && (
-                <MiningGame onExit={() => setGameState('path-selection')} />
+            {(gameState === 'gameplay' || gameState === 'gameplay-hard') && (
+                <GameProvider isHardMode={isHardMode} key={isHardMode ? 'hard' : 'normal'}>
+                    <MiningGame onExit={() => setGameState('path-selection')} />
+                </GameProvider>
             )}
         </div>
-    );
-}
-
-export default function GamePage() {
-    return (
-        <GameProvider>
-            <GameContent />
-        </GameProvider>
     );
 }

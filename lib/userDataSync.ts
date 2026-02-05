@@ -75,13 +75,23 @@ export interface UserPurchase {
   amount_paid: number;
 }
 
+// Table names for normal vs hard mode
+const TABLE_NORMAL = 'user_game_data';
+const TABLE_HARD = 'user_game_hard_data';
+
+// Get the correct table name based on mode
+function getTableName(isHardMode: boolean = false): string {
+  return isHardMode ? TABLE_HARD : TABLE_NORMAL;
+}
+
 // Fetch user game data from Supabase
-export async function fetchUserGameData(userId: string): Promise<UserGameData | null> {
+export async function fetchUserGameData(userId: string, isHardMode: boolean = false): Promise<UserGameData | null> {
   try {
-    console.log('📥 SUPABASE FETCH: Loading data for', userId);
+    const tableName = getTableName(isHardMode);
+    console.log(`📥 SUPABASE FETCH: Loading ${isHardMode ? 'HARD MODE' : 'normal'} data for`, userId);
     
     const { data, error } = await supabase
-      .from('user_game_data')
+      .from(tableName)
       .select('*')
       .eq('user_id', userId)
       .maybeSingle();
@@ -115,8 +125,9 @@ function safeBigInt(value: number | undefined | null): number | null {
 }
 
 // Save/update user game data to Supabase
-export async function saveUserGameData(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }, versionAtCallTime?: number): Promise<boolean> {
+export async function saveUserGameData(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }, versionAtCallTime?: number, isHardMode: boolean = false): Promise<boolean> {
   try {
+    const tableName = getTableName(isHardMode);
     const fullData = {
       user_id: data.user_id,
       user_type: data.user_type,
@@ -183,10 +194,10 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       return true; // Return true so it doesn't retry
     }
 
-    console.log('📤 SUPABASE SAVE:', { prestige: data.prestige_count, clicks: data.total_clicks, dollars: data.yates_dollars });
+    console.log(`📤 SUPABASE SAVE (${isHardMode ? 'HARD' : 'normal'}):`, { prestige: data.prestige_count, clicks: data.total_clicks, dollars: data.yates_dollars });
     
     const { error } = await supabase
-      .from('user_game_data')
+      .from(tableName)
       .upsert(fullData, { onConflict: 'user_id' });
 
     if (error) {
@@ -250,7 +261,7 @@ const FORCE_SAVE_COOLDOWN = 3000; // Block regular saves for 3s after force save
 const IDLE_SAVE_DELAY = 3000; // Save after 3s of no state changes
 let saveTimeout: NodeJS.Timeout | null = null;
 let idleSaveTimeout: NodeJS.Timeout | null = null; // For idle save mechanism
-let pendingData: (Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }) | null = null;
+let pendingData: (Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client'; _isHardMode?: boolean }) | null = null;
 let lastSaveTime = 0;
 let isSaving = false;
 let saveVersion = 0; // Increments on force save to invalidate old in-flight saves
@@ -262,7 +273,7 @@ function getSaveInterval(data: Partial<UserGameData>): number {
   return hasActiveMining ? ACTIVE_SAVE_INTERVAL : BASE_SAVE_INTERVAL;
 }
 
-export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }): void {
+export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }, isHardMode: boolean = false): void {
   // CRITICAL: Block saves when core data is undefined/null (prevents overwriting with empty data)
   // This happens during initial load before Supabase fetch completes
   if (data.yates_dollars === undefined || data.yates_dollars === null ||
@@ -287,8 +298,8 @@ export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_i
     return;
   }
   
-  // Accumulate latest data
-  pendingData = { ...pendingData, ...data };
+  // Accumulate latest data (include isHardMode flag)
+  pendingData = { ...pendingData, ...data, _isHardMode: isHardMode };
   
   const now = Date.now();
   const timeSinceLastSave = now - lastSaveTime;
@@ -358,8 +369,9 @@ async function executeSave(): Promise<void> {
       console.log('🚫 DEBOUNCED SAVE SKIPPED: Force save happened, version changed');
       return;
     }
-    // Pass version so saveUserGameData can double-check before actual DB write
-    await saveUserGameData(dataToSave, versionAtStart);
+    // Extract isHardMode flag and pass version so saveUserGameData can double-check before actual DB write
+    const isHardMode = dataToSave._isHardMode || false;
+    await saveUserGameData(dataToSave, versionAtStart, isHardMode);
   } catch {
     // Put the data back if save failed
     pendingData = { ...(dataToSave || {}), ...(pendingData || {}) } as UserGameData;

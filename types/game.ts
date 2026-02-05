@@ -208,6 +208,13 @@ export interface GameState {
   // PREMIUM PRODUCTS (from /products/premium shop)
   // =====================
   ownedPremiumProductIds: number[];          // IDs of purchased premium products
+  // =====================
+  // HARD MODE (separate game mode with harder gameplay)
+  // =====================
+  isHardMode: boolean;                       // Is this a Hard Mode save
+  hardModePrestigeCount: number;             // Prestige count specific to Hard Mode (for trinket wipes)
+  lotteryTickets: number;                    // Hard Mode currency (replaces powerups)
+  hardModeAchievements: string[];            // Hard Mode specific achievements
 }
 
 // Premium product buff definitions
@@ -263,9 +270,43 @@ export const PRESTIGE_REQUIREMENTS = {
 // Max prestige level where buffs stop
 export const MAX_PRESTIGE_WITH_BUFFS = 230;
 
-// Hard mode threshold - after this prestige, everything is 40% harder
+// Hard mode threshold - after this prestige, everything is 40% harder (legacy scaling)
 export const HARD_MODE_PRESTIGE_THRESHOLD = 40;
 export const HARD_MODE_MULTIPLIER = 1.4; // 40% harder
+
+// =====================
+// HARD MODE GAME MODE (separate save, harder gameplay)
+// =====================
+export const HARD_MODE_MODIFIERS = {
+  priceMultiplier: 1.41,        // 41% more expensive (pickaxes, trinkets, buildings, etc.)
+  rockHpMultiplier: 1.30,       // 30% more rock HP
+  rockHpScalingMultiplier: 1.48, // 48% higher HP scaling for next rock
+  pickaxeDamageMultiplier: 0.85, // 15% less pickaxe damage
+  mythicRarityMultiplier: 0.70,  // 30% rarer mythic/secret trinkets
+  prestigeRemovesBuildings: true,
+  trinketWipeInterval: 5,        // Every 5 prestiges, lose all trinkets except 3
+  trinketKeepCount: 3,           // How many trinkets to keep on wipe
+};
+
+// Lottery ticket conversion rate from existing coupons
+export const LOTTERY_TICKET_CONVERSION_RATE = 0.30; // 30% of coupons become lottery tickets
+
+// Hard Mode achievement definitions
+export const HARD_MODE_ACHIEVEMENTS = {
+  // Money milestones
+  hardMillionaire: { id: 'hard_millionaire', name: 'Hard Millionaire', description: 'Earn $1M in Hard Mode', icon: '💰', requirement: 1_000_000 },
+  hardBillionaire: { id: 'hard_billionaire', name: 'Kinda Rich', description: 'Earn $1B in Hard Mode', icon: '💵', requirement: 1_000_000_000 },
+  hardTrillionaire: { id: 'hard_trillionaire', name: 'That\'s a lot of hard work', description: 'Earn $1T in Hard Mode', icon: '💎', requirement: 1_000_000_000_000 },
+  hardQuadrillionaire: { id: 'hard_quadrillionaire', name: 'How many hours??', description: 'Earn $1Q in Hard Mode', icon: '👑', requirement: 1_000_000_000_000_000 },
+  hardQuintillionaire: { id: 'hard_quintillionaire', name: 'Has to be Suhas', description: 'Earn $1Qi in Hard Mode', icon: '🏆', requirement: 1_000_000_000_000_000_000 },
+  // Trinket rarity milestones
+  hardCommonTrinket: { id: 'hard_common_trinket', name: 'Only one?', description: 'Own a common trinket in Hard Mode', icon: '⚪', rarity: 'common' },
+  hardRareTrinket: { id: 'hard_rare_trinket', name: 'Eh there\'s some', description: 'Own a rare trinket in Hard Mode', icon: '🔵', rarity: 'rare' },
+  hardEpicTrinket: { id: 'hard_epic_trinket', name: 'Kinda good', description: 'Own an epic trinket in Hard Mode', icon: '🟣', rarity: 'epic' },
+  hardLegendaryTrinket: { id: 'hard_legendary_trinket', name: 'Now we are talking', description: 'Own a legendary trinket in Hard Mode', icon: '🟡', rarity: 'legendary' },
+  hardMythicTrinket: { id: 'hard_mythic_trinket', name: 'Luck?', description: 'Own a mythic trinket in Hard Mode', icon: '🔴', rarity: 'mythic' },
+  hardSecretTrinket: { id: 'hard_secret_trinket', name: 'That\'s some Progamer right there', description: 'Own a secret trinket in Hard Mode', icon: '✨', rarity: 'secret' },
+};
 
 // Get prestige money requirement (5% increase per prestige, +40% after prestige 40)
 export function getPrestigeMoneyRequirement(prestigeCount: number): number {
@@ -736,22 +777,38 @@ export const MINER_VISIBLE_MAX = 100; // Max visible sprites
 // Rock health scaling per prestige (23% increase per prestige)
 export const ROCK_HEALTH_PRESTIGE_SCALING = 0.23;
 
-// Get scaled rock HP based on prestige count (+40% after prestige 40)
-export function getScaledRockHP(baseHP: number, prestigeCount: number): number {
-  const base = Math.ceil(baseHP * (1 + prestigeCount * ROCK_HEALTH_PRESTIGE_SCALING));
+// Get scaled rock HP based on prestige count (+40% after prestige 40, +30% in Hard Mode)
+export function getScaledRockHP(baseHP: number, prestigeCount: number, isHardMode: boolean = false): number {
+  // In Hard Mode: 30% more HP base, and 48% higher scaling instead of 23%
+  const scaling = isHardMode ? HARD_MODE_MODIFIERS.rockHpScalingMultiplier - 1 : ROCK_HEALTH_PRESTIGE_SCALING;
+  let base = Math.ceil(baseHP * (1 + prestigeCount * scaling));
+  
+  // Apply Hard Mode 30% HP boost
+  if (isHardMode) {
+    base = Math.ceil(base * HARD_MODE_MODIFIERS.rockHpMultiplier);
+  }
+  
+  // Legacy +40% after prestige 40 (applies to both modes)
   return prestigeCount >= HARD_MODE_PRESTIGE_THRESHOLD ? Math.ceil(base * HARD_MODE_MULTIPLIER) : base;
 }
 
-// Get prestige price multiplier (10% increase every 5 prestiges, +40% after prestige 40)
-export function getPrestigePriceMultiplier(prestigeCount: number): number {
-  const base = Math.pow(1.10, Math.floor(prestigeCount / 5));
+// Get prestige price multiplier (10% increase every 5 prestiges, +40% after prestige 40, +41% in Hard Mode)
+export function getPrestigePriceMultiplier(prestigeCount: number, isHardMode: boolean = false): number {
+  let base = Math.pow(1.10, Math.floor(prestigeCount / 5));
+  
+  // Apply Hard Mode 41% price increase
+  if (isHardMode) {
+    base *= HARD_MODE_MODIFIERS.priceMultiplier;
+  }
+  
+  // Legacy +40% after prestige 40 (applies to both modes)
   return prestigeCount >= HARD_MODE_PRESTIGE_THRESHOLD ? base * HARD_MODE_MULTIPLIER : base;
 }
 
 // Get miner cost with prestige scaling (10% increase every 5 prestiges)
-export function getMinerCost(currentMinerCount: number, prestigeCount: number = 0): number {
+export function getMinerCost(currentMinerCount: number, prestigeCount: number = 0, isHardMode: boolean = false): number {
   const baseCost = Math.floor(MINER_BASE_COST * Math.pow(MINER_COST_MULTIPLIER, currentMinerCount));
-  return Math.floor(baseCost * getPrestigePriceMultiplier(prestigeCount));
+  return Math.floor(baseCost * getPrestigePriceMultiplier(prestigeCount, isHardMode));
 }
 
 // =====================

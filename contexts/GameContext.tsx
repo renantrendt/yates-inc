@@ -338,11 +338,21 @@ const defaultGameState: GameState = {
   wtMoneyTax: 0,
   // Premium products
   ownedPremiumProductIds: [],
+  // Hard Mode
+  isHardMode: false,
+  hardModePrestigeCount: 0,
+  lotteryTickets: 0,
+  hardModeAchievements: [],
 };
 
 const STORAGE_KEY_PREFIX = 'yates-mining-game';
+const STORAGE_KEY_PREFIX_HARD = 'yates-mining-game-hard';
 // Storage key is user-specific to prevent data conflicts between accounts
-const getStorageKey = (userId: string | null) => userId ? `${STORAGE_KEY_PREFIX}-${userId}` : `${STORAGE_KEY_PREFIX}-guest`;
+// Hard mode uses a separate storage key for separate saves
+const getStorageKey = (userId: string | null, isHardMode: boolean = false) => {
+  const prefix = isHardMode ? STORAGE_KEY_PREFIX_HARD : STORAGE_KEY_PREFIX;
+  return userId ? `${prefix}-${userId}` : `${prefix}-guest`;
+};
 
 // Generate random shop stock
 function generateShopStock(): ShopStock {
@@ -406,8 +416,16 @@ if (typeof window !== 'undefined' && !window._clickTimestamps) {
   window._clickTimestamps = [];
 }
 
-export function GameProvider({ children }: { children: ReactNode }) {
-  const [gameState, setGameState] = useState<GameState>(defaultGameState);
+interface GameProviderProps {
+  children: ReactNode;
+  isHardMode?: boolean;
+}
+
+export function GameProvider({ children, isHardMode = false }: GameProviderProps) {
+  const [gameState, setGameState] = useState<GameState>({
+    ...defaultGameState,
+    isHardMode, // Set the mode based on prop
+  });
   const [shopStock, setShopStock] = useState<ShopStock>(() => generateShopStock());
   // Start as true so game renders immediately - data will load in background
   const [isLoaded, setIsLoaded] = useState(true);
@@ -495,26 +513,39 @@ export function GameProvider({ children }: { children: ReactNode }) {
     isLoadingRef.current = true; // Mark as loading
     
     // Load localStorage first - this is instant
-    const storageKey = getStorageKey(userId);
+    const storageKey = getStorageKey(userId, isHardMode);
     const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setGameState({ ...defaultGameState, ...parsed });
         
-        if (parsed.shopStock) {
-          const timeSinceRestock = Date.now() - parsed.shopStock.lastRestockTime;
-          if (timeSinceRestock >= SHOP_RESTOCK_INTERVAL) {
-            setShopStock(generateShopStock());
-          } else {
-            setShopStock(parsed.shopStock);
+        // POLLUTION CHECK: If we're in Hard Mode but saved data doesn't have isHardMode: true,
+        // this is polluted data from before the mode separation. Wipe it and start fresh.
+        if (isHardMode && parsed.isHardMode !== true) {
+          console.log('🧹 Hard Mode pollution detected - wiping old data and starting fresh');
+          localStorage.removeItem(storageKey);
+          setGameState({ ...defaultGameState, isHardMode });
+        } else {
+          // Preserve isHardMode from prop, not from saved data
+          setGameState({ ...defaultGameState, ...parsed, isHardMode });
+          
+          if (parsed.shopStock) {
+            const timeSinceRestock = Date.now() - parsed.shopStock.lastRestockTime;
+            if (timeSinceRestock >= SHOP_RESTOCK_INTERVAL) {
+              setShopStock(generateShopStock());
+            } else {
+              setShopStock(parsed.shopStock);
+            }
           }
         }
       } catch {
         console.error('Failed to parse saved game state');
-        // If parsing fails, use default state
-        setGameState(defaultGameState);
+        // If parsing fails, use default state with correct mode
+        setGameState({ ...defaultGameState, isHardMode });
       }
+    } else {
+      // No saved data - start fresh with correct mode
+      setGameState({ ...defaultGameState, isHardMode });
     }
     // Game is now loaded and working with localStorage data
 
@@ -559,7 +590,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
             }
 
             // Try to load from Supabase (will merge with localStorage if it fails)
-            const supabaseData = await fetchUserGameData(userId);
+            const supabaseData = await fetchUserGameData(userId, isHardMode);
             if (supabaseData) {
               setGameState(prev => {
                 // Smart merge using timestamps as primary comparison
@@ -749,7 +780,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // If not logged in, mark as loaded immediately
       isLoadingRef.current = false;
     }
-  }, [userId, userType]);
+  }, [userId, userType, isHardMode]);
 
   // Auto-restock check every second (product shop)
   useEffect(() => {
@@ -925,7 +956,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         
         // Rock broke! Calculate how many rocks we break with overkill damage
         const overkillDamage = Math.abs(newHP); // Damage beyond first rock
-        const fullRockHP = getScaledRockHP(rock.clicksToBreak, prev.prestigeCount);
+        const fullRockHP = getScaledRockHP(rock.clicksToBreak, prev.prestigeCount, prev.isHardMode);
         
         // First rock + additional rocks from overkill
         const additionalRocks = Math.floor(overkillDamage / fullRockHP);
@@ -946,7 +977,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         
         return {
           ...prev,
-          currentRockHP: newCurrentRockId !== prev.currentRockId ? getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount) : finalHP,
+          currentRockHP: newCurrentRockId !== prev.currentRockId ? getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount, prev.isHardMode) : finalHP,
           currentRockId: newCurrentRockId,
           rocksMinedCount: prev.rocksMinedCount + totalRocksBroken,
           yatesDollars: prev.yatesDollars + totalMoney,
@@ -1071,7 +1102,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           
           // Rock broke
           const overkillDamage = Math.abs(newHP);
-          const fullRockHP = getScaledRockHP(rock.clicksToBreak, prev.prestigeCount);
+          const fullRockHP = getScaledRockHP(rock.clicksToBreak, prev.prestigeCount, prev.isHardMode);
           const additionalRocks = Math.floor(overkillDamage / fullRockHP);
           const totalRocksBroken = 1 + additionalRocks;
           const leftoverDamage = overkillDamage % fullRockHP;
@@ -1086,7 +1117,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           
           return {
             ...prev,
-            currentRockHP: newCurrentRockId !== prev.currentRockId ? getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount) : finalHP,
+            currentRockHP: newCurrentRockId !== prev.currentRockId ? getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount, prev.isHardMode) : finalHP,
             currentRockId: newCurrentRockId,
             rocksMinedCount: prev.rocksMinedCount + totalRocksBroken,
             yatesDollars: prev.yatesDollars + totalMoney,
@@ -1299,7 +1330,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         return {
           ...prev,
           currentRockId: 1,
-          currentRockHP: getScaledRockHP(ROCKS[0].clicksToBreak, newPrestigeCount),
+          currentRockHP: getScaledRockHP(ROCKS[0].clicksToBreak, newPrestigeCount, prev.isHardMode),
           currentPickaxeId: 1,
           ownedPickaxeIds: [1],
           totalClicks: 0,
@@ -1569,7 +1600,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     try {
       // Always save to localStorage immediately (user-specific key)
-      const storageKey = getStorageKey(userId);
+      const storageKey = getStorageKey(userId, gameState.isHardMode);
       const now = Date.now();
       localStorage.setItem(storageKey, JSON.stringify({ ...gameState, localUpdatedAt: now, shopStock }));
 
@@ -1640,7 +1671,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ...(gameState.ownedPremiumProductIds?.length ? { owned_premium_product_ids: gameState.ownedPremiumProductIds } : {}),
           // Buildings data (bank, factory, temple, etc.) - serialized as JSON
           buildings_data: JSON.stringify(gameState.buildings),
-        });
+        }, gameState.isHardMode);
       }
     } catch (err) {
       console.error('❌ Error saving game data:', err);
@@ -1968,7 +1999,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         
         // Reset HP for new rock (scaled by prestige)
         const nextRock = getRockById(newCurrentRockId) || rock;
-        newRockHP = getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount);
+        newRockHP = getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount, prev.isHardMode);
       }
 
       // Check for coupon drop
@@ -2011,9 +2042,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const canAffordPickaxe = useCallback((pickaxeId: number) => {
     const pickaxe = getPickaxeById(pickaxeId);
     if (!pickaxe) return false;
-    const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
+    const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount, gameState.isHardMode));
     return gameState.yatesDollars >= scaledPrice;
-  }, [gameState.yatesDollars, gameState.prestigeCount]);
+  }, [gameState.yatesDollars, gameState.prestigeCount, gameState.isHardMode]);
 
   const ownsPickaxe = useCallback((pickaxeId: number) => {
     return gameState.ownedPickaxeIds.includes(pickaxeId);
@@ -2023,7 +2054,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const pickaxe = getPickaxeById(pickaxeId);
     if (!pickaxe) return false;
     if (gameState.ownedPickaxeIds.includes(pickaxeId)) return false;
-    const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
+    const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount, gameState.isHardMode));
     if (gameState.yatesDollars < scaledPrice) return false;
 
     // Clear click history to prevent anti-cheat false positives from rapid purchases
@@ -2066,10 +2097,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [gameState.totalClicks]);
 
   const resetGame = useCallback(() => {
-    setGameState(defaultGameState);
-    const storageKey = getStorageKey(userId);
+    setGameState({ ...defaultGameState, isHardMode: gameState.isHardMode });
+    const storageKey = getStorageKey(userId, gameState.isHardMode);
     localStorage.removeItem(storageKey);
-  }, [userId]);
+  }, [userId, gameState.isHardMode]);
 
   const markCutsceneSeen = useCallback(() => {
     setGameState((prev) => ({
@@ -2169,7 +2200,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const buyAutoclicker = useCallback(() => {
     if (gameState.hasAutoclicker) return false;
-    const scaledCost = Math.floor(AUTOCLICKER_COST * getPrestigePriceMultiplier(gameState.prestigeCount));
+    const scaledCost = Math.floor(AUTOCLICKER_COST * getPrestigePriceMultiplier(gameState.prestigeCount, gameState.isHardMode));
     if (gameState.yatesDollars < scaledCost) return false;
 
     setGameState((prev) => ({
@@ -2357,7 +2388,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const trinket = TRINKETS.find(t => t.id === trinketId);
     if (!trinket) return false;
     if (gameState.ownedTrinketIds.includes(trinketId)) return false;
-    const scaledCost = Math.floor(trinket.cost * getPrestigePriceMultiplier(gameState.prestigeCount));
+    const scaledCost = Math.floor(trinket.cost * getPrestigePriceMultiplier(gameState.prestigeCount, gameState.isHardMode));
     if (gameState.yatesDollars < scaledCost) return false;
     
     setGameState(prev => ({
