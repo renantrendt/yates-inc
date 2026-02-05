@@ -34,6 +34,8 @@ import {
   generateWanderingTraderOffers, getWanderingTraderNextSpawn, spinRoulette,
   // Premium products
   PREMIUM_PRODUCT_BUFFS,
+  // Hard Mode
+  HARD_MODE_MODIFIERS,
 } from '@/types/game';
 import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
@@ -1954,6 +1956,12 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
       // Calculate click power (clickSpeedBonus multiplies damage: 50% = 1.5x, 100% = 2x)
       let clickPower = pickaxe.clickPower;
       clickPower = Math.ceil(clickPower * (1 + rockDamageBonus + allBonus) * damageMultiplier * (1 + clickSpeedBonus) * wizardRitualMultiplier * factoryDamageMultiplier * factorySpeedMultiplier);
+      
+      // Hard Mode: 15% less pickaxe damage
+      if (prev.isHardMode) {
+        clickPower = Math.ceil(clickPower * HARD_MODE_MODIFIERS.pickaxeDamageMultiplier);
+      }
+      
       clickPower = Math.max(1, clickPower); // Ensure at least 1 damage
       
       const newHP = Math.max(0, prev.currentRockHP - clickPower);
@@ -2088,7 +2096,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     setGameState((prev) => ({
       ...prev,
       currentRockId: rockId,
-      currentRockHP: getScaledRockHP(rock.clicksToBreak, prev.prestigeCount),
+      currentRockHP: getScaledRockHP(rock.clicksToBreak, prev.prestigeCount, prev.isHardMode),
     }));
   }, [gameState.totalClicks]);
 
@@ -2268,52 +2276,103 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
       ? prestigeTime 
       : Math.min(gameState.fastestPrestigeTime, prestigeTime);
 
-    setGameState((prev) => ({
-      ...prev,
-      // Reset rocks and pickaxes (rock HP scaled by new prestige count)
-      currentRockId: 1,
-      currentRockHP: getScaledRockHP(ROCKS[0].clicksToBreak, newPrestigeCount),
-      currentPickaxeId: 1,
-      ownedPickaxeIds: [1],
-      totalClicks: 0,
-      rocksMinedCount: 0,
-      // Reset miners
-      minerCount: 0,
-      // Yates or totem protection keeps money, others lose it
-      yatesDollars: keepsMoney ? prev.yatesDollars : 0,
-      // Keep coupons, autoclicker, cutscene seen, trinkets
-      // BUT remove totem from inventory if it was used for protection
-      ownedTrinketIds: hasProtection
-        ? prev.ownedTrinketIds.filter(id => id !== 'totem')
-        : prev.ownedTrinketIds,
-      equippedTrinketIds: hasProtection
-        ? prev.equippedTrinketIds.filter(id => id !== 'totem')
-        : prev.equippedTrinketIds,
-      // Update prestige stats and give tokens (no buffs after max)
-      prestigeCount: newPrestigeCount,
-      prestigeMultiplier: newMultiplier,
-      prestigeTokens: prev.prestigeTokens + tokensToAdd,
-      // Give 1 Stoken every 5 prestiges (Darkness path only, tracked for all)
-      stokens: prev.stokens + (newPrestigeCount % 5 === 0 ? 1 : 0),
-      // Consume totem protection if it was used
-      hasTotemProtection: false,
-      // Ranking: track fastest prestige time and reset game start
-      fastestPrestigeTime: newFastestTime,
-      gameStartTime: Date.now(), // Reset for next prestige attempt
-      // PATH SELECTION: Show modal after first prestige if no path chosen yet
-      showPathSelection: newPrestigeCount === 1 && !prev.chosenPath,
-      // Reset temple curses on prestige
-      buildings: {
-        ...prev.buildings,
-        temple: {
-          ...prev.buildings.temple,
-          goldenCookieClicks: 0,
-          hiddenCurseActive: false,
-          hasCookieCurse: false,
-          hasHolyUnluckinessCurse: false,
-        },
-      },
-    }));
+    setGameState((prev) => {
+      // HARD MODE: Trinket wipe every 5 prestiges (keep 3 best)
+      let newOwnedTrinketIds = prev.ownedTrinketIds;
+      let newEquippedTrinketIds = prev.equippedTrinketIds;
+      let newOwnedRelicIds = prev.ownedRelicIds;
+      let newOwnedTalismanIds = prev.ownedTalismanIds;
+      
+      if (prev.isHardMode && newPrestigeCount % HARD_MODE_MODIFIERS.trinketWipeInterval === 0) {
+        // Every 5 prestiges in Hard Mode, wipe trinkets but keep 3
+        // Prioritize keeping equipped trinkets, then relics/talismans, then by rarity
+        const keepCount = HARD_MODE_MODIFIERS.trinketKeepCount;
+        
+        // Keep equipped ones first
+        const keptTrinkets = [...prev.equippedTrinketIds].slice(0, keepCount);
+        
+        // If we need more, add from relics/talismans
+        if (keptTrinkets.length < keepCount) {
+          const relicBases = prev.ownedRelicIds.map(id => id.replace('_relic', ''));
+          const talismanBases = prev.ownedTalismanIds.map(id => id.replace('_talisman', ''));
+          const converted = [...new Set([...relicBases, ...talismanBases])];
+          for (const id of converted) {
+            if (keptTrinkets.length >= keepCount) break;
+            if (!keptTrinkets.includes(id)) keptTrinkets.push(id);
+          }
+        }
+        
+        // If still need more, add from remaining owned
+        if (keptTrinkets.length < keepCount) {
+          for (const id of prev.ownedTrinketIds) {
+            if (keptTrinkets.length >= keepCount) break;
+            if (!keptTrinkets.includes(id)) keptTrinkets.push(id);
+          }
+        }
+        
+        newOwnedTrinketIds = keptTrinkets;
+        newEquippedTrinketIds = prev.equippedTrinketIds.filter(id => keptTrinkets.includes(id));
+        newOwnedRelicIds = prev.ownedRelicIds.filter(id => keptTrinkets.includes(id.replace('_relic', '')));
+        newOwnedTalismanIds = prev.ownedTalismanIds.filter(id => keptTrinkets.includes(id.replace('_talisman', '')));
+        
+        console.log(`💀 HARD MODE: Trinket wipe at prestige ${newPrestigeCount}! Kept ${keptTrinkets.length} trinkets.`);
+      } else if (hasProtection) {
+        // Normal totem protection logic
+        newOwnedTrinketIds = prev.ownedTrinketIds.filter(id => id !== 'totem');
+        newEquippedTrinketIds = prev.equippedTrinketIds.filter(id => id !== 'totem');
+      }
+      
+      // HARD MODE: Reset buildings on prestige
+      const newBuildings = prev.isHardMode
+        ? getDefaultBuildingStates() // Complete reset
+        : {
+            ...prev.buildings,
+            temple: {
+              ...prev.buildings.temple,
+              goldenCookieClicks: 0,
+              hiddenCurseActive: false,
+              hasCookieCurse: false,
+              hasHolyUnluckinessCurse: false,
+            },
+          };
+      
+      return {
+        ...prev,
+        // Reset rocks and pickaxes (rock HP scaled by new prestige count)
+        currentRockId: 1,
+        currentRockHP: getScaledRockHP(ROCKS[0].clicksToBreak, newPrestigeCount, prev.isHardMode),
+        currentPickaxeId: 1,
+        ownedPickaxeIds: [1],
+        totalClicks: 0,
+        rocksMinedCount: 0,
+        // Reset miners
+        minerCount: 0,
+        // Yates or totem protection keeps money, others lose it
+        yatesDollars: keepsMoney ? prev.yatesDollars : 0,
+        // Trinkets (with Hard Mode wipe logic)
+        ownedTrinketIds: newOwnedTrinketIds,
+        equippedTrinketIds: newEquippedTrinketIds,
+        ownedRelicIds: newOwnedRelicIds,
+        ownedTalismanIds: newOwnedTalismanIds,
+        // Update prestige stats and give tokens (no buffs after max)
+        prestigeCount: newPrestigeCount,
+        prestigeMultiplier: newMultiplier,
+        prestigeTokens: prev.prestigeTokens + tokensToAdd,
+        // Give 1 Stoken every 5 prestiges (Darkness path only, tracked for all)
+        stokens: prev.stokens + (newPrestigeCount % 5 === 0 ? 1 : 0),
+        // Consume totem protection if it was used
+        hasTotemProtection: false,
+        // Ranking: track fastest prestige time and reset game start
+        fastestPrestigeTime: newFastestTime,
+        gameStartTime: Date.now(), // Reset for next prestige attempt
+        // PATH SELECTION: Show modal after first prestige if no path chosen yet
+        showPathSelection: newPrestigeCount === 1 && !prev.chosenPath,
+        // Buildings (with Hard Mode reset logic)
+        buildings: newBuildings,
+        // Hard Mode prestige counter (for trinket wipe tracking)
+        hardModePrestigeCount: prev.isHardMode ? prev.hardModePrestigeCount + 1 : prev.hardModePrestigeCount,
+      };
+    });
 
     // Force immediate save to Supabase after prestige (bypass debounce)
     // This prevents the merge logic from restoring old pre-prestige data on refresh
@@ -2572,8 +2631,8 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
   // =====================
   
   const getMinerCostFn = useCallback(() => {
-    return getMinerCost(gameState.minerCount, gameState.prestigeCount);
-  }, [gameState.minerCount, gameState.prestigeCount]);
+    return getMinerCost(gameState.minerCount, gameState.prestigeCount, gameState.isHardMode);
+  }, [gameState.minerCount, gameState.prestigeCount, gameState.isHardMode]);
 
   const buyMiner = useCallback(() => {
     if (gameState.minerCount >= MINER_MAX_COUNT) return false;
@@ -2584,7 +2643,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
       return false; // Can't buy miners with these ranks equipped
     }
     
-    const cost = getMinerCost(gameState.minerCount, gameState.prestigeCount);
+    const cost = getMinerCost(gameState.minerCount, gameState.prestigeCount, gameState.isHardMode);
     if (gameState.yatesDollars < cost) return false;
     
     setGameState(prev => ({
@@ -2683,7 +2742,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
       setGameState(prev => ({
         ...prev,
         yatesDollars: prev.yatesDollars - ability.cost + money,
-        currentRockHP: getScaledRockHP(rock.clicksToBreak, prev.prestigeCount), // Reset to full scaled HP
+        currentRockHP: getScaledRockHP(rock.clicksToBreak, prev.prestigeCount, prev.isHardMode), // Reset to full scaled HP
         rocksMinedCount: prev.rocksMinedCount + 1,
         abilityCooldowns: {
           ...prev.abilityCooldowns,
@@ -3025,7 +3084,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     let bought = 0;
     for (let i = 0; i < count; i++) {
       if (gameState.minerCount + bought >= MINER_MAX_COUNT) break;
-      const cost = getMinerCost(gameState.minerCount + bought, gameState.prestigeCount);
+      const cost = getMinerCost(gameState.minerCount + bought, gameState.prestigeCount, gameState.isHardMode);
       if (gameState.yatesDollars < cost) break;
       
       setGameState(prev => ({
@@ -4321,7 +4380,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
             // Rock heals to 100%
             const currentRock = getRockById(newState.currentRockId);
             if (currentRock) {
-              newState.currentRockHP = getScaledRockHP(currentRock.clicksToBreak, newState.prestigeCount);
+              newState.currentRockHP = getScaledRockHP(currentRock.clicksToBreak, newState.prestigeCount, newState.isHardMode);
             }
           } else if (debuffRoll < 0.8) {
             // 2x rock health (for current rock only)
