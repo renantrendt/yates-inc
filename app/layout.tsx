@@ -12,6 +12,7 @@ import { BudgetProvider } from "@/contexts/BudgetContext";
 import Navbar from "@/components/Navbar";
 import DisclaimerWarning from "@/components/DisclaimerWarning";
 import PaycheckPopup from "@/components/PaycheckPopup";
+import MaintenanceMode from "@/components/MaintenanceMode";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,26 +39,28 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 dark:bg-gray-900`}
       >
-        <AuthProvider>
-          <ClientProvider>
-            <GameProvider>
-              <BudgetProvider>
-                <PaycheckProvider>
-                  <CartProvider>
-                      <MailProvider>
-                      <DisclaimerWarning />
-                      <Navbar />
-                      <PaycheckPopup />
-                      <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
-                        {children}
-                      </main>
-                    </MailProvider>
-                  </CartProvider>
-                </PaycheckProvider>
-              </BudgetProvider>
-            </GameProvider>
-          </ClientProvider>
-        </AuthProvider>
+        <MaintenanceMode>
+          <AuthProvider>
+            <ClientProvider>
+              <GameProvider>
+                <BudgetProvider>
+                  <PaycheckProvider>
+                    <CartProvider>
+                        <MailProvider>
+                        <DisclaimerWarning />
+                        <Navbar />
+                        <PaycheckPopup />
+                        <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
+                          {children}
+                        </main>
+                      </MailProvider>
+                    </CartProvider>
+                  </PaycheckProvider>
+                </BudgetProvider>
+              </GameProvider>
+            </ClientProvider>
+          </AuthProvider>
+        </MaintenanceMode>
       </body>
     </html>
   );
