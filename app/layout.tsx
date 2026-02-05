@@ -13,6 +13,7 @@ import Navbar from "@/components/Navbar";
 import DisclaimerWarning from "@/components/DisclaimerWarning";
 import PaycheckPopup from "@/components/PaycheckPopup";
 import MaintenanceMode from "@/components/MaintenanceMode";
+import PasswordSetupPopup from "@/components/PasswordSetupPopup";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,6 +51,7 @@ export default function RootLayout({
                         <DisclaimerWarning />
                         <Navbar />
                         <PaycheckPopup />
+                        <PasswordSetupPopup />
                         <main className="pt-16 min-h-screen bg-gray-50 dark:bg-gray-900">
                           {children}
                         </main>

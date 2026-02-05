@@ -6,7 +6,8 @@ import { useGame } from '@/contexts/GameContext';
 import { useBudget } from '@/contexts/BudgetContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useClient } from '@/contexts/ClientContext';
-import { PRESTIGE_REQUIREMENTS } from '@/types/game';
+import { PRESTIGE_REQUIREMENTS, getPrestigeRockRequirement, getPrestigePickaxeRequirement } from '@/types/game';
+import { ROCKS, PICKAXES } from '@/lib/gameData';
 
 export default function PrestigeButton() {
   const { gameState, canPrestige, prestige } = useGame();
@@ -19,13 +20,25 @@ export default function PrestigeButton() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isPrestiging, setIsPrestiging] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showRequirements, setShowRequirements] = useState(false);
 
   // For portal - need to wait for client-side mount
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!canPrestige()) return null;
+  const isReady = canPrestige();
+  
+  // Calculate requirements for display
+  const rockRequired = getPrestigeRockRequirement(gameState.prestigeCount);
+  const pickaxeRequired = getPrestigePickaxeRequirement(gameState.prestigeCount);
+  const hasRequiredRock = gameState.currentRockId >= rockRequired;
+  const hasRequiredPickaxe = gameState.ownedPickaxeIds.includes(pickaxeRequired);
+  
+  // Get names for display
+  const requiredRockName = ROCKS.find(r => r.id === rockRequired)?.name || `Rock #${rockRequired}`;
+  const requiredPickaxeName = PICKAXES.find(p => p.id === pickaxeRequired)?.name || `Pickaxe #${pickaxeRequired}`;
+  const currentRockName = ROCKS.find(r => r.id === gameState.currentRockId)?.name || `Rock #${gameState.currentRockId}`;
 
   const formatMoney = (amount: number): string => {
     if (amount >= 1000000000000000) return `$${(amount / 1000000000000000).toFixed(2)}Q`;
@@ -129,22 +142,92 @@ export default function PrestigeButton() {
     document.body
   ) : null;
 
+  // Not ready popup content
+  const requirementsPopup = showRequirements && mounted && !isReady ? createPortal(
+    <>
+      <div
+        className="fixed inset-0 bg-black/50 z-[9998]"
+        onClick={() => setShowRequirements(false)}
+      />
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gray-900 rounded-xl p-6 z-[9999] w-[350px] max-w-[90vw] shadow-2xl border border-gray-700">
+        <div className="text-center mb-4">
+          <div className="text-4xl mb-2">🔒</div>
+          <h2 className="text-xl font-bold text-white">Prestige Requirements</h2>
+          <p className="text-sm text-gray-400">For prestige #{gameState.prestigeCount + 1}</p>
+        </div>
+        
+        <div className="space-y-3">
+          <div className={`flex items-center justify-between p-3 rounded-lg ${hasRequiredRock ? 'bg-green-900/30 border border-green-700' : 'bg-red-900/30 border border-red-700'}`}>
+            <div>
+              <p className="text-sm text-gray-300">⛏️ Rock Required:</p>
+              <p className="font-bold text-white">{requiredRockName}</p>
+            </div>
+            <div className="text-right">
+              {hasRequiredRock ? (
+                <span className="text-green-400 text-2xl">✓</span>
+              ) : (
+                <span className="text-red-400 text-sm">Current: {currentRockName}</span>
+              )}
+            </div>
+          </div>
+          
+          <div className={`flex items-center justify-between p-3 rounded-lg ${hasRequiredPickaxe ? 'bg-green-900/30 border border-green-700' : 'bg-red-900/30 border border-red-700'}`}>
+            <div>
+              <p className="text-sm text-gray-300">🔨 Pickaxe Required:</p>
+              <p className="font-bold text-white">{requiredPickaxeName}</p>
+            </div>
+            <div>
+              {hasRequiredPickaxe ? (
+                <span className="text-green-400 text-2xl">✓</span>
+              ) : (
+                <span className="text-red-400 text-2xl">✗</span>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        <button
+          onClick={() => setShowRequirements(false)}
+          className="w-full mt-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+        >
+          Got it
+        </button>
+      </div>
+    </>,
+    document.body
+  ) : null;
+
   return (
     <>
-      <button
-        onClick={() => setShowConfirm(true)}
-        className="relative bg-gradient-to-r from-purple-600 via-pink-500 to-red-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all animate-pulse"
-      >
-        <span className="flex items-center gap-2">
-          🌟 PRESTIGE {gameState.prestigeCount + 1}
-        </span>
-        <span className="block text-xs opacity-80">
-          Get {nextMultiplier.toFixed(1)}x multiplier
-        </span>
-      </button>
+      {isReady ? (
+        <button
+          onClick={() => setShowConfirm(true)}
+          className="relative bg-gradient-to-r from-purple-600 via-pink-500 to-red-500 text-white px-4 py-2 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all animate-pulse"
+        >
+          <span className="flex items-center gap-2">
+            🌟 PRESTIGE {gameState.prestigeCount + 1}
+          </span>
+          <span className="block text-xs opacity-80">
+            Get {nextMultiplier.toFixed(1)}x multiplier
+          </span>
+        </button>
+      ) : (
+        <button
+          onClick={() => setShowRequirements(true)}
+          className="relative bg-gray-700 text-gray-300 px-4 py-2 rounded-lg font-bold shadow-lg hover:bg-gray-600 transition-all"
+        >
+          <span className="flex items-center gap-2">
+            🔒 PRESTIGE {gameState.prestigeCount + 1}
+          </span>
+          <span className="block text-xs opacity-80">
+            Click to see requirements
+          </span>
+        </button>
+      )}
 
       {/* Modal rendered via portal to document.body */}
       {modalContent}
+      {requirementsPopup}
     </>
   );
 }

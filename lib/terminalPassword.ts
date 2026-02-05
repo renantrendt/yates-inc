@@ -2,7 +2,9 @@
 // Generates a deterministic 6-character alphanumeric password that changes every 5 minutes
 // All clients will generate the same password for the same time window
 
-const SECRET = 'yates-terminal-secret-2024-bloodmoon';
+// Obfuscated secret - decoded at runtime
+const _0x = [121,97,116,101,115,45,116,101,114,109,105,110,97,108,45,115,101,99,114,101,116,45,50,48,50,52,45,98,108,111,111,100,109,111,111,110];
+const SECRET = String.fromCharCode(..._0x);
 const INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 // Simple hash function (djb2 variant)
