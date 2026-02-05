@@ -2464,24 +2464,43 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const cost = RELIC_CONVERSION_COSTS[trinketId];
     if (!cost) return false;
     
+    const relicId = `${trinketId}_relic`;
+    const wasEquipped = gameState.equippedTrinketIds.includes(trinketId);
+    
     // Check affordability based on payment method
     if (payWithTokens) {
       if (gameState.prestigeTokens < cost.prestigeTokens) return false;
-      setGameState(prev => ({
-        ...prev,
-        prestigeTokens: prev.prestigeTokens - cost.prestigeTokens,
-        ownedRelicIds: [...(prev.ownedRelicIds || []), `${trinketId}_relic`],
-      }));
+      setGameState(prev => {
+        // If the base trinket was equipped, swap it for the relic
+        let newEquippedIds = prev.equippedTrinketIds;
+        if (wasEquipped) {
+          newEquippedIds = prev.equippedTrinketIds.map(id => id === trinketId ? relicId : id);
+        }
+        return {
+          ...prev,
+          prestigeTokens: prev.prestigeTokens - cost.prestigeTokens,
+          ownedRelicIds: [...(prev.ownedRelicIds || []), relicId],
+          equippedTrinketIds: newEquippedIds,
+        };
+      });
     } else {
       if (gameState.yatesDollars < cost.money) return false;
-      setGameState(prev => ({
-        ...prev,
-        yatesDollars: prev.yatesDollars - cost.money,
-        ownedRelicIds: [...(prev.ownedRelicIds || []), `${trinketId}_relic`],
-      }));
+      setGameState(prev => {
+        // If the base trinket was equipped, swap it for the relic
+        let newEquippedIds = prev.equippedTrinketIds;
+        if (wasEquipped) {
+          newEquippedIds = prev.equippedTrinketIds.map(id => id === trinketId ? relicId : id);
+        }
+        return {
+          ...prev,
+          yatesDollars: prev.yatesDollars - cost.money,
+          ownedRelicIds: [...(prev.ownedRelicIds || []), relicId],
+          equippedTrinketIds: newEquippedIds,
+        };
+      });
     }
     return true;
-  }, [gameState.chosenPath, gameState.ownedTrinketIds, gameState.ownedRelicIds, gameState.prestigeTokens, gameState.yatesDollars]);
+  }, [gameState.chosenPath, gameState.ownedTrinketIds, gameState.ownedRelicIds, gameState.prestigeTokens, gameState.yatesDollars, gameState.equippedTrinketIds]);
 
   const convertToTalisman = useCallback((trinketId: string): boolean => {
     // Must be on Darkness path
@@ -2497,14 +2516,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (gameState.minerCount < cost.miners) return false;
     if (gameState.yatesDollars < cost.money) return false;
     
-    setGameState(prev => ({
-      ...prev,
-      minerCount: prev.minerCount - cost.miners,
-      yatesDollars: prev.yatesDollars - cost.money,
-      ownedTalismanIds: [...(prev.ownedTalismanIds || []), `${trinketId}_talisman`],
-    }));
+    const talismanId = `${trinketId}_talisman`;
+    const wasEquipped = gameState.equippedTrinketIds.includes(trinketId);
+    
+    setGameState(prev => {
+      // If the base trinket was equipped, swap it for the talisman
+      let newEquippedIds = prev.equippedTrinketIds;
+      if (wasEquipped) {
+        newEquippedIds = prev.equippedTrinketIds.map(id => id === trinketId ? talismanId : id);
+      }
+      return {
+        ...prev,
+        minerCount: prev.minerCount - cost.miners,
+        yatesDollars: prev.yatesDollars - cost.money,
+        ownedTalismanIds: [...(prev.ownedTalismanIds || []), talismanId],
+        equippedTrinketIds: newEquippedIds,
+      };
+    });
     return true;
-  }, [gameState.chosenPath, gameState.ownedTrinketIds, gameState.ownedTalismanIds, gameState.minerCount, gameState.yatesDollars]);
+  }, [gameState.chosenPath, gameState.ownedTrinketIds, gameState.ownedTalismanIds, gameState.minerCount, gameState.yatesDollars, gameState.equippedTrinketIds]);
 
   // =====================
   // MINER FUNCTIONS

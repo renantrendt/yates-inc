@@ -499,11 +499,21 @@ export default function TrinketSlot() {
                         )}
                       </div>
                       <p className="text-[10px] text-gray-400 truncate">
-                        {item.baseTrinket.description}
-                        {item.multiplier > 1 && (
-                          <span className={`ml-1 ${isRelic ? 'text-yellow-400' : 'text-purple-400'}`}>
-                            ({item.multiplier}x)
+                        {item.multiplier > 1 ? (
+                          // Show multiplied effect values for relics/talismans
+                          <span className={isRelic ? 'text-yellow-400' : 'text-purple-400'}>
+                            {Object.entries(item.baseTrinket.effects)
+                              .filter(([, v]) => typeof v === 'number')
+                              .map(([key, value]) => {
+                                const multipliedValue = (value as number) * item.multiplier * 100;
+                                const label = key.replace(/Bonus$/i, '').replace(/([A-Z])/g, ' $1').trim().toLowerCase();
+                                return `+${multipliedValue.toFixed(0)}% ${label}`;
+                              })
+                              .join(', ')}
+                            {' '}({item.multiplier}x)
                           </span>
+                        ) : (
+                          item.baseTrinket.description
                         )}
                       </p>
                     </div>
