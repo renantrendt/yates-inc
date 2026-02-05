@@ -364,7 +364,7 @@ export default function TrinketSlot() {
                     </div>
                   )}
                   {/* Buildings */}
-                  {gameState.buildings.temple.equippedRank > 0 && (
+                  {(gameState.buildings.temple.equippedRank ?? 0) > 0 && (
                     <div className="flex items-center gap-1 text-amber-400">
                       <span>🏛️</span>
                       <span>Temple Rank {gameState.buildings.temple.equippedRank}</span>

@@ -51,6 +51,8 @@ export interface UserGameData {
   // Pro Player Titles
   owned_title_ids?: string[];
   equipped_title_ids?: string[];
+  // Buildings (bank, factory, temple, etc.) - stored as JSON
+  buildings_data?: string;
   title_win_counts?: Record<string, number>;
   // Path system
   chosen_path?: string | null;
@@ -166,6 +168,8 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       total_playtime_seconds: safeBigInt(data.total_playtime_seconds),
       // Premium products - only include if the array has items (avoid schema issues)
       ...(data.owned_premium_product_ids?.length ? { owned_premium_product_ids: data.owned_premium_product_ids } : {}),
+      // Buildings data (bank, factory, temple, etc.) - stored as JSON string
+      ...(data.buildings_data ? { buildings_data: data.buildings_data } : {}),
     };
 
     // FINAL CHECK: If version was provided and has changed, skip this save (a force save happened)
@@ -505,6 +509,8 @@ export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; u
     total_playtime_seconds: data.total_playtime_seconds,
     // Premium products - only include if the array has items
     ...(data.owned_premium_product_ids?.length ? { owned_premium_product_ids: data.owned_premium_product_ids } : {}),
+    // Buildings data
+    ...(data.buildings_data ? { buildings_data: data.buildings_data } : {}),
   };
 
   const url = `${supabaseUrl}/rest/v1/user_game_data?on_conflict=user_id`;

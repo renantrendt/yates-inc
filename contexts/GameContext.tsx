@@ -310,7 +310,8 @@ const defaultGameState: GameState = {
   lastTaxTime: null,
   showPathSelection: false,
   // Timestamp for sync conflict resolution
-  localUpdatedAt: Date.now(),
+  // IMPORTANT: Must be 0 (not Date.now()) so Supabase data is preferred on new devices
+  localUpdatedAt: 0,
   // Playtime tracking
   totalPlaytimeSeconds: 0,
   // Building system
@@ -688,6 +689,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
                     ...((supabaseData as unknown as { owned_premium_product_ids?: number[] }).owned_premium_product_ids || []),
                   ]),
                 ],
+                // Buildings data (bank, factory, temple, etc.) - merge carefully
+                buildings: (() => {
+                  const supabaseBuildingsJson = (supabaseData as unknown as { buildings_data?: string }).buildings_data;
+                  if (!supabaseBuildingsJson || !useSupabase) return prev.buildings;
+                  try {
+                    const supabaseBuildings = JSON.parse(supabaseBuildingsJson);
+                    // Merge buildings - use Supabase data but keep local state for active things
+                    return {
+                      ...prev.buildings,
+                      ...supabaseBuildings,
+                      // For bank, use whichever has a deposit (non-zero amount)
+                      bank: supabaseBuildings.bank?.depositAmount > 0 
+                        ? supabaseBuildings.bank 
+                        : (prev.buildings.bank?.depositAmount > 0 ? prev.buildings.bank : supabaseBuildings.bank || prev.buildings.bank),
+                    };
+                  } catch {
+                    return prev.buildings;
+                  }
+                })(),
                 // Keep whichever timestamp is newer (for future syncs)
                 localUpdatedAt: useSupabase ? supabaseTime : localTime,
               };
@@ -1251,32 +1271,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [gameState.buildings.wizard_tower.darkMiners]);
 
-  // Auto-prestige logic
+  // Auto-prestige logic - check inside setGameState to avoid stale closures
   useEffect(() => {
     if (!gameState.autoPrestigeEnabled) return;
     
     const interval = setInterval(() => {
-      const rockRequired = getPrestigeRockRequirement(gameState.prestigeCount);
-      const pickaxeRequired = getPrestigePickaxeRequirement(gameState.prestigeCount);
-      // Money requirement removed - just need rock + pickaxe
-      const canDo = gameState.currentRockId >= rockRequired &&
-        gameState.ownedPickaxeIds.includes(pickaxeRequired);
-      
-      if (canDo) {
+      setGameState(prev => {
+        const rockRequired = getPrestigeRockRequirement(prev.prestigeCount);
+        const pickaxeRequired = getPrestigePickaxeRequirement(prev.prestigeCount);
+        
+        // Check requirements using prev (latest state)
+        const canDo = prev.currentRockId >= rockRequired &&
+          prev.ownedPickaxeIds.includes(pickaxeRequired);
+        
+        if (!canDo) return prev; // No change
+        
         // Trigger prestige
         const isYates = userId === YATES_ACCOUNT_ID;
-        const newPrestigeCount = gameState.prestigeCount + 1;
-        const isPastMaxPrestige = gameState.prestigeCount >= MAX_PRESTIGE_WITH_BUFFS;
-        // After max prestige (230), no more multiplier increases
+        const newPrestigeCount = prev.prestigeCount + 1;
+        const isPastMaxPrestige = prev.prestigeCount >= MAX_PRESTIGE_WITH_BUFFS;
         const newMultiplier = isPastMaxPrestige 
-          ? gameState.prestigeMultiplier 
+          ? prev.prestigeMultiplier 
           : 1.0 + (newPrestigeCount * 0.1);
-        // No tokens after max prestige
         const tokensToAdd = isPastMaxPrestige ? 0 : PRESTIGE_TOKENS_PER_PRESTIGE;
-        // Check if player owns totem (not the flag - can get out of sync)
-        const ownsTotem = gameState.ownedTrinketIds.includes('totem');
+        const ownsTotem = prev.ownedTrinketIds.includes('totem');
         
-        setGameState(prev => ({
+        return {
           ...prev,
           currentRockId: 1,
           currentRockHP: getScaledRockHP(ROCKS[0].clicksToBreak, newPrestigeCount),
@@ -1284,23 +1304,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ownedPickaxeIds: [1],
           totalClicks: 0,
           rocksMinedCount: 0,
-          minerCount: 0, // Reset miners on prestige
+          minerCount: 0,
           yatesDollars: (isYates || ownsTotem) ? prev.yatesDollars : 0,
           prestigeCount: newPrestigeCount,
           prestigeMultiplier: newMultiplier,
           prestigeTokens: prev.prestigeTokens + tokensToAdd,
-          // Give 1 Stoken every 5 prestiges
           stokens: prev.stokens + (newPrestigeCount % 5 === 0 ? 1 : 0),
           hasTotemProtection: false,
-          // Remove totem from inventory if used
           ownedTrinketIds: ownsTotem ? prev.ownedTrinketIds.filter(id => id !== 'totem') : prev.ownedTrinketIds,
           equippedTrinketIds: ownsTotem ? prev.equippedTrinketIds.filter(id => id !== 'totem') : prev.equippedTrinketIds,
-        }));
-      }
-    }, 1000); // Check every 1 second
+        };
+      });
+    }, 1000);
     
     return () => clearInterval(interval);
-  }, [gameState.autoPrestigeEnabled, gameState.currentRockId, gameState.ownedPickaxeIds, gameState.prestigeCount, gameState.prestigeMultiplier, userId, gameState.ownedTrinketIds, gameState.yatesDollars]);
+  }, [gameState.autoPrestigeEnabled, userId]);
 
   // Stock market unlock tracking - permanently unlock when requirements first met
   useEffect(() => {
@@ -1620,6 +1638,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           total_playtime_seconds: gameState.totalPlaytimeSeconds,
           // Premium products - only if has items
           ...(gameState.ownedPremiumProductIds?.length ? { owned_premium_product_ids: gameState.ownedPremiumProductIds } : {}),
+          // Buildings data (bank, factory, temple, etc.) - serialized as JSON
+          buildings_data: JSON.stringify(gameState.buildings),
         });
       }
     } catch (err) {
