@@ -154,7 +154,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       }, 300);
     } else {
       // Update display progress for click feedback, then reset to let actualProgress take over
-      const scaledMaxHP = getScaledRockHP(currentRock.clicksToBreak, gameState.prestigeCount);
+      const scaledMaxHP = getScaledRockHP(currentRock.clicksToBreak, gameState.prestigeCount, gameState.isHardMode);
       const newProgress = ((scaledMaxHP - gameState.currentRockHP + 1) / scaledMaxHP) * 100;
       setDisplayProgress(Math.min(100, newProgress));
       // Reset displayProgress after animation so miners can update the bar via actualProgress
@@ -295,7 +295,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     }
   };
 
-  const scaledRockMaxHP = getScaledRockHP(currentRock.clicksToBreak, gameState.prestigeCount);
+  const scaledRockMaxHP = getScaledRockHP(currentRock.clicksToBreak, gameState.prestigeCount, gameState.isHardMode);
   const actualProgress = ((scaledRockMaxHP - gameState.currentRockHP) / scaledRockMaxHP) * 100;
   const progressPercent = rockBroken ? 100 : (displayProgress || actualProgress);
   const totalCoupons = gameState.coupons.discount30 + gameState.coupons.discount50 + gameState.coupons.discount100;
@@ -693,7 +693,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
               <div className="flex justify-between items-center mb-1">
                 <span className="text-gray-300 font-medium text-xs sm:text-sm">⛏️ Mining: {currentRock.name}</span>
                 <span className="text-gray-400 text-[10px] sm:text-xs">
-                  {formatNumber(gameState.currentRockHP)} / {formatNumber(getScaledRockHP(currentRock.clicksToBreak, gameState.prestigeCount))} HP
+                  {formatNumber(gameState.currentRockHP)} / {formatNumber(getScaledRockHP(currentRock.clicksToBreak, gameState.prestigeCount, gameState.isHardMode))} HP
                 </span>
               </div>
               <div className="w-full h-2 sm:h-3 bg-gray-800 rounded-full overflow-hidden">

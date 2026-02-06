@@ -258,7 +258,7 @@ export const PICKAXES: Pickaxe[] = [
     price: 0, // Cannot be bought - only from Golden Cookie
     clickPower: 500000,
     moneyMultiplier: 3.0,
-    specialAbility: '3x money, legendary power (Golden Cookie only)',
+    specialAbility: '3x money',
   },
 ];
 

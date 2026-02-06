@@ -529,7 +529,15 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
           setGameState({ ...defaultGameState, isHardMode });
         } else {
           // Preserve isHardMode from prop, not from saved data
-          setGameState({ ...defaultGameState, ...parsed, isHardMode });
+          // Also fix HP if it exceeds max (can happen when mode modifiers change)
+          const loadedState = { ...defaultGameState, ...parsed, isHardMode };
+          const currentRock = ROCKS.find(r => r.id === loadedState.currentRockId) || ROCKS[0];
+          const maxHP = getScaledRockHP(currentRock.clicksToBreak, loadedState.prestigeCount, isHardMode);
+          if (loadedState.currentRockHP > maxHP) {
+            console.log(`🔧 Fixing HP: ${loadedState.currentRockHP} > ${maxHP}, capping to max`);
+            loadedState.currentRockHP = maxHP;
+          }
+          setGameState(loadedState);
           
           if (parsed.shopStock) {
             const timeSinceRestock = Date.now() - parsed.shopStock.lastRestockTime;
@@ -636,14 +644,22 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
                   });
                 }
                 
+                // Calculate max HP for current rock to cap loaded HP value
+                const loadedRockId = useSupabase ? (supabaseData.current_rock_id ?? prev.currentRockId) : prev.currentRockId;
+                const loadedPrestige = useSupabase ? (supabaseData.prestige_count ?? prev.prestigeCount) : prev.prestigeCount;
+                const loadedRock = ROCKS.find(r => r.id === loadedRockId) || ROCKS[0];
+                const maxRockHP = getScaledRockHP(loadedRock.clicksToBreak, loadedPrestige, prev.isHardMode);
+                const loadedHP = useSupabase ? (supabaseData.current_rock_hp ?? prev.currentRockHP) : prev.currentRockHP;
+                const cappedHP = Math.min(loadedHP, maxRockHP);
+                
                 return {
                 ...prev,
                 // Use whichever source has more progress
                 yatesDollars: useSupabase ? (supabaseData.yates_dollars ?? prev.yatesDollars) : prev.yatesDollars,
                 totalClicks: useSupabase ? (supabaseData.total_clicks ?? prev.totalClicks) : prev.totalClicks,
                 currentPickaxeId: useSupabase ? (supabaseData.current_pickaxe_id ?? prev.currentPickaxeId) : prev.currentPickaxeId,
-                currentRockId: useSupabase ? (supabaseData.current_rock_id ?? prev.currentRockId) : prev.currentRockId,
-                currentRockHP: useSupabase ? (supabaseData.current_rock_hp ?? prev.currentRockHP) : prev.currentRockHP,
+                currentRockId: loadedRockId,
+                currentRockHP: cappedHP,
                 rocksMinedCount: useSupabase ? (supabaseData.rocks_mined_count ?? prev.rocksMinedCount) : prev.rocksMinedCount,
                 ownedPickaxeIds: useSupabase ? (supabaseData.owned_pickaxe_ids?.length ? supabaseData.owned_pickaxe_ids : prev.ownedPickaxeIds) : prev.ownedPickaxeIds,
                 coupons: useSupabase ? {
