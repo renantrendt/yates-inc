@@ -195,7 +195,7 @@ export default function TrinketShopModal({ isOpen, onClose }: TrinketShopModalPr
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {trinketShopItems.map(trinket => {
-              const scaledCost = Math.floor(trinket.cost * getPrestigePriceMultiplier(gameState.prestigeCount));
+              const scaledCost = Math.floor(trinket.cost * getPrestigePriceMultiplier(gameState.prestigeCount, gameState.isHardMode));
               const isOwned = ownsTrinket(trinket.id);
               return (
                 <TrinketCard

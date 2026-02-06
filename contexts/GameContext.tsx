@@ -800,6 +800,31 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     }
   }, [userId, userType, isHardMode]);
 
+  // Check for secret challenge completion and grant Yates pickaxe
+  useEffect(() => {
+    const secretCompleted = localStorage.getItem('yates-secret-completed');
+    if (secretCompleted === 'true' && !gameState.ownedPickaxeIds.includes(YATES_PICKAXE_ID)) {
+      console.log('🎉 Secret challenge completed! Granting Yates pickaxe...');
+      const newOwnedPickaxes = [...gameState.ownedPickaxeIds, YATES_PICKAXE_ID];
+      setGameState(prev => ({
+        ...prev,
+        ownedPickaxeIds: newOwnedPickaxes,
+        currentPickaxeId: YATES_PICKAXE_ID, // Auto-equip it
+      }));
+      // Force save
+      if (userId && userType) {
+        forceImmediateSave({
+          user_id: userId,
+          user_type: userType,
+          owned_pickaxe_ids: newOwnedPickaxes,
+          current_pickaxe_id: YATES_PICKAXE_ID,
+        });
+      }
+      // Clear the flag so it doesn't re-grant
+      localStorage.removeItem('yates-secret-completed');
+    }
+  }, [gameState.ownedPickaxeIds, userId, userType]);
+
   // Auto-restock check every second (product shop)
   useEffect(() => {
     const interval = setInterval(() => {
@@ -3067,7 +3092,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
 
   // Check if player can buy a pickaxe based on their path
   const canBuyPickaxeForPath = useCallback((pickaxeId: number): boolean => {
-    // Yates pickaxe cannot be bought - only from Golden Cookie
+    // Yates pickaxe cannot be bought - only from secret challenge (click the Rankings disclaimer text)
     if (pickaxeId === YATES_PICKAXE_ID) return false;
     
     // If no path chosen yet, can buy any non-restricted pickaxe
@@ -3233,31 +3258,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     const roll = Math.random();
     let cumulative = 0;
     
-    // 10% - Yates Pickaxe (rare!)
-    cumulative += 0.10;
-    if (roll < cumulative) {
-      if (!gameState.ownedPickaxeIds.includes(YATES_PICKAXE_ID)) {
-        const newOwnedPickaxes = [...gameState.ownedPickaxeIds, YATES_PICKAXE_ID];
-        setGameState(prev => ({
-          ...prev,
-          ownedPickaxeIds: newOwnedPickaxes,
-          currentPickaxeId: YATES_PICKAXE_ID,
-        }));
-        if (userId && userType) {
-          forceImmediateSave({
-            user_id: userId,
-            user_type: userType,
-            owned_pickaxe_ids: newOwnedPickaxes,
-            current_pickaxe_id: YATES_PICKAXE_ID,
-          });
-        }
-        return { type: 'yates_pickaxe', value: YATES_PICKAXE_ID };
-      }
-      // Already own it, give 24% money bonus
-      const bonus = Math.max(2000, Math.floor(gameState.yatesDollars * 0.24));
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
-      return { type: 'money', value: bonus };
-    }
+    // NOTE: Yates Pickaxe removed from golden cookies - now obtained via secret challenge at /yates-inc/???
     
     // 1% - Yates Totem trinket
     cumulative += 0.01;
@@ -3274,8 +3275,8 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
       return { type: 'money', value: 5000 };
     }
     
-    // 36% - Small money bonus (+0.5% of current, min $500)
-    cumulative += 0.36;
+    // 46% - Small money bonus (+0.5% of current, min $500)
+    cumulative += 0.46;
     if (roll < cumulative) {
       const bonus = Math.max(500, Math.floor(gameState.yatesDollars * 0.005));
       setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
@@ -3306,7 +3307,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     const adminExpiry = Date.now() + 5 * 60 * 1000;
     setGameState(prev => ({ ...prev, adminCommandsUntil: adminExpiry }));
     return { type: 'admin_commands', value: adminExpiry };
-  }, [gameState.chosenPath, gameState.goldenCookieRitualActive, gameState.yatesDollars, gameState.ownedPickaxeIds, gameState.ownedTrinketIds, gameState.ownedTitleIds, userId, userType]);
+  }, [gameState.chosenPath, gameState.goldenCookieRitualActive, gameState.yatesDollars, gameState.ownedTrinketIds, gameState.ownedTitleIds, userId, userType]);
 
   // =====================
   // BUILDING SYSTEM FUNCTIONS

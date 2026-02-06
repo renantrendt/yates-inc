@@ -256,8 +256,8 @@ export default function GameShop({ onClose }: GameShopProps) {
                 const canAfford = canAffordPickaxe(pickaxe.id);
                 const pathLabel = getPathLabel(pickaxe.id);
                 const canBuyForPath = canBuyPickaxeForPath(pickaxe.id);
-                // Calculate scaled price (10% increase every 5 prestiges)
-                const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
+                // Calculate scaled price (10% increase every 5 prestiges + hard mode multiplier)
+                const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount, gameState.isHardMode));
                 
                 // Sequential purchase: can only buy if you own the previous one
                 // Skip path-locked pickaxes in the sequence calculation

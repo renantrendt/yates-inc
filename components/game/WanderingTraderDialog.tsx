@@ -47,16 +47,16 @@ export default function WanderingTraderDialog({ isOpen, onClose, isRedemption = 
     if (isOpen) {
       setStep(isRedemption ? 'redemption_intro' : 'intro');
       setIsTyping(true);
-      // Typing animation delay
-      const timer = setTimeout(() => setIsTyping(false), 800);
+      // Typing animation delay (reduced for better UX)
+      const timer = setTimeout(() => setIsTyping(false), 300);
       return () => clearTimeout(timer);
     }
   }, [isOpen, isRedemption]);
 
-  // Typing effect for each step change
+  // Typing effect for each step change (reduced delay for better UX)
   useEffect(() => {
     setIsTyping(true);
-    const timer = setTimeout(() => setIsTyping(false), 600);
+    const timer = setTimeout(() => setIsTyping(false), 200); // Reduced from 600ms
     return () => clearTimeout(timer);
   }, [step]);
 
@@ -206,8 +206,12 @@ function getDialogContent(
   const OptionButton = ({ onClick, children }: { onClick: () => void; children: React.ReactNode }) => {
     return (
       <button
-        onClick={onClick}
-        className="w-full text-left px-4 py-3 rounded-lg border transition-all text-white font-medium bg-purple-700/50 hover:bg-purple-600/50 border-purple-500/30 hover:border-purple-400/50"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick();
+        }}
+        className="w-full text-left px-4 py-4 rounded-lg border transition-all text-white font-medium bg-purple-700/50 hover:bg-purple-600/50 active:bg-purple-500 border-purple-500/30 hover:border-purple-400/50 touch-manipulation cursor-pointer select-none relative z-10"
       >
         {children}
       </button>

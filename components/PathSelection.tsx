@@ -1,10 +1,14 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 interface PathSelectionProps {
     onSelectPath: (path: 'lore' | 'gameplay' | 'hard') => void;
 }
 
 export default function PathSelection({ onSelectPath }: PathSelectionProps) {
+    const router = useRouter();
+
     return (
         <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center overflow-auto p-4">
             <div className="max-w-2xl w-full space-y-6">
@@ -73,7 +77,10 @@ export default function PathSelection({ onSelectPath }: PathSelectionProps) {
                             *If you can&apos;t click just right, it&apos;s probably because you have Auto clicker on
                         </p>
 
-                        <p className="text-gray-500 text-xs italic">
+                        <p 
+                            onClick={() => router.push('/yates-inc/secret')}
+                            className="text-gray-500 text-xs italic cursor-pointer hover:text-gray-400 transition-colors select-none"
+                        >
                             ***I do not pretend to fix the Rankings title logic, nor the time :)
                         </p>
                     </div>

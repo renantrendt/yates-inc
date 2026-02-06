@@ -71,8 +71,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const { employee } = useAuth();
   const isEmployee = !!employee?.id && /^\d+$/.test(employee.id);
 
-  // Calculate scaled autoclicker cost (10% increase every 5 prestiges)
-  const scaledAutoclickerCost = Math.floor(AUTOCLICKER_COST * getPrestigePriceMultiplier(gameState.prestigeCount));
+  // Calculate scaled autoclicker cost (10% increase every 5 prestiges + hard mode multiplier)
+  const scaledAutoclickerCost = Math.floor(AUTOCLICKER_COST * getPrestigePriceMultiplier(gameState.prestigeCount, gameState.isHardMode));
 
   const [moneyPopups, setMoneyPopups] = useState<MoneyPopup[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
@@ -335,10 +335,10 @@ export default function MiningGame({ onExit }: MiningGameProps) {
     const nextPickaxe = PICKAXES.find(p => p.id === effectiveNextId);
     if (!nextPickaxe) return false;
     
-    // Can afford it? (with prestige price scaling)
-    const scaledPrice = Math.floor(nextPickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount));
+    // Can afford it? (with prestige price scaling AND hard mode multiplier)
+    const scaledPrice = Math.floor(nextPickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount, gameState.isHardMode));
     return gameState.yatesDollars >= scaledPrice;
-  }, [gameState.ownedPickaxeIds, gameState.yatesDollars, gameState.prestigeCount, gameState.chosenPath]);
+  }, [gameState.ownedPickaxeIds, gameState.yatesDollars, gameState.prestigeCount, gameState.chosenPath, gameState.isHardMode]);
 
   // Get next rock unlock progress (scaled by prestige, based on current rock)
   const nextRockInfo = useMemo(() => {
