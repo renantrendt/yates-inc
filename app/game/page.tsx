@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
 import PathSelection from '@/components/PathSelection';
 import LoreMode from '@/components/LoreMode';
 import MiningGame from '@/components/game/MiningGame';
@@ -12,11 +11,11 @@ type GameState = 'path-selection' | 'lore' | 'gameplay' | 'gameplay-hard';
 export default function GamePage() {
     const [gameState, setGameState] = useState<GameState>('path-selection');
     const [showSecretMessage, setShowSecretMessage] = useState(false);
-    const searchParams = useSearchParams();
 
-    // Check for secret completion - runs once on mount
+    // Check for secret completion - runs once on mount using window.location
     useEffect(() => {
-        const secretParam = searchParams.get('secret');
+        const params = new URLSearchParams(window.location.search);
+        const secretParam = params.get('secret');
         if (secretParam === 'completed') {
             setShowSecretMessage(true);
             // Clear URL param immediately
@@ -27,7 +26,7 @@ export default function GamePage() {
             }, 6000);
             return () => clearTimeout(timer);
         }
-    }, []); // Empty deps - only run once on mount
+    }, []);
 
     const handlePathSelection = (path: 'lore' | 'gameplay' | 'hard') => {
         if (path === 'lore') {
