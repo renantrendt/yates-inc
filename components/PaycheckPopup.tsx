@@ -9,11 +9,13 @@ const TAX_RATE = 0.15; // 15% taxes
 
 // Format money with K, M, B, T, Q suffixes
 function formatMoney(amount: number): string {
-  if (amount >= 1000000000000000) return `${(amount / 1000000000000000).toFixed(2)}Q`;
-  if (amount >= 1000000000000) return `${(amount / 1000000000000).toFixed(2)}T`;
-  if (amount >= 1000000000) return `${(amount / 1000000000).toFixed(2)}B`;
-  if (amount >= 1000000) return `${(amount / 1000000).toFixed(2)}M`;
-  if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K`;
+  if (amount >= 1e21) return `${(amount / 1e21).toFixed(2)}Sx`;
+  if (amount >= 1e18) return `${(amount / 1e18).toFixed(2)}Qi`;
+  if (amount >= 1e15) return `${(amount / 1e15).toFixed(2)}Q`;
+  if (amount >= 1e12) return `${(amount / 1e12).toFixed(2)}T`;
+  if (amount >= 1e9) return `${(amount / 1e9).toFixed(2)}B`;
+  if (amount >= 1e6) return `${(amount / 1e6).toFixed(2)}M`;
+  if (amount >= 1e3) return `${(amount / 1e3).toFixed(1)}K`;
   return amount.toFixed(2);
 }
 

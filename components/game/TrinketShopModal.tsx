@@ -14,6 +14,7 @@ interface TrinketShopModalProps {
 }
 
 function formatMoney(amount: number): string {
+  if (amount >= 1e21) return `${(amount / 1e21).toFixed(1)}Sx`;
   if (amount >= 1e18) return `${(amount / 1e18).toFixed(1)}Qi`;
   if (amount >= 1e15) return `${(amount / 1e15).toFixed(1)}Q`;
   if (amount >= 1e12) return `${(amount / 1e12).toFixed(1)}T`;

@@ -15,6 +15,7 @@ interface WanderingTraderShopModalProps {
 
 // Format number with suffix
 function formatNumber(num: number): string {
+  if (num >= 1e21) return `${(num / 1e21).toFixed(1)}Sx`;
   if (num >= 1e18) return `${(num / 1e18).toFixed(1)}Qi`;
   if (num >= 1e15) return `${(num / 1e15).toFixed(1)}Q`;
   if (num >= 1e12) return `${(num / 1e12).toFixed(1)}T`;

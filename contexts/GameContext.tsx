@@ -41,7 +41,7 @@ import { products } from '@/utils/products';
 import { PICKAXES, ROCKS, getPickaxeById, getRockById, getHighestUnlockedRock } from '@/lib/gameData';
 import { useAuth } from './AuthContext';
 import { useClient } from './ClientContext';
-import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData, savePurchase, forceImmediateSave, keepaliveSave, getPendingData, fetchUserPurchases } from '@/lib/userDataSync';
+import { fetchUserGameData, debouncedSaveUserGameData, flushPendingData, savePurchase, forceImmediateSave, keepaliveSave, getPendingData, fetchUserPurchases, isCorruptNumber, sanitizeNumber, safeAdd, safeMoney } from '@/lib/userDataSync';
 import { supabase } from '@/lib/supabase';
 
 // Helper to add product sale contribution to active budget (50% of sale)
@@ -531,6 +531,40 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
           // Preserve isHardMode from prop, not from saved data
           // Also fix HP if it exceeds max (can happen when mode modifiers change)
           const loadedState = { ...defaultGameState, ...parsed, isHardMode };
+          
+          // CORRUPTION DETECTION: Validate critical numeric fields
+          // JSON.stringify(NaN) produces null, which spreads over defaults
+          // If any core field is corrupt, sanitize it to prevent permanent data loss
+          const corruptFields: string[] = [];
+          if (isCorruptNumber(loadedState.yatesDollars)) {
+            corruptFields.push(`yatesDollars=${loadedState.yatesDollars}`);
+            loadedState.yatesDollars = 0;
+          }
+          if (isCorruptNumber(loadedState.totalClicks)) {
+            corruptFields.push(`totalClicks=${loadedState.totalClicks}`);
+            loadedState.totalClicks = 0;
+          }
+          if (isCorruptNumber(loadedState.totalMoneyEarned)) {
+            corruptFields.push(`totalMoneyEarned=${loadedState.totalMoneyEarned}`);
+            loadedState.totalMoneyEarned = 0;
+          }
+          if (isCorruptNumber(loadedState.prestigeCount)) {
+            corruptFields.push(`prestigeCount=${loadedState.prestigeCount}`);
+            loadedState.prestigeCount = 0;
+          }
+          if (isCorruptNumber(loadedState.prestigeMultiplier)) {
+            corruptFields.push(`prestigeMultiplier=${loadedState.prestigeMultiplier}`);
+            loadedState.prestigeMultiplier = 1.0;
+          }
+          if (isCorruptNumber(loadedState.currentRockHP)) {
+            corruptFields.push(`currentRockHP=${loadedState.currentRockHP}`);
+            loadedState.currentRockHP = ROCKS[0].clicksToBreak;
+          }
+          if (corruptFields.length > 0) {
+            console.error('🚨 CORRUPT LOCALSTORAGE DATA DETECTED & REPAIRED:', corruptFields.join(', '),
+              '- Will prefer Supabase data on merge if available');
+          }
+          
           const currentRock = ROCKS.find(r => r.id === loadedState.currentRockId) || ROCKS[0];
           const maxHP = getScaledRockHP(currentRock.clicksToBreak, loadedState.prestigeCount, isHardMode);
           if (loadedState.currentRockHP > maxHP) {
@@ -655,8 +689,9 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
                 return {
                 ...prev,
                 // Use whichever source has more progress
-                yatesDollars: useSupabase ? (supabaseData.yates_dollars ?? prev.yatesDollars) : prev.yatesDollars,
-                totalClicks: useSupabase ? (supabaseData.total_clicks ?? prev.totalClicks) : prev.totalClicks,
+                // sanitizeNumber ensures NaN/null from either source is clamped to 0 (never poisons state)
+                yatesDollars: sanitizeNumber(useSupabase ? (supabaseData.yates_dollars ?? prev.yatesDollars) : prev.yatesDollars, 0),
+                totalClicks: sanitizeNumber(useSupabase ? (supabaseData.total_clicks ?? prev.totalClicks) : prev.totalClicks, 0),
                 currentPickaxeId: useSupabase ? (supabaseData.current_pickaxe_id ?? prev.currentPickaxeId) : prev.currentPickaxeId,
                 currentRockId: loadedRockId,
                 currentRockHP: cappedHP,
@@ -703,11 +738,15 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
                 unlockedAchievementIds: supabaseData.unlocked_achievement_ids?.length 
                   ? supabaseData.unlocked_achievement_ids 
                   : prev.unlockedAchievementIds,
-                // Ranking system (always use max values)
-                totalMoneyEarned: Math.max(
+                // Ranking system (always use max values, sanitize to prevent NaN propagation)
+                // Backfill: if total_money_earned is 0 but yates_dollars > 0, use yates_dollars as floor
+                // (column was added after some users started playing, so their total_money_earned defaulted to 0)
+                totalMoneyEarned: sanitizeNumber(Math.max(
                   prev.totalMoneyEarned || 0, 
-                  supabaseData.total_money_earned || 0
-                ),
+                  supabaseData.total_money_earned || 0,
+                  (supabaseData.total_money_earned === 0 || supabaseData.total_money_earned == null)
+                    ? (supabaseData.yates_dollars || 0) : 0
+                ), 0),
                 gameStartTime: prev.gameStartTime || supabaseData.game_start_time || Date.now(),
                 fastestPrestigeTime: supabaseData.fastest_prestige_time ?? prev.fastestPrestigeTime,
                 // Pro Player Titles (merge - keep all owned)
@@ -1009,9 +1048,9 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         const leftoverDamage = overkillDamage % fullRockHP;
         const finalHP = fullRockHP - leftoverDamage;
         
-        // Calculate total money earned
-        const moneyPerRock = Math.ceil(rock.moneyPerBreak * prev.prestigeMultiplier * (1 + totalMoneyBonus));
-        const totalMoney = moneyPerRock * totalRocksBroken;
+        // Calculate total money earned (safeMoney prevents NaN/Infinity from multiplier stacking)
+        const moneyPerRock = safeMoney(rock.moneyPerBreak * prev.prestigeMultiplier * (1 + totalMoneyBonus));
+        const totalMoney = safeMoney(moneyPerRock * totalRocksBroken);
         
         // Check for rock upgrade
         const highestUnlocked = getHighestUnlockedRock(newTotalClicks, prev.prestigeCount);
@@ -1023,8 +1062,8 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
           currentRockHP: newCurrentRockId !== prev.currentRockId ? getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount, prev.isHardMode) : finalHP,
           currentRockId: newCurrentRockId,
           rocksMinedCount: prev.rocksMinedCount + totalRocksBroken,
-          yatesDollars: prev.yatesDollars + totalMoney,
-          totalMoneyEarned: (prev.totalMoneyEarned || 0) + totalMoney,
+          yatesDollars: safeAdd(prev.yatesDollars, totalMoney),
+          totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, totalMoney),
           totalClicks: newTotalClicks,
           lastMinerEarnings: totalMoney,
         };
@@ -1118,13 +1157,13 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         if (templeRank === 2 || templeRank === 3) {
           // Special mode: 20% of click money every 0.5s per mine
           const pickaxe = getPickaxeById(prev.currentPickaxeId);
-          const clickMoney = Math.ceil(rock.moneyPerClick * prev.prestigeMultiplier * (1 + moneyBonus));
-          const passiveMoney = Math.ceil(clickMoney * 0.20 * mineCount);
+          const clickMoney = safeMoney(rock.moneyPerClick * prev.prestigeMultiplier * (1 + moneyBonus));
+          const passiveMoney = safeMoney(clickMoney * 0.20 * mineCount);
           
           return {
             ...prev,
-            yatesDollars: prev.yatesDollars + passiveMoney,
-            totalMoneyEarned: (prev.totalMoneyEarned || 0) + passiveMoney,
+            yatesDollars: safeAdd(prev.yatesDollars, passiveMoney),
+            totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, passiveMoney),
           };
         } else {
           // Normal mode: Each mine = 20 miner-equivalents of damage
@@ -1151,8 +1190,8 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
           const leftoverDamage = overkillDamage % fullRockHP;
           const finalHP = fullRockHP - leftoverDamage;
           
-          const moneyPerRock = Math.ceil(rock.moneyPerBreak * prev.prestigeMultiplier * (1 + moneyBonus));
-          const totalMoney = moneyPerRock * totalRocksBroken;
+          const moneyPerRock = safeMoney(rock.moneyPerBreak * prev.prestigeMultiplier * (1 + moneyBonus));
+          const totalMoney = safeMoney(moneyPerRock * totalRocksBroken);
           
           const highestUnlocked = getHighestUnlockedRock(newTotalClicks, prev.prestigeCount);
           const newCurrentRockId = highestUnlocked.id > prev.currentRockId ? highestUnlocked.id : prev.currentRockId;
@@ -1163,8 +1202,8 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
             currentRockHP: newCurrentRockId !== prev.currentRockId ? getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount, prev.isHardMode) : finalHP,
             currentRockId: newCurrentRockId,
             rocksMinedCount: prev.rocksMinedCount + totalRocksBroken,
-            yatesDollars: prev.yatesDollars + totalMoney,
-            totalMoneyEarned: (prev.totalMoneyEarned || 0) + totalMoney,
+            yatesDollars: safeAdd(prev.yatesDollars, totalMoney),
+            totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, totalMoney),
             totalClicks: newTotalClicks,
           };
         }
@@ -1642,6 +1681,17 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     }
     
     try {
+      // CRITICAL: Skip localStorage save if core numeric fields are corrupt (NaN/Infinity/null)
+      // This preserves the last-good localStorage data instead of poisoning it
+      if (isCorruptNumber(gameState.yatesDollars) || isCorruptNumber(gameState.totalClicks) || isCorruptNumber(gameState.totalMoneyEarned)) {
+        console.error('🚨 LOCALSTORAGE SAVE BLOCKED: Corrupt game state detected!', {
+          yatesDollars: gameState.yatesDollars,
+          totalClicks: gameState.totalClicks,
+          totalMoneyEarned: gameState.totalMoneyEarned,
+        });
+        return;
+      }
+
       // Always save to localStorage immediately (user-specific key)
       const storageKey = getStorageKey(userId, gameState.isHardMode);
       const now = Date.now();
@@ -1763,7 +1813,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
           chosen_path: state.chosenPath,
           // Playtime tracking
           total_playtime_seconds: state.totalPlaytimeSeconds,
-        });
+        }, state.isHardMode);
       }
     };
 
@@ -1806,7 +1856,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         last_tax_time: state.lastTaxTime,
         // Playtime tracking
         total_playtime_seconds: state.totalPlaytimeSeconds,
-      });
+      }, state.isHardMode);
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -2009,6 +2059,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
       const willBreak = newHP <= 0;
 
       // Calculate money earned (clickSpeedBonus also multiplies money: 50% = 1.5x, 100% = 2x)
+      // safeMoney prevents NaN/Infinity from multiplier chain corrupting game state
       earnedMoney = rock.moneyPerClick;
       if (willBreak) {
         earnedMoney += rock.moneyPerBreak;
@@ -2017,16 +2068,16 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         earnedMoney *= pickaxe.moneyMultiplier;
       }
       earnedMoney *= prev.prestigeMultiplier;
-      earnedMoney *= (1 + moneyBonus + allBonus);
-      earnedMoney *= (1 + clickSpeedBonus); // Click speed bonus multiplies money too
-      earnedMoney *= wizardRitualMultiplier; // Wizard ritual 3x
-      earnedMoney *= factoryMoneyMultiplier; // Factory money buff
-      earnedMoney *= templeCurseMoneyPenalty; // Temple curse penalties
-      earnedMoney = Math.ceil(earnedMoney);
+      earnedMoney *= (1 + (moneyBonus || 0) + (allBonus || 0));
+      earnedMoney *= (1 + (clickSpeedBonus || 0)); // Click speed bonus multiplies money too
+      earnedMoney *= (wizardRitualMultiplier || 1); // Wizard ritual 3x
+      earnedMoney *= (factoryMoneyMultiplier || 1); // Factory money buff
+      earnedMoney *= (templeCurseMoneyPenalty || 1); // Temple curse penalties
+      earnedMoney = safeMoney(earnedMoney);
       
       // Wandering Trader money tax (if deal is active)
       if (prev.wtMoneyTax > 0) {
-        earnedMoney = Math.ceil(earnedMoney * (1 - prev.wtMoneyTax));
+        earnedMoney = safeMoney(earnedMoney * (1 - prev.wtMoneyTax));
       }
 
       // Update totals
@@ -2075,8 +2126,8 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
 
       return {
         ...prev,
-        yatesDollars: prev.yatesDollars + earnedMoney,
-        totalMoneyEarned: (prev.totalMoneyEarned || 0) + earnedMoney,
+        yatesDollars: safeAdd(prev.yatesDollars, earnedMoney),
+        totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, earnedMoney),
         totalClicks: newTotalClicks,
         currentRockHP: newRockHP,
         currentRockId: newCurrentRockId,
@@ -2778,11 +2829,11 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     // Handle instant break ability specially
     if (ability.effect.type === 'instant_break') {
       const rock = getRockById(gameState.currentRockId) || ROCKS[0];
-      const money = Math.ceil(rock.moneyPerBreak * gameState.prestigeMultiplier);
+      const money = safeMoney(rock.moneyPerBreak * gameState.prestigeMultiplier);
       
       setGameState(prev => ({
         ...prev,
-        yatesDollars: prev.yatesDollars - ability.cost + money,
+        yatesDollars: safeAdd(prev.yatesDollars - ability.cost, money),
         currentRockHP: getScaledRockHP(rock.clicksToBreak, prev.prestigeCount, prev.isHardMode), // Reset to full scaled HP
         rocksMinedCount: prev.rocksMinedCount + 1,
         abilityCooldowns: {
@@ -2893,9 +2944,10 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
 
   // Admin functions for internal terminal (only employees can use these)
   const addMoney = useCallback((amount: number) => {
+    const safeAmount = safeMoney(amount);
     setGameState(prev => ({
       ...prev,
-      yatesDollars: prev.yatesDollars + amount,
+      yatesDollars: safeAdd(prev.yatesDollars, safeAmount),
     }));
   }, []);
 
@@ -3271,23 +3323,23 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         }
         return { type: 'yates_totem', value: 'yates_totem' };
       }
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + 5000, totalMoneyEarned: (prev.totalMoneyEarned || 0) + 5000 }));
+      setGameState(prev => ({ ...prev, yatesDollars: safeAdd(prev.yatesDollars, 5000), totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, 5000) }));
       return { type: 'money', value: 5000 };
     }
     
     // 46% - Small money bonus (+0.5% of current, min $500)
     cumulative += 0.46;
     if (roll < cumulative) {
-      const bonus = Math.max(500, Math.floor(gameState.yatesDollars * 0.005));
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
+      const bonus = safeMoney(Math.max(500, Math.floor(gameState.yatesDollars * 0.005)));
+      setGameState(prev => ({ ...prev, yatesDollars: safeAdd(prev.yatesDollars, bonus), totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, bonus) }));
       return { type: 'money', value: bonus };
     }
     
     // 50% - Medium money bonus (+1% of current, min $1000)
     cumulative += 0.50;
     if (roll < cumulative) {
-      const bonus = Math.max(1000, Math.floor(gameState.yatesDollars * 0.01));
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
+      const bonus = safeMoney(Math.max(1000, Math.floor(gameState.yatesDollars * 0.01)));
+      setGameState(prev => ({ ...prev, yatesDollars: safeAdd(prev.yatesDollars, bonus), totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, bonus) }));
       return { type: 'money', value: bonus };
     }
     
@@ -3298,8 +3350,8 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         setGameState(prev => ({ ...prev, ownedTitleIds: [...(prev.ownedTitleIds || []), 'owo_secret'] }));
         return { type: 'owo_title', value: 'owo_secret' };
       }
-      const bonus = Math.max(2000, Math.floor(gameState.yatesDollars * 0.24));
-      setGameState(prev => ({ ...prev, yatesDollars: prev.yatesDollars + bonus, totalMoneyEarned: (prev.totalMoneyEarned || 0) + bonus }));
+      const bonus = safeMoney(Math.max(2000, Math.floor(gameState.yatesDollars * 0.24)));
+      setGameState(prev => ({ ...prev, yatesDollars: safeAdd(prev.yatesDollars, bonus), totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, bonus) }));
       return { type: 'money', value: bonus };
     }
     
@@ -3455,8 +3507,8 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
 
     setGameState(prev => ({
       ...prev,
-      yatesDollars: prev.yatesDollars + principal + interest,
-      totalMoneyEarned: (prev.totalMoneyEarned || 0) + interest,
+      yatesDollars: safeAdd(prev.yatesDollars, safeMoney(principal + interest)),
+      totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, safeMoney(interest)),
       buildings: {
         ...prev.buildings,
         bank: {
@@ -3741,11 +3793,11 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     // Apply the reward based on type
     switch (delivery.type) {
       case 'money':
-        const moneyAmount = typeof delivery.value === 'number' ? delivery.value : 0;
+        const moneyAmount = safeMoney(typeof delivery.value === 'number' ? delivery.value : 0);
         setGameState(prev => ({
           ...prev,
-          yatesDollars: prev.yatesDollars + moneyAmount,
-          totalMoneyEarned: (prev.totalMoneyEarned || 0) + moneyAmount,
+          yatesDollars: safeAdd(prev.yatesDollars, moneyAmount),
+          totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, moneyAmount),
         }));
         break;
       case 'prestige_tokens':
@@ -3910,11 +3962,11 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         // Calculate 1 hour of miner income and add it
         const minerDamage = MINER_BASE_DAMAGE * gameState.minerCount;
         const ticksPerHour = 3600; // 1 tick per second for 1 hour
-        const hourlyIncome = minerDamage * ticksPerHour;
+        const hourlyIncome = safeMoney(minerDamage * ticksPerHour);
         setGameState(prev => ({
           ...prev,
-          yatesDollars: prev.yatesDollars + hourlyIncome,
-          totalMoneyEarned: (prev.totalMoneyEarned || 0) + hourlyIncome,
+          yatesDollars: safeAdd(prev.yatesDollars, hourlyIncome),
+          totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, hourlyIncome),
         }));
         break;
       case 'luckyStrike':
@@ -4428,13 +4480,13 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         if (!currentRock) return prev;
 
         // 20% of click money per mine, every 0.5s
-        const clickMoney = Math.ceil(currentRock.moneyPerBreak * prev.prestigeMultiplier);
-        const passiveIncome = Math.floor(clickMoney * 0.20 * mineCount);
+        const clickMoney = safeMoney(currentRock.moneyPerBreak * prev.prestigeMultiplier);
+        const passiveIncome = safeMoney(clickMoney * 0.20 * mineCount);
 
         return {
           ...prev,
-          yatesDollars: prev.yatesDollars + passiveIncome,
-          totalMoneyEarned: (prev.totalMoneyEarned || 0) + passiveIncome,
+          yatesDollars: safeAdd(prev.yatesDollars, passiveIncome),
+          totalMoneyEarned: safeAdd(prev.totalMoneyEarned || 0, passiveIncome),
         };
       });
     }, 500); // Every 0.5 seconds

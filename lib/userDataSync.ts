@@ -102,6 +102,14 @@ export async function fetchUserGameData(userId: string, isHardMode: boolean = fa
     }
 
     if (data) {
+      // PostgreSQL NUMERIC columns may come back as strings to preserve precision.
+      // Parse them back to JS numbers so the rest of the app works with numbers.
+      const numericFields = ['yates_dollars', 'total_money_earned', 'total_clicks', 'rocks_mined_count', 'current_rock_hp'] as const;
+      for (const field of numericFields) {
+        if (typeof data[field] === 'string') {
+          data[field] = parseFloat(data[field] as string) || 0;
+        }
+      }
       console.log('✅ SUPABASE FETCH SUCCESS:', { prestige: data.prestige_count, clicks: data.total_clicks, dollars: data.yates_dollars });
     } else {
       console.log('⚠️ SUPABASE: No data found for user');
@@ -114,13 +122,54 @@ export async function fetchUserGameData(userId: string, isHardMode: boolean = fa
   }
 }
 
-// Helper to safely convert large numbers for PostgreSQL bigint
-// Uses JS MAX_SAFE_INTEGER since larger values can't be represented accurately
+// Sextillion cap: matches NUMERIC(24) in PostgreSQL (~10^24)
+// JS doubles lose precision past ~10^15 but game values don't need exact cents at Sextillion scale
+const SEXTILLION_CAP = 1e24;
+
+// Check if a number is corrupt (NaN, Infinity, or not a number type)
+export function isCorruptNumber(value: unknown): boolean {
+  if (typeof value !== 'number') return true;
+  return !Number.isFinite(value);
+}
+
+// Sanitize a number: clamp NaN/Infinity to fallback, cap at SEXTILLION_CAP
+export function sanitizeNumber(value: unknown, fallback: number = 0): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  const safeValue = Math.min(Math.abs(value), SEXTILLION_CAP);
+  return Math.floor(value >= 0 ? safeValue : -safeValue);
+}
+
+// Safe addition: prevents NaN/Infinity from propagating, caps at SEXTILLION_CAP
+export function safeAdd(a: number, b: number): number {
+  const result = a + b;
+  if (!Number.isFinite(result)) return SEXTILLION_CAP;
+  return Math.min(result, SEXTILLION_CAP);
+}
+
+// Safe multiplication: prevents NaN/Infinity from propagating, caps at SEXTILLION_CAP
+export function safeMul(a: number, b: number): number {
+  const result = a * b;
+  if (!Number.isFinite(result)) return SEXTILLION_CAP;
+  return Math.min(Math.abs(result), SEXTILLION_CAP) * (result >= 0 ? 1 : -1);
+}
+
+// Safe money calculation: sanitize the final money amount (clamp NaN/Infinity/negative to 0)
+export function safeMoney(value: number): number {
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return Math.min(Math.floor(value), SEXTILLION_CAP);
+}
+
+// Helper to safely convert large numbers for PostgreSQL NUMERIC(24)
+// Returns null ONLY for undefined/null input, clamps bad numbers to 0
 function safeBigInt(value: number | undefined | null): number | null {
   if (value === undefined || value === null) return null;
-  if (!Number.isFinite(value)) return null;
-  // Use JavaScript's max safe integer to avoid precision issues
-  const safeValue = Math.min(Math.abs(value), Number.MAX_SAFE_INTEGER);
+  if (!Number.isFinite(value)) {
+    // NaN or Infinity - clamp to 0 instead of returning null (prevents DB corruption)
+    console.warn('⚠️ safeBigInt: Clamping corrupt number to 0:', value);
+    return 0;
+  }
+  // Cap at SEXTILLION_CAP to match NUMERIC(24) in the database
+  const safeValue = Math.min(Math.abs(value), SEXTILLION_CAP);
   return Math.floor(value >= 0 ? safeValue : -safeValue);
 }
 
@@ -274,12 +323,12 @@ function getSaveInterval(data: Partial<UserGameData>): number {
 }
 
 export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }, isHardMode: boolean = false): void {
-  // CRITICAL: Block saves when core data is undefined/null (prevents overwriting with empty data)
-  // This happens during initial load before Supabase fetch completes
-  if (data.yates_dollars === undefined || data.yates_dollars === null ||
-      data.total_clicks === undefined || data.total_clicks === null ||
-      data.prestige_count === undefined || data.prestige_count === null) {
-    console.log('🚫 DEBOUNCED SAVE BLOCKED: Core data is undefined/null (waiting for load)', {
+  // CRITICAL: Block saves when core data is undefined/null/NaN/Infinity (prevents overwriting with empty/corrupt data)
+  // This happens during initial load before Supabase fetch completes, or if game state gets corrupted
+  if (isCorruptNumber(data.yates_dollars) ||
+      isCorruptNumber(data.total_clicks) ||
+      isCorruptNumber(data.prestige_count)) {
+    console.log('🚫 DEBOUNCED SAVE BLOCKED: Core data is corrupt/undefined/null (waiting for load)', {
       dollars: data.yates_dollars,
       clicks: data.total_clicks,
       prestige: data.prestige_count
@@ -410,11 +459,11 @@ export async function flushPendingData(): Promise<void> {
 // Force immediate save with specific data (bypass debounce completely)
 // Use this after critical actions like prestige
 export async function forceImmediateSave(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }): Promise<boolean> {
-  // CRITICAL: Block saves when core data is undefined/null
-  if (data.yates_dollars === undefined || data.yates_dollars === null ||
-      data.total_clicks === undefined || data.total_clicks === null ||
-      data.prestige_count === undefined || data.prestige_count === null) {
-    console.log('🚫 FORCE SAVE BLOCKED: Core data is undefined/null', {
+  // CRITICAL: Block saves when core data is undefined/null/NaN/Infinity
+  if (isCorruptNumber(data.yates_dollars) ||
+      isCorruptNumber(data.total_clicks) ||
+      isCorruptNumber(data.prestige_count)) {
+    console.log('🚫 FORCE SAVE BLOCKED: Core data is corrupt/undefined/null', {
       dollars: data.yates_dollars,
       clicks: data.total_clicks,
       prestige: data.prestige_count
@@ -456,12 +505,14 @@ export async function forceImmediateSave(data: Partial<UserGameData> & { user_id
 // Fire-and-forget save using fetch with keepalive
 // This survives page unload better than regular async requests
 // Used as fallback when beforeunload fires
-export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }): void {
-  // CRITICAL: Block saves when core data is undefined/null
-  if (data.yates_dollars === undefined || data.yates_dollars === null ||
-      data.total_clicks === undefined || data.total_clicks === null ||
-      data.prestige_count === undefined || data.prestige_count === null) {
-    console.log('🚫 KEEPALIVE SAVE BLOCKED: Core data is undefined/null');
+export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; user_type: 'employee' | 'client' }, isHardMode: boolean = false): void {
+  // CRITICAL: Block saves when core data is undefined/null/NaN/Infinity
+  if (isCorruptNumber(data.yates_dollars) ||
+      isCorruptNumber(data.total_clicks) ||
+      isCorruptNumber(data.prestige_count)) {
+    console.log('🚫 KEEPALIVE SAVE BLOCKED: Core data is corrupt/undefined/null', {
+      dollars: data.yates_dollars, clicks: data.total_clicks, prestige: data.prestige_count
+    });
     return;
   }
   
@@ -470,15 +521,16 @@ export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; u
     return;
   }
 
+  // Apply safeBigInt to ALL numeric fields (prevents NaN/Infinity from being JSON-stringified to null)
   const fullData = {
     user_id: data.user_id,
     user_type: data.user_type,
-    yates_dollars: data.yates_dollars,
-    total_clicks: data.total_clicks,
+    yates_dollars: safeBigInt(data.yates_dollars),
+    total_clicks: safeBigInt(data.total_clicks),
     current_pickaxe_id: data.current_pickaxe_id,
     current_rock_id: data.current_rock_id,
-    current_rock_hp: data.current_rock_hp,
-    rocks_mined_count: data.rocks_mined_count,
+    current_rock_hp: safeBigInt(data.current_rock_hp),
+    rocks_mined_count: safeBigInt(data.rocks_mined_count),
     owned_pickaxe_ids: data.owned_pickaxe_ids,
     coupons_30: data.coupons_30,
     coupons_50: data.coupons_50,
@@ -496,38 +548,40 @@ export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; u
     owned_trinket_ids: data.owned_trinket_ids,
     equipped_trinket_ids: data.equipped_trinket_ids,
     trinket_shop_items: data.trinket_shop_items,
-    trinket_shop_last_refresh: data.trinket_shop_last_refresh,
+    trinket_shop_last_refresh: safeBigInt(data.trinket_shop_last_refresh),
     has_totem_protection: data.has_totem_protection,
     has_stocks_unlocked: data.has_stocks_unlocked,
     owned_relic_ids: data.owned_relic_ids,
     owned_talisman_ids: data.owned_talisman_ids,
     miner_count: data.miner_count,
-    miner_last_tick: data.miner_last_tick,
+    miner_last_tick: safeBigInt(data.miner_last_tick),
     prestige_tokens: data.prestige_tokens,
     owned_prestige_upgrade_ids: data.owned_prestige_upgrade_ids,
     auto_prestige_enabled: data.auto_prestige_enabled,
     unlocked_achievement_ids: data.unlocked_achievement_ids,
-    total_money_earned: data.total_money_earned,
-    game_start_time: data.game_start_time,
-    fastest_prestige_time: data.fastest_prestige_time,
+    total_money_earned: safeBigInt(data.total_money_earned),
+    game_start_time: safeBigInt(data.game_start_time),
+    fastest_prestige_time: safeBigInt(data.fastest_prestige_time),
     owned_title_ids: data.owned_title_ids,
     equipped_title_ids: data.equipped_title_ids,
     title_win_counts: data.title_win_counts,
     // Path system
     chosen_path: data.chosen_path,
     // Tax system
-    last_tax_time: data.last_tax_time,
+    last_tax_time: safeBigInt(data.last_tax_time),
     // Playtime tracking
-    total_playtime_seconds: data.total_playtime_seconds,
+    total_playtime_seconds: safeBigInt(data.total_playtime_seconds),
     // Premium products - only include if the array has items
     ...(data.owned_premium_product_ids?.length ? { owned_premium_product_ids: data.owned_premium_product_ids } : {}),
     // Buildings data
     ...(data.buildings_data ? { buildings_data: data.buildings_data } : {}),
   };
 
-  const url = `${supabaseUrl}/rest/v1/user_game_data?on_conflict=user_id`;
+  // Use correct table based on game mode (was hardcoded to user_game_data before - corrupted hard mode players!)
+  const tableName = getTableName(isHardMode);
+  const url = `${supabaseUrl}/rest/v1/${tableName}?on_conflict=user_id`;
   
-  console.log('🚀 KEEPALIVE SAVE: Firing save before page unload...', { prestige: data.prestige_count });
+  console.log(`🚀 KEEPALIVE SAVE (${isHardMode ? 'HARD' : 'normal'}): Firing save before page unload...`, { prestige: data.prestige_count });
   
   // Use fetch with keepalive - this survives page unload
   fetch(url, {

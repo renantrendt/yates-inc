@@ -217,12 +217,13 @@ export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
 
   // Format number for display
   const formatNumber = (num: number): string => {
-    if (num >= 1000000000000000000) return `$${(num / 1000000000000000000).toFixed(1)}Qi`;
-    if (num >= 1000000000000000) return `$${(num / 1000000000000000).toFixed(1)}Q`;
-    if (num >= 1000000000000) return `$${(num / 1000000000000).toFixed(1)}T`;
-    if (num >= 1000000000) return `$${(num / 1000000000).toFixed(1)}B`;
-    if (num >= 1000000) return `$${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `$${(num / 1000).toFixed(1)}K`;
+    if (num >= 1e21) return `$${(num / 1e21).toFixed(1)}Sx`;
+    if (num >= 1e18) return `$${(num / 1e18).toFixed(1)}Qi`;
+    if (num >= 1e15) return `$${(num / 1e15).toFixed(1)}Q`;
+    if (num >= 1e12) return `$${(num / 1e12).toFixed(1)}T`;
+    if (num >= 1e9) return `$${(num / 1e9).toFixed(1)}B`;
+    if (num >= 1e6) return `$${(num / 1e6).toFixed(1)}M`;
+    if (num >= 1e3) return `$${(num / 1e3).toFixed(1)}K`;
     return `$${num}`;
   };
 

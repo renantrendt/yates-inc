@@ -52,6 +52,7 @@ export default function WizardTowerSidebar({ isOpen, onClose }: WizardTowerSideb
   }, [gameState.buildings.wizard_tower.ritualActive, gameState.buildings.wizard_tower.ritualEndTime]);
 
   const formatNumber = (num: number): string => {
+    if (num >= 1e21) return `${(num / 1e21).toFixed(1)}Sx`;
     if (num >= 1e18) return `${(num / 1e18).toFixed(1)}Qi`;
     if (num >= 1e15) return `${(num / 1e15).toFixed(1)}Q`;
     if (num >= 1e12) return `${(num / 1e12).toFixed(1)}T`;
