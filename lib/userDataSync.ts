@@ -62,6 +62,9 @@ export interface UserGameData {
   total_playtime_seconds?: number;
   // Premium products (game buffs)
   owned_premium_product_ids?: number[];
+  // Stokens & Lottery Tickets
+  stokens?: number;
+  lottery_tickets?: number;
   // Timestamp (set by Supabase)
   updated_at?: string;
 }
@@ -230,6 +233,9 @@ export async function saveUserGameData(data: Partial<UserGameData> & { user_id: 
       ...(data.owned_premium_product_ids?.length ? { owned_premium_product_ids: data.owned_premium_product_ids } : {}),
       // Buildings data (bank, factory, temple, etc.) - stored as JSON string
       ...(data.buildings_data ? { buildings_data: data.buildings_data } : {}),
+      // Stokens & Lottery Tickets
+      stokens: data.stokens ?? 0,
+      lottery_tickets: data.lottery_tickets ?? 0,
     };
 
     // FINAL CHECK: If version was provided and has changed, skip this save (a force save happened)
@@ -575,6 +581,9 @@ export function keepaliveSave(data: Partial<UserGameData> & { user_id: string; u
     ...(data.owned_premium_product_ids?.length ? { owned_premium_product_ids: data.owned_premium_product_ids } : {}),
     // Buildings data
     ...(data.buildings_data ? { buildings_data: data.buildings_data } : {}),
+    // Stokens & Lottery Tickets
+    stokens: data.stokens ?? 0,
+    lottery_tickets: data.lottery_tickets ?? 0,
   };
 
   // Use correct table based on game mode (was hardcoded to user_game_data before - corrupted hard mode players!)

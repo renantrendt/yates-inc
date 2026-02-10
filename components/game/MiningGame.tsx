@@ -16,6 +16,7 @@ import MinerSprites from './MinerSprite';
 import AchievementsPanel from './AchievementsPanel';
 import TrinketIndex from './TrinketIndex';
 import RankingPanel from './RankingPanel';
+// CurrencyStore now integrated into GameShop tabs
 import PathSelectionModal from './PathSelectionModal';
 import GoldenCookie from './GoldenCookie';
 import WanderingTrader from './WanderingTrader';
@@ -85,6 +86,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const [showTrinketIndex, setShowTrinketIndex] = useState(false);
   const [showRanking, setShowRanking] = useState(false);
   const [showSacrifice, setShowSacrifice] = useState(false);
+  // Stores moved into GameShop as tabs
   const [displayProgress, setDisplayProgress] = useState(0);
   const [rockBroken, setRockBroken] = useState(false);
 
@@ -205,9 +207,9 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       }, 500);
     }
 
-    // Coupon drop notification
+    // Lottery ticket drop notification (rebranded from coupons)
     if (result.couponDrop) {
-      const couponId = `coupon-${popupIdRef.current++}`;
+      const couponId = `lottery-${popupIdRef.current++}`;
       setCouponPopups((prev) => [
         ...prev,
         {
@@ -289,10 +291,10 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
   const getCouponLabel = (type: string): string => {
     switch (type) {
-      case 'discount30': return '30% OFF!';
-      case 'discount50': return '50% OFF!';
-      case 'discount100': return 'FREE ITEM!';
-      default: return 'COUPON!';
+      case 'discount30': return '🎟️ +1 LOTTERY TICKET!';
+      case 'discount50': return '🎟️ +1 LOTTERY TICKET!';
+      case 'discount100': return '🎟️ +1 LOTTERY TICKET!';
+      default: return '🎟️ LOTTERY TICKET!';
     }
   };
 
@@ -577,6 +579,8 @@ export default function MiningGame({ onExit }: MiningGameProps) {
             <span className="hidden md:inline text-cyan-300 text-xs ml-1">(R)</span>
           </button>
 
+          {/* Stokens/Lottery stores now accessible via Shop tabs */}
+
           {/* New Pickaxe Available Notification */}
           {canBuyNextPickaxe && !showShop && (
             <div
@@ -664,15 +668,15 @@ export default function MiningGame({ onExit }: MiningGameProps) {
                 />
               ))}
 
-              {/* Coupon Popups */}
+              {/* Lottery Ticket Drop Popups */}
               {couponPopups.map((popup) => (
                 <div
                   key={popup.id}
-                  className="absolute left-1/2 -translate-x-1/2 -top-16 pointer-events-none animate-bounce-in"
+                  className="absolute left-1/2 -translate-x-1/2 -top-12 pointer-events-none animate-bounce-in"
                 >
-                  <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-lg px-4 py-2 rounded-lg shadow-lg">
-                    🎟️ {getCouponLabel(popup.type)}
-                  </div>
+                  <span className="text-amber-400 font-bold text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                    +1 🎟️
+                  </span>
                 </div>
               ))}
             </div>
@@ -774,7 +778,10 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       {showRockSelector && <RockSelector onClose={() => setShowRockSelector(false)} />}
 
       {/* Ranking Panel */}
-      <RankingPanel isOpen={showRanking} onClose={() => setShowRanking(false)} />
+      <RankingPanel isOpen={showRanking} onClose={() => setShowRanking(false)} isHardMode={gameState.isHardMode} />
+
+      {/* Currency Stores */}
+      {/* Currency stores now integrated into GameShop tabs */}
 
       {/* Miner Sprites - positioned at bottom of screen */}
       <MinerSprites />

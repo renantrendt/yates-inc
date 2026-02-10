@@ -2531,6 +2531,303 @@ export function createWanderingTraderOffer(
   }
 }
 
+// =====================
+// STOKEN STORE & LOTTERY STORE DEFINITIONS
+// =====================
+
+export type StoreCurrency = 'stokens' | 'lottery_tickets';
+
+export type StoreItemCategory = 
+  | 'currency_exchange'
+  | 'pickaxe'
+  | 'trinket'
+  | 'building'
+  | 'prestige_tokens'
+  | 'prestige'
+  | 'money'
+  | 'boost'
+  | 'miners'
+  | 'autoclicker'
+  | 'rock_skip'
+  | 'achievement'
+  | 'coupons';
+
+export interface StoreItem {
+  id: string;
+  name: string;
+  description: string;
+  category: StoreItemCategory;
+  price: number;                    // Price in the store's currency
+  currency: StoreCurrency;
+  // What the item gives
+  effect: {
+    type: 'give_pickaxe' | 'give_trinket' | 'give_building' | 'give_prestige_tokens' 
+        | 'give_prestige' | 'give_money' | 'give_boost' | 'give_miners' | 'give_autoclicker' 
+        | 'give_rock_skip' | 'give_achievement' | 'give_coupons' | 'give_currency';
+    pickaxeId?: number;
+    trinketId?: string;
+    buildingType?: string;
+    amount?: number;
+    boostType?: string;
+    boostDuration?: number;         // In seconds
+    boostMultiplier?: number;
+    couponType?: 'discount30' | 'discount50' | 'discount100';
+    targetCurrency?: StoreCurrency;
+  };
+  // Restrictions
+  requiresPath?: 'light' | 'darkness';
+  oneTimePurchase?: boolean;
+}
+
+// Helper to generate pickaxe store items for a currency
+function generatePickaxeStoreItems(currency: StoreCurrency): StoreItem[] {
+  // Stoken prices: 1-10 scaling | Lottery prices: 100-2500 scaling
+  const priceMap: Record<StoreCurrency, number[]> = {
+    stokens: [1,1,1,1,2,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,9,10,10,10],
+    lottery_tickets: [100,120,150,180,220,280,350,420,500,600,720,850,1000,1150,1300,1500,1650,1800,1950,2100,2200,2300,2400,2450,2500],
+  };
+  const prices = priceMap[currency];
+  // Pickaxe IDs 1-25 (26=Yates is golden cookie only)
+  return Array.from({ length: 25 }, (_, i) => ({
+    id: `${currency}_pcx_${i + 1}`,
+    name: `Pickaxe #${i + 1}`,
+    description: `Buy pickaxe tier ${i + 1} directly`,
+    category: 'pickaxe' as StoreItemCategory,
+    price: prices[i],
+    currency,
+    effect: { type: 'give_pickaxe' as const, pickaxeId: i + 1 },
+    requiresPath: [18, 21, 25].includes(i + 1) ? 'darkness' as const : [22, 23].includes(i + 1) ? 'light' as const : undefined,
+  }));
+}
+
+// Helper to generate trinket store items for a currency
+function generateTrinketStoreItems(currency: StoreCurrency): StoreItem[] {
+  const trinketIds = [
+    'avatar_ring', 'rainbow_collar', 'cosmic_crown', 'totem', 'spike',
+    'elder_ring', 'dream_collar', 'earth_ball', 'solar_collar',
+    'miners_lucky_charm', 'ancient_compass', 'eternal_hourglass',
+    'dragon_scale', 'obsidian_heart', 'crystal_prism', 'phoenix_feather', 'void_stone',
+  ];
+  // Stoken prices by rarity (1-12) | Lottery (100-999)
+  const priceMap: Record<StoreCurrency, number[]> = {
+    stokens: [1, 2, 3, 4, 3, 10, 5, 4, 4, 2, 3, 3, 5, 6, 6, 8, 9],
+    lottery_tickets: [100, 200, 350, 450, 300, 800, 500, 400, 400, 200, 300, 350, 500, 650, 650, 850, 999],
+  };
+  const prices = priceMap[currency];
+  return trinketIds.map((id, i) => ({
+    id: `${currency}_trinket_${id}`,
+    name: `Trinket: ${id.replace(/_/g, ' ')}`,
+    description: `Buy the ${id.replace(/_/g, ' ')} trinket directly`,
+    category: 'trinket' as StoreItemCategory,
+    price: prices[i],
+    currency,
+    effect: { type: 'give_trinket' as const, trinketId: id },
+  }));
+}
+
+// Secret/Mythic trinket prices
+function generateSecretTrinketStoreItems(currency: StoreCurrency): StoreItem[] {
+  const items: { id: string; name: string; price: Record<StoreCurrency, number> }[] = [
+    { id: 'yates_totem', name: 'Yates Totem', price: { stokens: 150, lottery_tickets: 674121 } },
+    { id: 'silver_trophy', name: 'Mythic Trophy (Nrahgrvaths)', price: { stokens: 60, lottery_tickets: 7000 } },
+    { id: 'golden_trophy', name: 'Secret Trophy (Arghtfavts)', price: { stokens: 100, lottery_tickets: 7777 } },
+    { id: 'fortunes_gambit', name: "Fortune's Gambit (Roulette)", price: { stokens: 130, lottery_tickets: 8823 } },
+    { id: 'void_merchants_pact', name: "Void Merchant's Pact", price: { stokens: 141, lottery_tickets: 9999 } },
+  ];
+  return items.map(item => ({
+    id: `${currency}_secret_${item.id}`,
+    name: item.name,
+    description: `Buy the ultra-rare ${item.name} directly`,
+    category: 'trinket' as StoreItemCategory,
+    price: item.price[currency],
+    currency,
+    effect: { type: 'give_trinket' as const, trinketId: item.id },
+  }));
+}
+
+// Generate building store items
+function generateBuildingStoreItems(currency: StoreCurrency): StoreItem[] {
+  const buildings: { type: string; name: string; priceS: number; priceL: number; path?: 'light' | 'darkness' }[] = [
+    { type: 'mine', name: 'Mine', priceS: 1, priceL: 500 },
+    { type: 'bank', name: 'Bank', priceS: 5, priceL: 2000 },
+    { type: 'factory', name: 'Factory', priceS: 3, priceL: 1500 },
+    { type: 'temple', name: 'Temple', priceS: 10, priceL: 5000, path: 'light' },
+    { type: 'wizard_tower', name: 'Wizard Tower', priceS: 10, priceL: 5000, path: 'darkness' },
+    { type: 'shipment', name: 'Shipment', priceS: 25, priceL: 20000 },
+  ];
+  return buildings.map(b => ({
+    id: `${currency}_building_${b.type}`,
+    name: b.name,
+    description: `Buy a ${b.name} building`,
+    category: 'building' as StoreItemCategory,
+    price: currency === 'stokens' ? b.priceS : b.priceL,
+    currency,
+    effect: { type: 'give_building' as const, buildingType: b.type },
+    requiresPath: b.path,
+  }));
+}
+
+// Generate all store items for a given currency
+export function getStoreItems(currency: StoreCurrency): StoreItem[] {
+  const isS = currency === 'stokens';
+  const items: StoreItem[] = [];
+
+  // Currency exchange
+  items.push({
+    id: `${currency}_exchange`,
+    name: isS ? 'Buy Lottery Tickets' : 'Buy Stokens',
+    description: isS ? 'Convert Stokens to Lottery Tickets' : 'Convert Lottery Tickets to Stokens',
+    category: 'currency_exchange',
+    price: isS ? 2 : 120,
+    currency,
+    effect: {
+      type: 'give_currency',
+      targetCurrency: isS ? 'lottery_tickets' : 'stokens',
+      amount: isS ? 100 : 1,
+    },
+  });
+
+  // Pickaxes
+  items.push(...generatePickaxeStoreItems(currency));
+  // Trinkets
+  items.push(...generateTrinketStoreItems(currency));
+  // Secret/Mythic trinkets
+  items.push(...generateSecretTrinketStoreItems(currency));
+  // Buildings
+  items.push(...generateBuildingStoreItems(currency));
+
+  // Prestige Tokens (tiered)
+  const ptTiers = isS
+    ? [{ amount: 1, price: 1 }, { amount: 5, price: 4 }, { amount: 10, price: 7 }, { amount: 25, price: 15 }, { amount: 50, price: 25 }]
+    : [{ amount: 1, price: 100 }, { amount: 5, price: 450 }, { amount: 10, price: 800 }];
+  ptTiers.forEach(t => items.push({
+    id: `${currency}_pt_${t.amount}`,
+    name: `${t.amount} Prestige Token${t.amount > 1 ? 's' : ''}`,
+    description: `Get ${t.amount} prestige token${t.amount > 1 ? 's' : ''} instantly`,
+    category: 'prestige_tokens',
+    price: t.price,
+    currency,
+    effect: { type: 'give_prestige_tokens', amount: t.amount },
+  }));
+
+  // Instant prestige (no reset)
+  items.push({
+    id: `${currency}_prestige`,
+    name: '+1 Prestige (No Reset)',
+    description: 'Gain +1 prestige count without resetting anything',
+    category: 'prestige',
+    price: isS ? 7 : 2000,
+    currency,
+    effect: { type: 'give_prestige', amount: 1 },
+  });
+
+  // Money tiers
+  const moneyTiers = isS
+    ? [{ amount: 1e6, price: 1 }, { amount: 1e9, price: 3 }, { amount: 1e12, price: 10 }, { amount: 1e15, price: 50 }, { amount: 1e18, price: 200 }]
+    : [{ amount: 1e6, price: 10 }, { amount: 1e9, price: 100 }, { amount: 1e12, price: 1000 }, { amount: 1e15, price: 50000 }, { amount: 1e18, price: 2000000 }];
+  moneyTiers.forEach(t => {
+    const label = t.amount >= 1e18 ? `$${(t.amount/1e18)}Qi` : t.amount >= 1e15 ? `$${(t.amount/1e15)}Q` : t.amount >= 1e12 ? `$${(t.amount/1e12)}T` : t.amount >= 1e9 ? `$${(t.amount/1e9)}B` : `$${(t.amount/1e6)}M`;
+    items.push({
+      id: `${currency}_money_${t.amount}`,
+      name: label,
+      description: `Instantly receive ${label}`,
+      category: 'money',
+      price: t.price,
+      currency,
+      effect: { type: 'give_money', amount: t.amount },
+    });
+  });
+
+  // Boosts
+  const boosts = isS
+    ? [
+        { id: 'money_surge', name: 'Money Surge', desc: '+50% money for 5 min', price: 5, boostType: 'money', mult: 0.5, dur: 300 },
+        { id: 'click_frenzy', name: 'Click Frenzy', desc: '+80% click power for 3 min', price: 10, boostType: 'click', mult: 0.8, dur: 180 },
+        { id: 'miner_overdrive', name: 'Miner Overdrive', desc: '+60% miner speed/dmg for 5 min', price: 15, boostType: 'miner', mult: 0.6, dur: 300 },
+        { id: 'prestige_boost', name: 'Prestige Booster', desc: '+30% PT on next prestige', price: 25, boostType: 'prestige', mult: 0.3, dur: 0 },
+      ]
+    : [
+        { id: 'money_surge', name: 'Money Surge', desc: '+50% money for 5 min', price: 500, boostType: 'money', mult: 0.5, dur: 300 },
+        { id: 'click_frenzy', name: 'Click Frenzy', desc: '+80% click power for 3 min', price: 1000, boostType: 'click', mult: 0.8, dur: 180 },
+        { id: 'miner_overdrive', name: 'Miner Overdrive', desc: '+60% miner speed/dmg for 5 min', price: 1500, boostType: 'miner', mult: 0.6, dur: 300 },
+        { id: 'prestige_boost', name: 'Prestige Booster', desc: '+30% PT on next prestige', price: 2500, boostType: 'prestige', mult: 0.3, dur: 0 },
+      ];
+  boosts.forEach(b => items.push({
+    id: `${currency}_boost_${b.id}`,
+    name: b.name,
+    description: b.desc,
+    category: 'boost',
+    price: b.price,
+    currency,
+    effect: { type: 'give_boost', boostType: b.boostType, boostMultiplier: b.mult, boostDuration: b.dur },
+  }));
+
+  // Miners (tiered)
+  const minerTiers = isS
+    ? [{ amount: 1, price: 1 }, { amount: 10, price: 3 }, { amount: 50, price: 7 }, { amount: 100, price: 10 }]
+    : [{ amount: 1, price: 100 }, { amount: 10, price: 300 }, { amount: 50, price: 600 }, { amount: 100, price: 1000 }];
+  minerTiers.forEach(t => items.push({
+    id: `${currency}_miners_${t.amount}`,
+    name: `+${t.amount} Miner${t.amount > 1 ? 's' : ''}`,
+    description: `Instantly hire ${t.amount} miner${t.amount > 1 ? 's' : ''}`,
+    category: 'miners',
+    price: t.price,
+    currency,
+    effect: { type: 'give_miners', amount: t.amount },
+  }));
+
+  // Autoclicker
+  items.push({
+    id: `${currency}_autoclicker`,
+    name: 'Autoclicker',
+    description: 'Buy the autoclicker (10 clicks/sec)',
+    category: 'autoclicker',
+    price: isS ? 10 : 1000,
+    currency,
+    effect: { type: 'give_autoclicker' },
+    oneTimePurchase: true,
+  });
+
+  // Rock skips — price scales by current rock number
+  const rockSkipPrices = isS ? [1, 5, 20] : [234, 500, 1837];
+  [1, 5, -1].forEach((skip, i) => items.push({
+    id: `${currency}_rockskip_${skip === -1 ? 'max' : skip}`,
+    name: skip === -1 ? 'Skip to Max Rock' : `Skip +${skip} Rock${skip > 1 ? 's' : ''}`,
+    description: skip === -1 ? 'Jump to highest unlocked rock' : `Skip ahead ${skip} rock${skip > 1 ? 's' : ''}`,
+    category: 'rock_skip',
+    price: rockSkipPrices[i],
+    currency,
+    effect: { type: 'give_rock_skip', amount: skip },
+  }));
+
+  // Achievements
+  items.push({
+    id: `${currency}_achievement`,
+    name: 'Unlock Any Achievement',
+    description: 'Pick any achievement to unlock',
+    category: 'achievement',
+    price: isS ? 13 : 500,
+    currency,
+    effect: { type: 'give_achievement' },
+  });
+
+  // Lottery Tickets (rebranded from coupons)
+  const lotteryTiers = isS
+    ? [{ amount: 50, price: 1 }, { amount: 200, price: 3 }, { amount: 500, price: 8 }]
+    : [{ amount: 50, price: 50 }, { amount: 200, price: 150 }, { amount: 500, price: 400 }];
+  lotteryTiers.forEach(t => items.push({
+    id: `${currency}_lottery_${t.amount}`,
+    name: `${t.amount}x Lottery Tickets`,
+    description: `Get ${t.amount} lottery tickets`,
+    category: 'coupons',
+    price: t.price,
+    currency,
+    effect: { type: 'give_coupons', couponType: 'discount30', amount: t.amount },
+  }));
+
+  return items;
+}
+
 // Spin the roulette and get result
 export function spinRoulette(): RouletteResult {
   const totalWeight = ROULETTE_SEGMENTS.reduce((sum, s) => sum + s.weight, 0);

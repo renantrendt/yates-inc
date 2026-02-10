@@ -15,22 +15,34 @@ interface RankingEntry {
 interface RankingPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  isHardMode?: boolean;
 }
 
 type RankingCategory = 'money' | 'speed' | 'prestiges';
 
-export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
+// Table names for normal vs hard mode
+const TABLE_NORMAL = 'user_game_data';
+const TABLE_HARD = 'user_game_hard_data';
+
+export default function RankingPanel({ isOpen, onClose, isHardMode = false }: RankingPanelProps) {
   const [mounted, setMounted] = useState(false);
   const [category, setCategory] = useState<RankingCategory>('money');
   const [rankings, setRankings] = useState<RankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodEndTime, setPeriodEndTime] = useState<Date | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [, setTick] = useState(0); // Force re-render for "Xs ago" counter
+  const [, setTick] = useState(0);
+  // Allow toggling between normal/hard leaderboards
+  const [viewingHardMode, setViewingHardMode] = useState(isHardMode);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Sync viewingHardMode when isHardMode prop changes
+  useEffect(() => {
+    setViewingHardMode(isHardMode);
+  }, [isHardMode]);
 
   // Update "Xs ago" counter every second
   useEffect(() => {
@@ -43,9 +55,7 @@ export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
   const getNextPeriodEnd = useCallback(() => {
     const now = new Date();
     const nextSunday = new Date(now);
-    // Get to next Sunday
     const daysUntilSunday = (7 - now.getDay()) % 7;
-    // If today is Sunday and we're past midnight, go to next Sunday
     if (daysUntilSunday === 0 && now.getHours() >= 0) {
       nextSunday.setDate(now.getDate() + 7);
     } else {
@@ -55,165 +65,104 @@ export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
     return nextSunday;
   }, []);
 
-  // Check and process ranking period end
-  const checkAndProcessPeriodEnd = useCallback(async () => {
-    // Just set the next Sunday as the period end - no DB dependency
-    setPeriodEndTime(getNextPeriodEnd());
-  }, [getNextPeriodEnd]);
-
-  // Fetch rankings when panel opens or category changes
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const fetchRankings = async () => {
-      setLoading(true);
-      try {
-        // Check/process period end first
-        await checkAndProcessPeriodEnd();
-
-        // Fetch top 5 from user_game_data based on category
-        // We need to join with clients/employees to get usernames
-        let query = supabase
-          .from('user_game_data')
-          .select('user_id, user_type, total_money_earned, fastest_prestige_time, prestige_count')
-          .limit(5);
-
-        switch (category) {
-          case 'money':
-            query = query
-              .gt('total_money_earned', 0)
-              .order('total_money_earned', { ascending: false });
-            break;
-          case 'speed':
-            query = query
-              .not('fastest_prestige_time', 'is', null)
-              .order('fastest_prestige_time', { ascending: true });
-            break;
-          case 'prestiges':
-            query = query
-              .gt('prestige_count', 0)
-              .order('prestige_count', { ascending: false });
-            break;
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-          console.error('Error fetching rankings:', error);
-          setRankings([]);
-          return;
-        }
-
-        if (!data || data.length === 0) {
-          setRankings([]);
-          return;
-        }
-
-        // Fetch usernames for each user
-        const rankingsWithNames: RankingEntry[] = [];
-        for (const entry of data) {
-          let username = 'Unknown';
-          
-          if (entry.user_type === 'client') {
-            const { data: clientData } = await supabase
-              .from('clients')
-              .select('username')
-              .eq('id', entry.user_id)
-              .maybeSingle();
-            username = clientData?.username || 'Unknown';
-          } else {
-            const { data: empData } = await supabase
-              .from('employees')
-              .select('name')
-              .eq('id', entry.user_id)
-              .maybeSingle();
-            username = empData?.name || 'Unknown';
-          }
-
-          rankingsWithNames.push({
-            user_id: entry.user_id,
-            username,
-            total_money_earned: entry.total_money_earned || 0,
-            fastest_prestige_time: entry.fastest_prestige_time,
-            total_prestiges: entry.prestige_count || 0,
-          });
-        }
-
-        setRankings(rankingsWithNames);
-        setLastUpdated(new Date());
-      } catch (err) {
-        console.error('Failed to fetch rankings:', err);
-        setRankings([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchRankings();
-
-    // Auto-refresh every 30 seconds while panel is open
-    const refreshInterval = setInterval(fetchRankings, 30000);
-    return () => clearInterval(refreshInterval);
-  }, [isOpen, category, checkAndProcessPeriodEnd]);
-
-  // Manual refresh function
-  const handleRefresh = useCallback(async () => {
-    if (loading) return;
+  // Shared fetch function — used by both initial load and manual refresh
+  const fetchRankingsData = useCallback(async () => {
     setLoading(true);
-    
     try {
-      await checkAndProcessPeriodEnd();
-      
+      setPeriodEndTime(getNextPeriodEnd());
+
+      const tableName = viewingHardMode ? TABLE_HARD : TABLE_NORMAL;
+
       let query = supabase
-        .from('user_game_data')
+        .from(tableName)
         .select('user_id, user_type, total_money_earned, fastest_prestige_time, prestige_count')
         .limit(5);
 
       switch (category) {
         case 'money':
-          query = query.gt('total_money_earned', 0).order('total_money_earned', { ascending: false });
+          query = query
+            .gt('total_money_earned', 0)
+            .order('total_money_earned', { ascending: false });
           break;
         case 'speed':
-          query = query.not('fastest_prestige_time', 'is', null).order('fastest_prestige_time', { ascending: true });
+          query = query
+            .not('fastest_prestige_time', 'is', null)
+            .order('fastest_prestige_time', { ascending: true });
           break;
         case 'prestiges':
-          query = query.gt('prestige_count', 0).order('prestige_count', { ascending: false });
+          query = query
+            .gt('prestige_count', 0)
+            .order('prestige_count', { ascending: false });
           break;
       }
 
       const { data, error } = await query;
-      if (error || !data) {
+
+      if (error) {
+        console.error('Error fetching rankings:', error);
         setRankings([]);
         return;
       }
 
-      const rankingsWithNames: RankingEntry[] = [];
-      for (const entry of data) {
-        let username = 'Unknown';
-        if (entry.user_type === 'client') {
-          const { data: clientData } = await supabase.from('clients').select('username').eq('id', entry.user_id).maybeSingle();
-          username = clientData?.username || 'Unknown';
-        } else {
-          const { data: empData } = await supabase.from('employees').select('name').eq('id', entry.user_id).maybeSingle();
-          username = empData?.name || 'Unknown';
-        }
-        rankingsWithNames.push({
-          user_id: entry.user_id,
-          username,
-          total_money_earned: entry.total_money_earned || 0,
-          fastest_prestige_time: entry.fastest_prestige_time,
-          total_prestiges: entry.prestige_count || 0,
-        });
+      if (!data || data.length === 0) {
+        setRankings([]);
+        return;
       }
+
+      // Batch username lookups by user_type to reduce queries
+      const clientIds = data.filter(e => e.user_type === 'client').map(e => e.user_id);
+      const empIds = data.filter(e => e.user_type !== 'client').map(e => e.user_id);
+      const usernameMap: Record<string, string> = {};
+
+      if (clientIds.length > 0) {
+        const { data: clients } = await supabase
+          .from('clients')
+          .select('id, username')
+          .in('id', clientIds);
+        clients?.forEach(c => { usernameMap[c.id] = c.username || 'Unknown'; });
+      }
+
+      if (empIds.length > 0) {
+        const { data: emps } = await supabase
+          .from('employees')
+          .select('id, name')
+          .in('id', empIds);
+        emps?.forEach(e => { usernameMap[e.id] = e.name || 'Unknown'; });
+      }
+
+      const rankingsWithNames: RankingEntry[] = data.map(entry => ({
+        user_id: entry.user_id,
+        username: usernameMap[entry.user_id] || 'Unknown',
+        total_money_earned: entry.total_money_earned || 0,
+        fastest_prestige_time: entry.fastest_prestige_time,
+        total_prestiges: entry.prestige_count || 0,
+      }));
 
       setRankings(rankingsWithNames);
       setLastUpdated(new Date());
     } catch (err) {
-      console.error('Failed to refresh rankings:', err);
+      console.error('Failed to fetch rankings:', err);
+      setRankings([]);
     } finally {
       setLoading(false);
     }
-  }, [loading, category, checkAndProcessPeriodEnd]);
+  }, [category, viewingHardMode, getNextPeriodEnd]);
+
+  // Fetch rankings when panel opens, category changes, or mode toggles
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchRankingsData();
+
+    // Auto-refresh every 30 seconds while panel is open
+    const refreshInterval = setInterval(fetchRankingsData, 30000);
+    return () => clearInterval(refreshInterval);
+  }, [isOpen, fetchRankingsData]);
+
+  // Manual refresh
+  const handleRefresh = useCallback(() => {
+    if (loading) return;
+    fetchRankingsData();
+  }, [loading, fetchRankingsData]);
 
   // Format number for display
   const formatNumber = (num: number): string => {
@@ -312,6 +261,30 @@ export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
           </button>
         </div>
 
+        {/* Normal / Hard Mode Toggle */}
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => setViewingHardMode(false)}
+            className={`flex-1 py-1.5 px-3 rounded-lg font-bold text-xs transition-all ${
+              !viewingHardMode
+                ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/30'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+            }`}
+          >
+            Normal Mode
+          </button>
+          <button
+            onClick={() => setViewingHardMode(true)}
+            className={`flex-1 py-1.5 px-3 rounded-lg font-bold text-xs transition-all ${
+              viewingHardMode
+                ? 'bg-red-600 text-white shadow-lg shadow-red-500/30'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+            }`}
+          >
+            💀 Hard Mode
+          </button>
+        </div>
+
         {/* Period countdown + Refresh */}
         <div className="flex justify-between items-center mb-4 text-sm">
           <div>
@@ -360,6 +333,7 @@ export default function RankingPanel({ isOpen, onClose }: RankingPanelProps) {
         {/* Category Title */}
         <h3 className="text-lg font-bold text-white mb-4 text-center">
           {categoryTitles[category]}
+          {viewingHardMode && <span className="text-red-400 text-sm ml-2">(Hard Mode)</span>}
         </h3>
 
         {/* Leaderboard */}

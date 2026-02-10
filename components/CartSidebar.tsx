@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useCart } from '@/contexts/CartContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useClient } from '@/contexts/ClientContext';
 import { useRouter } from 'next/navigation';
 import { calculateTax, getTaxRateLabel } from '@/utils/taxes';
 
@@ -20,16 +22,25 @@ type CouponType = 'discount30' | 'discount50' | 'discount100' | null;
 
 export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
   const { cart, removeFromCart, updateQuantity, cartSubtotal, cartTax, cartTaxRateLabel, cartTotal } = useCart();
+  const { employee } = useAuth();
+  const { client } = useClient();
   const router = useRouter();
   
+  // Derive the correct user-specific storage key
+  const userId = employee?.id || client?.id || null;
+  const storageKey = useMemo(() => {
+    const prefix = 'yates-mining-game';
+    return userId ? `${prefix}-${userId}` : `${prefix}-guest`;
+  }, [userId]);
+
   const [coupons, setCoupons] = useState<GameCoupons>({ discount30: 0, discount50: 0, discount100: 0 });
   const [appliedCoupon, setAppliedCoupon] = useState<CouponType>(null);
   const [showCouponPicker, setShowCouponPicker] = useState(false);
 
-  // Load coupons from game save
+  // Load coupons from game save (user-specific key)
   useEffect(() => {
     const loadCoupons = () => {
-      const saved = localStorage.getItem('yates-mining-game');
+      const saved = localStorage.getItem(storageKey);
       if (saved) {
         try {
           const gameState = JSON.parse(saved);
@@ -44,7 +55,7 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
     loadCoupons();
     // Reload when sidebar opens
     if (isOpen) loadCoupons();
-  }, [isOpen]);
+  }, [isOpen, storageKey]);
 
   const getDiscountPercent = (type: CouponType): number => {
     if (type === 'discount30') return 0.30;
@@ -72,13 +83,13 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
 
   const useCouponFromSave = (type: CouponType) => {
     if (!type) return;
-    const saved = localStorage.getItem('yates-mining-game');
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const gameState = JSON.parse(saved);
         if (gameState.coupons && gameState.coupons[type] > 0) {
           gameState.coupons[type] -= 1;
-          localStorage.setItem('yates-mining-game', JSON.stringify(gameState));
+          localStorage.setItem(storageKey, JSON.stringify(gameState));
           setCoupons(gameState.coupons);
         }
       } catch {

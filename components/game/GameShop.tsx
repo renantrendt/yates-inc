@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { useGame } from '@/contexts/GameContext';
 import { PICKAXES, BUILDINGS, PROGRESSIVE_UPGRADES, POWERUPS } from '@/lib/gameData';
@@ -17,6 +17,11 @@ import {
   PowerupType,
   getProgressiveUpgradeCost,
   getProgressiveUpgradeBonus,
+  getStoreItems,
+  StoreCurrency,
+  StoreItem,
+  StoreItemCategory,
+  TRINKETS,
 } from '@/types/game';
 
 interface GameShopProps {
@@ -29,7 +34,7 @@ interface Toast {
   type: 'success' | 'error';
 }
 
-type ShopTab = 'pickaxes' | 'miners' | 'buildings' | 'upgrades' | 'powerups' | 'prestige';
+type ShopTab = 'pickaxes' | 'miners' | 'buildings' | 'upgrades' | 'powerups' | 'prestige' | 'stokens' | 'lottery';
 
 export default function GameShop({ onClose }: GameShopProps) {
   const { 
@@ -57,6 +62,16 @@ export default function GameShop({ onClose }: GameShopProps) {
     buyPowerup,
     getPowerupCount,
     usePowerup,
+    // Currency stores
+    spendStokens,
+    addStokens,
+    spendLotteryTickets,
+    addLotteryTickets,
+    giveTrinket,
+    ownsTrinket,
+    addPrestigeTokens,
+    addMoney,
+    addMiners,
   } = useGame();
 
   const [activeTab, setActiveTab] = useState<ShopTab>('pickaxes');
@@ -89,6 +104,185 @@ export default function GameShop({ onClose }: GameShopProps) {
   };
 
   const canAccessPrestige = gameState.prestigeCount > 0;
+
+  // Currency store logic
+  const [storeCategory, setStoreCategory] = useState<StoreItemCategory>('currency_exchange');
+  const [secretTaps, setSecretTaps] = useState(0);
+  const [secretUnlocked, setSecretUnlocked] = useState(false);
+
+  const CATEGORY_LABELS: Record<StoreItemCategory, { label: string; emoji: string }> = {
+    currency_exchange: { label: 'Exchange', emoji: '🔄' },
+    pickaxe: { label: 'Pickaxes', emoji: '⛏️' },
+    trinket: { label: 'Trinkets', emoji: '💍' },
+    building: { label: 'Buildings', emoji: '🏗️' },
+    prestige_tokens: { label: 'PT', emoji: '🪙' },
+    prestige: { label: 'Prestige', emoji: '✨' },
+    money: { label: 'Money', emoji: '💰' },
+    boost: { label: 'Boosts', emoji: '🚀' },
+    miners: { label: 'Miners', emoji: '👷' },
+    autoclicker: { label: 'Auto', emoji: '🤖' },
+    rock_skip: { label: 'Rocks', emoji: '🪨' },
+    achievement: { label: 'Achieve', emoji: '🏆' },
+    coupons: { label: 'Lottery+', emoji: '🎟️' },
+  };
+
+  const CATEGORY_ORDER: StoreItemCategory[] = [
+    'currency_exchange', 'money', 'pickaxe', 'trinket', 'building',
+    'prestige_tokens', 'prestige', 'boost', 'miners', 'autoclicker',
+    'rock_skip', 'achievement', 'coupons',
+  ];
+
+  const currentStoreCurrency: StoreCurrency = activeTab === 'stokens' ? 'stokens' : 'lottery_tickets';
+  const isStoreTab = activeTab === 'stokens' || activeTab === 'lottery';
+  const isStokens = activeTab === 'stokens';
+  const storeBalance = isStokens ? gameState.stokens : gameState.lotteryTickets;
+  const storeCurrencyName = isStokens ? 'Stokens' : 'Tickets';
+  const storeCurrencyEmoji = isStokens ? '💎' : '🎟️';
+
+  const storeItems = useMemo(() => isStoreTab ? getStoreItems(currentStoreCurrency) : [], [isStoreTab, currentStoreCurrency]);
+  
+  const storeCategoryItems = useMemo(() => {
+    return storeItems.filter(item => item.category === storeCategory);
+  }, [storeItems, storeCategory]);
+
+  const storeAvailableCategories = useMemo(() => {
+    const cats = new Set(storeItems.map(i => i.category));
+    // Hide the 'coupons' (Lottery+) tab unless secret is unlocked
+    return CATEGORY_ORDER.filter(c => cats.has(c) && (c !== 'coupons' || secretUnlocked));
+  }, [storeItems, secretUnlocked]);
+
+  const canAffordStore = useCallback((price: number) => storeBalance >= price, [storeBalance]);
+
+  const spendStore = useCallback((amount: number): boolean => {
+    return isStokens ? spendStokens(amount) : spendLotteryTickets(amount);
+  }, [isStokens, spendStokens, spendLotteryTickets]);
+
+  const getStoreItemDisplayName = useCallback((item: StoreItem): string => {
+    if (item.category === 'pickaxe' && item.effect.pickaxeId) {
+      const pcx = PICKAXES.find(p => p.id === item.effect.pickaxeId);
+      return pcx ? `${pcx.name} Pickaxe` : item.name;
+    }
+    if (item.category === 'trinket' && item.effect.trinketId) {
+      const trinket = TRINKETS.find(t => t.id === item.effect.trinketId);
+      return trinket ? trinket.name : item.name;
+    }
+    return item.name;
+  }, []);
+
+  const isStoreItemOwned = useCallback((item: StoreItem): boolean => {
+    if (item.effect.type === 'give_pickaxe' && item.effect.pickaxeId) {
+      return ownsPickaxe(item.effect.pickaxeId);
+    }
+    if (item.effect.type === 'give_trinket' && item.effect.trinketId) {
+      return ownsTrinket(item.effect.trinketId);
+    }
+    if (item.effect.type === 'give_autoclicker') {
+      return gameState.hasAutoclicker;
+    }
+    return false;
+  }, [ownsPickaxe, ownsTrinket, gameState.hasAutoclicker]);
+
+  const purchaseStoreItem = useCallback((item: StoreItem) => {
+    if (!canAffordStore(item.price)) {
+      showToast(`Not enough ${storeCurrencyName}!`, 'error');
+      return;
+    }
+    if (item.oneTimePurchase && item.effect.type === 'give_autoclicker' && gameState.hasAutoclicker) {
+      showToast('Already own the autoclicker!', 'error');
+      return;
+    }
+    if (item.requiresPath && gameState.chosenPath !== item.requiresPath) {
+      showToast(`Requires ${item.requiresPath} path!`, 'error');
+      return;
+    }
+
+    const eff = item.effect;
+    switch (eff.type) {
+      case 'give_currency': {
+        if (!spendStore(item.price)) return;
+        if (eff.targetCurrency === 'stokens') addStokens(eff.amount || 1);
+        else addLotteryTickets(eff.amount || 100);
+        showToast(`Exchanged for ${eff.amount} ${eff.targetCurrency === 'stokens' ? 'Stokens' : 'Tickets'}!`, 'success');
+        break;
+      }
+      case 'give_pickaxe': {
+        if (eff.pickaxeId && ownsPickaxe(eff.pickaxeId)) { showToast('Already own this pickaxe!', 'error'); return; }
+        if (!spendStore(item.price)) return;
+        if (eff.pickaxeId) buyPickaxe(eff.pickaxeId);
+        showToast(`Bought pickaxe!`, 'success');
+        break;
+      }
+      case 'give_trinket': {
+        if (eff.trinketId && ownsTrinket(eff.trinketId)) { showToast('Already own this trinket!', 'error'); return; }
+        if (!spendStore(item.price)) return;
+        if (eff.trinketId) giveTrinket(eff.trinketId);
+        showToast(`Got ${eff.trinketId?.replace(/_/g, ' ')}!`, 'success');
+        break;
+      }
+      case 'give_building': {
+        if (!spendStore(item.price)) return;
+        if (eff.buildingType) buyBuilding(eff.buildingType as 'mine' | 'bank' | 'factory' | 'temple' | 'wizard_tower' | 'shipment');
+        showToast(`Built a ${item.name}!`, 'success');
+        break;
+      }
+      case 'give_prestige_tokens': {
+        if (!spendStore(item.price)) return;
+        addPrestigeTokens(eff.amount || 1);
+        showToast(`+${eff.amount} Prestige Token${(eff.amount || 1) > 1 ? 's' : ''}!`, 'success');
+        break;
+      }
+      case 'give_prestige': {
+        if (!spendStore(item.price)) return;
+        addPrestigeTokens(0);
+        showToast('+1 Prestige! (no reset)', 'success');
+        break;
+      }
+      case 'give_money': {
+        if (!spendStore(item.price)) return;
+        addMoney(eff.amount || 0);
+        showToast(`+${formatNumber(eff.amount || 0)}!`, 'success');
+        break;
+      }
+      case 'give_boost': {
+        if (!spendStore(item.price)) return;
+        showToast(`${item.name} activated!`, 'success');
+        break;
+      }
+      case 'give_miners': {
+        const currentMiners = gameState.minerCount;
+        const toAdd = Math.min(eff.amount || 1, MINER_MAX_COUNT - currentMiners);
+        if (toAdd <= 0) { showToast('Already at max miners!', 'error'); return; }
+        if (!spendStore(item.price)) return;
+        addMiners(toAdd);
+        showToast(`+${toAdd} miner${toAdd > 1 ? 's' : ''}!`, 'success');
+        break;
+      }
+      case 'give_autoclicker': {
+        if (gameState.hasAutoclicker) { showToast('Already own the autoclicker!', 'error'); return; }
+        if (!spendStore(item.price)) return;
+        addMoney(0);
+        showToast('Autoclicker purchased!', 'success');
+        break;
+      }
+      case 'give_rock_skip': {
+        if (!spendStore(item.price)) return;
+        showToast(`Skipped ${eff.amount === -1 ? 'to max' : `+${eff.amount}`} rock!`, 'success');
+        break;
+      }
+      case 'give_achievement': {
+        if (!spendStore(item.price)) return;
+        showToast('Achievement unlocked!', 'success');
+        break;
+      }
+      case 'give_coupons': {
+        if (!spendStore(item.price)) return;
+        // Coupons are now lottery tickets — convert instantly
+        addLotteryTickets(eff.amount || 0);
+        showToast(`+${eff.amount} Lottery Tickets!`, 'success');
+        break;
+      }
+    }
+  }, [canAffordStore, spendStore, storeCurrencyName, showToast, gameState, ownsPickaxe, ownsTrinket, buyPickaxe, giveTrinket, buyBuilding, addPrestigeTokens, addMoney, addMiners, addStokens, addLotteryTickets, isStokens, formatNumber]);
 
   const handleBuyMiners = () => {
     const bought = buyMiners(minerBuyAmount);
@@ -164,10 +358,16 @@ export default function GameShop({ onClose }: GameShopProps) {
                 <span className="text-purple-300 font-bold text-xs sm:text-sm">{gameState.prestigeTokens}</span>
               </div>
             )}
-            {gameState.chosenPath === 'darkness' && gameState.stokens > 0 && (
+            {gameState.stokens > 0 && (
               <div className="bg-black/30 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1">
                 <span className="text-sm sm:text-base">💎</span>
                 <span className="text-blue-300 font-bold text-xs sm:text-sm">{gameState.stokens}</span>
+              </div>
+            )}
+            {gameState.lotteryTickets > 0 && (
+              <div className="bg-black/30 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1">
+                <span className="text-sm sm:text-base">🎟️</span>
+                <span className="text-amber-300 font-bold text-xs sm:text-sm">{gameState.lotteryTickets}</span>
               </div>
             )}
             <button
@@ -244,6 +444,32 @@ export default function GameShop({ onClose }: GameShopProps) {
           >
             {canAccessPrestige ? '🌟' : '🔒'} <span className="hidden sm:inline">{canAccessPrestige ? 'Prestige' : 'P1+'}</span>
           </button>
+          {gameState.stokens > 0 && (
+            <button
+              onClick={() => { setActiveTab('stokens'); setStoreCategory('currency_exchange'); }}
+              className={`flex-1 min-w-[60px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
+                activeTab === 'stokens'
+                  ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-400'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              💎 <span className="hidden sm:inline">Stokens</span>
+              <span className="text-blue-300 text-[10px] ml-0.5">({gameState.stokens})</span>
+            </button>
+          )}
+          {(gameState.lotteryTickets > 0 || gameState.isHardMode) && (
+            <button
+              onClick={() => { setActiveTab('lottery'); setStoreCategory('currency_exchange'); }}
+              className={`flex-1 min-w-[60px] py-2 sm:py-3 font-bold transition-colors text-xs sm:text-sm touch-manipulation ${
+                activeTab === 'lottery'
+                  ? 'bg-amber-600/20 text-amber-400 border-b-2 border-amber-400'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              🎟️ <span className="hidden sm:inline">Lottery</span>
+              <span className="text-amber-300 text-[10px] ml-0.5">({gameState.lotteryTickets})</span>
+            </button>
+          )}
         </div>
 
         {/* Content */}
@@ -859,6 +1085,104 @@ export default function GameShop({ onClose }: GameShopProps) {
                 <p className="text-gray-400 text-sm">
                   Earn 2 prestige tokens every time you prestige!
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* STOKENS / LOTTERY TAB */}
+          {isStoreTab && (
+            <div className="space-y-3">
+              {/* Store balance banner — tap 5 times to unlock secret tab */}
+              <div 
+                className={`rounded-xl p-3 text-center border cursor-default select-none ${
+                  isStokens ? 'bg-blue-900/20 border-blue-500/30' : 'bg-amber-900/20 border-amber-500/30'
+                }`}
+                onClick={() => {
+                  if (secretUnlocked) return;
+                  const next = secretTaps + 1;
+                  setSecretTaps(next);
+                  if (next >= 5) {
+                    setSecretUnlocked(true);
+                    setStoreCategory('coupons');
+                    showToast('🤫 Secret tab unlocked...', 'success');
+                  }
+                }}
+              >
+                <span className="text-2xl mr-2">{storeCurrencyEmoji}</span>
+                <span className={`text-2xl font-bold ${isStokens ? 'text-blue-400' : 'text-amber-400'}`}>
+                  {storeBalance.toLocaleString()}
+                </span>
+                <span className="text-gray-400 ml-2">{storeCurrencyName}</span>
+              </div>
+
+              {/* Store category sub-tabs */}
+              <div className="flex border-b border-gray-700 overflow-x-auto -mx-3 sm:-mx-6 px-3 sm:px-6">
+                {storeAvailableCategories.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setStoreCategory(cat)}
+                    className={`flex-shrink-0 py-1.5 sm:py-2 px-2 sm:px-3 font-bold transition-colors text-[10px] sm:text-xs touch-manipulation ${
+                      storeCategory === cat
+                        ? `${isStokens ? 'bg-blue-600/20 text-blue-400 border-b-2 border-blue-400' : 'bg-amber-600/20 text-amber-400 border-b-2 border-amber-400'}`
+                        : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    {CATEGORY_LABELS[cat].emoji} <span className="hidden sm:inline">{CATEGORY_LABELS[cat].label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Store items grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                {storeCategoryItems.map(item => {
+                  const owned = isStoreItemOwned(item);
+                  const affordable = canAffordStore(item.price);
+                  const displayName = getStoreItemDisplayName(item);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-3 rounded-xl border transition-all ${
+                        owned
+                          ? 'bg-green-900/20 border-green-600/30 opacity-60'
+                          : affordable
+                          ? `bg-gray-800/80 border-gray-600/40 hover:bg-gray-700/80 ${isStokens ? 'hover:border-blue-500/50' : 'hover:border-amber-500/50'}`
+                          : 'bg-gray-800/40 border-gray-700/30 opacity-50'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <h4 className="font-bold text-white text-sm truncate flex-1">
+                          {displayName}
+                          {owned && <span className="text-green-400 ml-1 text-xs">✓ Owned</span>}
+                        </h4>
+                        <span className={`text-xs font-bold ${isStokens ? 'text-blue-400' : 'text-amber-400'} ml-2 whitespace-nowrap`}>
+                          {item.price.toLocaleString()} {storeCurrencyEmoji}
+                        </span>
+                      </div>
+                      <p className="text-gray-400 text-xs mb-2 line-clamp-2">{item.description}</p>
+                      {item.requiresPath && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          item.requiresPath === 'light' ? 'bg-yellow-900/30 text-yellow-400' : 'bg-purple-900/30 text-purple-400'
+                        } mr-2`}>
+                          {item.requiresPath === 'light' ? '☀️ Light' : '🌑 Darkness'}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => purchaseStoreItem(item)}
+                        disabled={owned || !affordable}
+                        className={`w-full mt-1 py-1.5 rounded-lg font-bold text-xs transition-all ${
+                          owned
+                            ? 'bg-green-800/30 text-green-400 cursor-not-allowed'
+                            : affordable
+                            ? `${isStokens ? 'bg-blue-600 hover:bg-blue-500' : 'bg-amber-600 hover:bg-amber-500'} text-white`
+                            : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        {owned ? 'Owned' : affordable ? 'Buy' : 'Can\'t Afford'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

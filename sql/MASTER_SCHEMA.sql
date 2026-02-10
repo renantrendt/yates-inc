@@ -1,0 +1,122 @@
+-- =============================================
+-- MASTER SCHEMA: Full consolidated schema for user_game_data
+-- This is a REFERENCE file — do NOT run as a migration
+-- Same schema applies to user_game_hard_data
+-- Last updated: 2026-02-09
+-- =============================================
+
+-- =====================
+-- Core user_game_data table
+-- =====================
+-- CREATE TABLE IF NOT EXISTS user_game_data (
+--   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+--   user_id TEXT NOT NULL UNIQUE,
+--   user_type TEXT NOT NULL CHECK (user_type IN ('employee', 'client')),
+--
+--   -- Core game state
+--   yates_dollars NUMERIC(24,2) DEFAULT 0,
+--   total_clicks NUMERIC(24,0) DEFAULT 0,
+--   current_pickaxe_id INTEGER DEFAULT 1,
+--   current_rock_id INTEGER DEFAULT 1,
+--   current_rock_hp NUMERIC(24,0) DEFAULT 8,
+--   rocks_mined_count NUMERIC(24,0) DEFAULT 0,
+--   owned_pickaxe_ids INTEGER[] DEFAULT '{1}',
+--
+--   -- Coupons / Lottery Tickets (in Hard Mode, coupons become lottery tickets)
+--   coupons_30 INTEGER DEFAULT 0,
+--   coupons_50 INTEGER DEFAULT 0,
+--   coupons_100 INTEGER DEFAULT 0,
+--
+--   -- Game settings
+--   has_seen_cutscene BOOLEAN DEFAULT false,
+--   has_autoclicker BOOLEAN DEFAULT false,
+--   autoclicker_enabled BOOLEAN DEFAULT false,
+--
+--   -- Anti-cheat
+--   anti_cheat_warnings INTEGER DEFAULT 0,
+--   is_on_watchlist BOOLEAN DEFAULT false,
+--   is_blocked BOOLEAN DEFAULT false,
+--   appeal_pending BOOLEAN DEFAULT false,
+--
+--   -- Trinkets
+--   owned_trinket_ids TEXT[] DEFAULT '{}',
+--   equipped_trinket_ids TEXT[] DEFAULT '{}',
+--   trinket_shop_items JSONB,
+--   trinket_shop_last_refresh BIGINT,
+--   has_totem_protection BOOLEAN DEFAULT false,
+--
+--   -- Stocks
+--   has_stocks_unlocked BOOLEAN DEFAULT false,
+--   stocks_owned INTEGER DEFAULT 0,         -- NOTE: Not written by code (read-only legacy)
+--   stock_profits DECIMAL(20,2) DEFAULT 0,  -- NOTE: Not written by code (read-only legacy)
+--
+--   -- Relics & Talismans (Light/Darkness path conversions)
+--   owned_relic_ids TEXT[] DEFAULT '{}',
+--   owned_talisman_ids TEXT[] DEFAULT '{}',
+--
+--   -- Miners
+--   miner_count INTEGER DEFAULT 0,
+--   miner_last_tick BIGINT,
+--
+--   -- Prestige
+--   prestige_count INTEGER DEFAULT 0,
+--   prestige_multiplier NUMERIC(10,2) DEFAULT 1.0,
+--   prestige_tokens INTEGER DEFAULT 0,
+--   owned_prestige_upgrade_ids TEXT[] DEFAULT '{}',
+--   auto_prestige_enabled BOOLEAN DEFAULT false,
+--
+--   -- Achievements
+--   unlocked_achievement_ids TEXT[] DEFAULT '{}',
+--
+--   -- Ranking system
+--   total_money_earned NUMERIC(24,0) DEFAULT 0,
+--   game_start_time BIGINT,
+--   fastest_prestige_time BIGINT,
+--
+--   -- Pro Player Titles
+--   owned_title_ids TEXT[] DEFAULT '{}',
+--   equipped_title_ids TEXT[] DEFAULT '{}',
+--   title_win_counts JSONB DEFAULT '{}',
+--
+--   -- Path system (Light/Darkness)
+--   chosen_path TEXT CHECK (chosen_path IN ('light', 'darkness')),
+--   golden_cookie_ritual_active BOOLEAN DEFAULT false,  -- NOTE: Dead column, runtime-only in code
+--   sacrifice_buff JSONB,                                -- NOTE: Dead column, runtime-only in code
+--   admin_commands_until TIMESTAMPTZ,                    -- NOTE: Dead column, runtime-only in code
+--   show_path_selection BOOLEAN DEFAULT false,            -- NOTE: Dead column, runtime-only in code
+--
+--   -- Tax system
+--   last_tax_time BIGINT,
+--
+--   -- Playtime tracking
+--   total_playtime_seconds BIGINT DEFAULT 0,
+--
+--   -- Premium products
+--   owned_premium_product_ids INTEGER[] DEFAULT '{}',
+--
+--   -- Building system (serialized JSON)
+--   buildings_data TEXT,
+--
+--   -- Currency stores
+--   stokens INTEGER DEFAULT 0,
+--   lottery_tickets INTEGER DEFAULT 0,
+--
+--   -- Timestamps
+--   created_at TIMESTAMPTZ DEFAULT NOW(),
+--   updated_at TIMESTAMPTZ DEFAULT NOW()
+-- );
+
+-- =====================
+-- Column inventory (for auditing)
+-- =====================
+-- TOTAL: ~45 active columns + 4 dead columns + 2 legacy read-only columns
+--
+-- DEAD COLUMNS (exist in SQL, not used in code - safe to drop):
+--   golden_cookie_ritual_active, sacrifice_buff, admin_commands_until, show_path_selection
+--
+-- LEGACY READ-ONLY COLUMNS (exist in SQL, read by code, never written):
+--   stocks_owned, stock_profits
+--
+-- COLUMNS ADDED BY THIS AUDIT (previously missing from SQL):
+--   owned_relic_ids, owned_talisman_ids, owned_premium_product_ids,
+--   buildings_data, stokens, lottery_tickets

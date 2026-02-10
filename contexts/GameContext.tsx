@@ -239,6 +239,10 @@ interface GameContextType {
   addStokens: (amount: number) => void;
   spendStokens: (amount: number) => boolean;
   getStokens: () => number;
+  // Lottery Tickets
+  addLotteryTickets: (amount: number) => void;
+  spendLotteryTickets: (amount: number) => boolean;
+  getLotteryTickets: () => number;
   // Roulette
   spinRouletteWheel: () => RouletteResult;
   // Permanent buffs from Wandering Trader
@@ -654,7 +658,18 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
                 let useSupabase: boolean;
                 const timeDiff = Math.abs(localTime - supabaseTime);
                 
-                if (timeDiff < 10000) {
+                // CRITICAL: If localStorage has zero/default progress but Supabase has real data,
+                // always prefer Supabase. This prevents fresh/empty sessions from wiping real progress.
+                const localHasProgress = localPrestige > 0 || localClicks > 50 || (prev.yatesDollars || 0) > 100;
+                const supabaseHasProgress = supabasePrestige > 0 || supabaseClicks > 50 || (supabaseData.yates_dollars || 0) > 100;
+                
+                if (!localHasProgress && supabaseHasProgress) {
+                  // localStorage is empty/fresh — always use Supabase
+                  useSupabase = true;
+                  console.log('🔄 SYNC: localStorage has no progress, preferring Supabase data', {
+                    localPrestige, supabasePrestige, localClicks, supabaseClicks
+                  });
+                } else if (timeDiff < 10000) {
                   // Timestamps within 10 seconds - use prestige then clicks as tiebreaker
                   useSupabase = supabasePrestige > localPrestige || 
                     (supabasePrestige === localPrestige && supabaseClicks > localClicks);
@@ -796,6 +811,15 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
                     return prev.buildings;
                   }
                 })(),
+                // Stokens & Lottery Tickets (use max of both sources)
+                stokens: Math.max(
+                  prev.stokens || 0,
+                  (supabaseData as unknown as { stokens?: number }).stokens || 0
+                ),
+                lotteryTickets: Math.max(
+                  prev.lotteryTickets || 0,
+                  (supabaseData as unknown as { lottery_tickets?: number }).lottery_tickets || 0
+                ),
                 // Keep whichever timestamp is newer (for future syncs)
                 localUpdatedAt: useSupabase ? supabaseTime : localTime,
               };
@@ -816,6 +840,18 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
                 };
               });
             }
+
+            // Coupon → Lottery Ticket migration (one-time rebrand)
+            // All existing coupons are instantly converted to lottery tickets
+            setGameState(prev => {
+              const totalCoupons = (prev.coupons.discount30 || 0) + (prev.coupons.discount50 || 0) + (prev.coupons.discount100 || 0);
+              if (totalCoupons === 0) return prev;
+              return {
+                ...prev,
+                lotteryTickets: (prev.lotteryTickets || 0) + totalCoupons,
+                coupons: { discount30: 0, discount50: 0, discount100: 0 },
+              };
+            });
           } catch {
             // If anything fails, just use localStorage (already loaded above)
           }
@@ -1409,6 +1445,12 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         const tokensToAdd = isPastMaxPrestige ? 0 : PRESTIGE_TOKENS_PER_PRESTIGE;
         const ownsTotem = prev.ownedTrinketIds.includes('totem');
         
+        // Track fastest prestige time (for ranking) - same as manual prestige
+        const prestigeTime = Date.now() - (prev.gameStartTime || Date.now());
+        const newFastestTime = prev.fastestPrestigeTime === null 
+          ? prestigeTime 
+          : Math.min(prev.fastestPrestigeTime, prestigeTime);
+        
         return {
           ...prev,
           currentRockId: 1,
@@ -1426,6 +1468,9 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
           hasTotemProtection: false,
           ownedTrinketIds: ownsTotem ? prev.ownedTrinketIds.filter(id => id !== 'totem') : prev.ownedTrinketIds,
           equippedTrinketIds: ownsTotem ? prev.equippedTrinketIds.filter(id => id !== 'totem') : prev.equippedTrinketIds,
+          // Ranking: track fastest prestige time and reset game start
+          fastestPrestigeTime: newFastestTime,
+          gameStartTime: Date.now(),
         };
       });
     }, 1000);
@@ -1673,7 +1718,38 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     return bonuses;
   }, [gameState.equippedTrinketIds, gameState.ownedPrestigeUpgradeIds, gameState.equippedTitleIds, gameState.chosenPath, gameState.sacrificeBuff, gameState.buildings.temple.equippedRank, gameState.buildings.wizard_tower.ritualActive, gameState.buildings.wizard_tower.ritualEndTime, gameState.ownedPremiumProductIds]);
 
-  // Save to localStorage and Supabase whenever state changes
+  // Track dirty state for throttled localStorage saves
+  const localSaveDirtyRef = useRef(false);
+  const localSaveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Mark state as dirty on every change (but don't write to localStorage every time)
+  useEffect(() => {
+    if (!isLoaded || isLoadingRef.current) return;
+    localSaveDirtyRef.current = true;
+  }, [gameState, shopStock, isLoaded]);
+
+  // Throttled localStorage writer: flush at most every 1.5 seconds
+  useEffect(() => {
+    if (!isLoaded) return;
+    localSaveIntervalRef.current = setInterval(() => {
+      if (!localSaveDirtyRef.current || isLoadingRef.current) return;
+      localSaveDirtyRef.current = false;
+      try {
+        if (isCorruptNumber(gameState.yatesDollars) || isCorruptNumber(gameState.totalClicks) || isCorruptNumber(gameState.totalMoneyEarned)) {
+          return;
+        }
+        const storageKey = getStorageKey(userId, gameState.isHardMode);
+        localStorage.setItem(storageKey, JSON.stringify({ ...gameState, localUpdatedAt: Date.now(), shopStock }));
+      } catch (err) {
+        console.error('❌ Error saving to localStorage:', err);
+      }
+    }, 1500);
+    return () => {
+      if (localSaveIntervalRef.current) clearInterval(localSaveIntervalRef.current);
+    };
+  }, [isLoaded, userId, gameState, shopStock]);
+
+  // Save to Supabase whenever state changes (debounced by userDataSync)
   useEffect(() => {
     // Don't save during initial load - wait until data is loaded
     if (!isLoaded || isLoadingRef.current) {
@@ -1681,21 +1757,15 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     }
     
     try {
-      // CRITICAL: Skip localStorage save if core numeric fields are corrupt (NaN/Infinity/null)
-      // This preserves the last-good localStorage data instead of poisoning it
+      // CRITICAL: Skip save if core numeric fields are corrupt (NaN/Infinity/null)
       if (isCorruptNumber(gameState.yatesDollars) || isCorruptNumber(gameState.totalClicks) || isCorruptNumber(gameState.totalMoneyEarned)) {
-        console.error('🚨 LOCALSTORAGE SAVE BLOCKED: Corrupt game state detected!', {
+        console.error('🚨 SUPABASE SAVE BLOCKED: Corrupt game state detected!', {
           yatesDollars: gameState.yatesDollars,
           totalClicks: gameState.totalClicks,
           totalMoneyEarned: gameState.totalMoneyEarned,
         });
         return;
       }
-
-      // Always save to localStorage immediately (user-specific key)
-      const storageKey = getStorageKey(userId, gameState.isHardMode);
-      const now = Date.now();
-      localStorage.setItem(storageKey, JSON.stringify({ ...gameState, localUpdatedAt: now, shopStock }));
 
       // If logged in, also sync to Supabase (debounced)
       // The debounce system has a cooldown after forceImmediateSave to prevent
@@ -1764,6 +1834,9 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
           ...(gameState.ownedPremiumProductIds?.length ? { owned_premium_product_ids: gameState.ownedPremiumProductIds } : {}),
           // Buildings data (bank, factory, temple, etc.) - serialized as JSON
           buildings_data: JSON.stringify(gameState.buildings),
+          // Stokens & Lottery Tickets
+          stokens: gameState.stokens,
+          lottery_tickets: gameState.lotteryTickets,
         }, gameState.isHardMode);
       }
     } catch (err) {
@@ -1870,6 +1943,25 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     };
   }, [userId, userType]);
 
+  // Flush pending saves on GameProvider unmount (triggered by mode switch or exit)
+  useEffect(() => {
+    return () => {
+      // Flush localStorage immediately with latest state
+      try {
+        const state = unloadGameStateRef.current;
+        if (state && userId) {
+          const storageKey = getStorageKey(userId, state.isHardMode);
+          localStorage.setItem(storageKey, JSON.stringify({ ...state, localUpdatedAt: Date.now() }));
+        }
+      } catch (err) {
+        console.error('❌ Error flushing localStorage on unmount:', err);
+      }
+      // Flush any pending Supabase saves
+      flushPendingData();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Cheat functions for employees (anyone with numbered ID like 000001, 123456, etc.)
   // Employees have numeric string IDs, clients have UUIDs
   const isEmployee = userId ? /^\d+$/.test(userId) : false;
@@ -1969,25 +2061,44 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
       const pickaxe = getPickaxeById(prev.currentPickaxeId) || PICKAXES[0];
       const rock = getRockById(prev.currentRockId) || ROCKS[0];
       
-      // Calculate bonuses inline to avoid stale closures
+      // Calculate bonuses using full bonus pipeline (mirrors calculateTotalBonuses but with prev state)
       let rockDamageBonus = 0;
       let moneyBonus = 0;
       let couponBonus = 0;
       let clickSpeedBonus = 0;
       
-      // Trinket bonuses
-      for (const trinketId of prev.equippedTrinketIds) {
-        const trinket = TRINKETS.find(t => t.id === trinketId);
+      // Trinket bonuses (including relics/talismans)
+      for (const itemId of prev.equippedTrinketIds) {
+        const isRelic = itemId.endsWith('_relic');
+        const isTalisman = itemId.endsWith('_talisman');
+        const baseTrinketId = isRelic ? itemId.replace('_relic', '') : isTalisman ? itemId.replace('_talisman', '') : itemId;
+        const trinket = TRINKETS.find(t => t.id === baseTrinketId);
         if (trinket) {
           const e = trinket.effects;
-          rockDamageBonus += (e.rockDamageBonus || 0) + (e.allBonus || 0);
-          moneyBonus += (e.moneyBonus || 0) + (e.allBonus || 0) + (e.minerMoneyBonus || 0);
-          couponBonus += (e.couponBonus || 0) + (e.couponLuckBonus || 0) + (e.allBonus || 0);
-          clickSpeedBonus += (e.clickSpeedBonus || 0) + (e.allBonus || 0);
+          let multiplier = 1;
+          if (isRelic) multiplier = RELIC_MULTIPLIERS[trinket.rarity] || 1;
+          else if (isTalisman) multiplier = TALISMAN_MULTIPLIERS[trinket.rarity] || 1;
+          
+          rockDamageBonus += ((e.rockDamageBonus || 0) + (e.allBonus || 0)) * multiplier;
+          moneyBonus += ((e.moneyBonus || 0) + (e.allBonus || 0) + (e.minerMoneyBonus || 0)) * multiplier;
+          couponBonus += ((e.couponBonus || 0) + (e.couponLuckBonus || 0) + (e.allBonus || 0)) * multiplier;
+          clickSpeedBonus += ((e.clickSpeedBonus || 0) + (e.allBonus || 0)) * multiplier;
         }
       }
       
-      // Prestige upgrade bonuses
+      // Trinket multiplier from prestige upgrades + light path
+      let trinketMultiplier = 1.0;
+      for (const upgradeId of prev.ownedPrestigeUpgradeIds) {
+        const upgrade = PRESTIGE_UPGRADES.find(u => u.id === upgradeId);
+        if (upgrade?.effects.trinketBonus) trinketMultiplier += upgrade.effects.trinketBonus;
+      }
+      if (prev.chosenPath === 'light') trinketMultiplier += 0.50;
+      rockDamageBonus *= trinketMultiplier;
+      moneyBonus *= trinketMultiplier;
+      couponBonus *= trinketMultiplier;
+      clickSpeedBonus *= trinketMultiplier;
+      
+      // Prestige upgrade bonuses (not multiplied by trinketBonus)
       for (const upgradeId of prev.ownedPrestigeUpgradeIds) {
         const upgrade = PRESTIGE_UPGRADES.find(u => u.id === upgradeId);
         if (upgrade) {
@@ -1997,6 +2108,60 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
           couponBonus += (upgrade.effects.couponBonus || 0) + allB;
           clickSpeedBonus += (upgrade.effects.clickSpeedBonus || 0) + allB;
         }
+      }
+      
+      // Title bonuses
+      for (const titleId of (prev.equippedTitleIds || [])) {
+        const title = TITLES.find(t => t.id === titleId);
+        if (title) {
+          const allB = title.buffs.allBonus || 0;
+          const speedB = title.buffs.speedBonus || 0;
+          moneyBonus += (title.buffs.moneyBonus || 0) + allB;
+          rockDamageBonus += allB;
+          clickSpeedBonus += allB + speedB;
+          couponBonus += allB;
+        }
+      }
+      
+      // Light path money bonus
+      if (prev.chosenPath === 'light') moneyBonus += 0.30;
+      
+      // Sacrifice buff (Darkness path)
+      if (prev.sacrificeBuff && Date.now() < prev.sacrificeBuff.endsAt) {
+        const buff = prev.sacrificeBuff;
+        moneyBonus += buff.moneyBonus;
+        rockDamageBonus += buff.pcxDamageBonus;
+        if (buff.allBonus > 0) {
+          moneyBonus += buff.allBonus;
+          rockDamageBonus += buff.allBonus;
+          clickSpeedBonus += buff.allBonus;
+          couponBonus += buff.allBonus;
+        }
+      }
+      
+      // Temple bonuses (Light path)
+      const equippedTempleRank = prev.buildings.temple.equippedRank;
+      if (equippedTempleRank && prev.chosenPath === 'light') {
+        const templeValues: Record<number, { money: number; pcxDamage: number }> = {
+          1: { money: 0.27, pcxDamage: 0.36 },
+          2: { money: 0.55, pcxDamage: 0.73 },
+          3: { money: 0.90, pcxDamage: 1.20 },
+        };
+        const templeBonus = templeValues[equippedTempleRank];
+        if (templeBonus) {
+          moneyBonus += templeBonus.money;
+          rockDamageBonus += templeBonus.pcxDamage;
+        }
+      }
+      
+      // Wizard ritual (3x ALL stats when active)
+      if (prev.buildings.wizard_tower.ritualActive && 
+          prev.buildings.wizard_tower.ritualEndTime && 
+          Date.now() < prev.buildings.wizard_tower.ritualEndTime) {
+        moneyBonus = (1 + moneyBonus) * 3 - 1;
+        rockDamageBonus = (1 + rockDamageBonus) * 3 - 1;
+        clickSpeedBonus = (1 + clickSpeedBonus) * 3 - 1;
+        couponBonus = (1 + couponBonus) * 3 - 1;
       }
       
       // Active ability bonuses
@@ -2102,25 +2267,42 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         newRockHP = getScaledRockHP(nextRock.clicksToBreak, prev.prestigeCount, prev.isHardMode);
       }
 
-      // Check for coupon drop
+      // Check for lottery ticket drop (rebranded from coupons)
+      // Hard Mode: 100% of drops become lottery tickets
+      // Normal Mode: 70% chance each drop becomes a lottery ticket
       const meetsRequirements = 
         prev.currentRockId >= COUPON_REQUIREMENTS.minRockId &&
         prev.currentPickaxeId >= COUPON_REQUIREMENTS.minPickaxeId;
 
       let newCoupons = { ...prev.coupons };
+      let newLotteryTickets = prev.lotteryTickets;
       if (meetsRequirements) {
         const luckBonus = (pickaxe.couponLuckBonus || 0) + couponBonus;
         const rand = Math.random();
         
         if (rand < COUPON_DROP_RATES.discount100 * (1 + luckBonus)) {
-          newCoupons.discount100 += 1;
           couponDrop = 'discount100';
+          if (prev.isHardMode) {
+            // Hard Mode: 100% instant conversion to lottery ticket
+            newLotteryTickets += 1;
+          } else {
+            // Normal Mode: 70% chance to become lottery ticket
+            if (Math.random() < 0.70) newLotteryTickets += 1;
+          }
         } else if (rand < COUPON_DROP_RATES.discount50 * (1 + luckBonus)) {
-          newCoupons.discount50 += 1;
           couponDrop = 'discount50';
+          if (prev.isHardMode) {
+            newLotteryTickets += 1;
+          } else {
+            if (Math.random() < 0.70) newLotteryTickets += 1;
+          }
         } else if (rand < COUPON_DROP_RATES.discount30 * (1 + luckBonus)) {
-          newCoupons.discount30 += 1;
           couponDrop = 'discount30';
+          if (prev.isHardMode) {
+            newLotteryTickets += 1;
+          } else {
+            if (Math.random() < 0.70) newLotteryTickets += 1;
+          }
         }
       }
 
@@ -2133,6 +2315,7 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         currentRockId: newCurrentRockId,
         rocksMinedCount: newRocksMinedCount,
         coupons: newCoupons,
+        lotteryTickets: newLotteryTickets,
       };
     });
 
@@ -3126,9 +3309,9 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
       });
     }
     
-    // Also save to localStorage immediately
+    // Also save to localStorage immediately (use correct key for mode)
     try {
-      const storageKey = userId ? `yates-mining-game-${userId}` : 'yates-mining-game-guest';
+      const storageKey = getStorageKey(userId, gameState.isHardMode);
       const stored = localStorage.getItem(storageKey);
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -4112,6 +4295,27 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     return gameState.stokens;
   }, [gameState.stokens]);
 
+  // Lottery Ticket functions
+  const addLotteryTickets = useCallback((amount: number) => {
+    setGameState(prev => ({
+      ...prev,
+      lotteryTickets: prev.lotteryTickets + amount,
+    }));
+  }, []);
+
+  const spendLotteryTickets = useCallback((amount: number): boolean => {
+    if (gameState.lotteryTickets < amount) return false;
+    setGameState(prev => ({
+      ...prev,
+      lotteryTickets: prev.lotteryTickets - amount,
+    }));
+    return true;
+  }, [gameState.lotteryTickets]);
+
+  const getLotteryTickets = useCallback((): number => {
+    return gameState.lotteryTickets;
+  }, [gameState.lotteryTickets]);
+
   // Roulette spin
   const spinRouletteWheel = useCallback((): RouletteResult => {
     const result = spinRoulette();
@@ -4693,6 +4897,9 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
         addStokens,
         spendStokens,
         getStokens,
+        addLotteryTickets,
+        spendLotteryTickets,
+        getLotteryTickets,
         spinRouletteWheel,
         wanderingTraderPermBuffs,
       }}
