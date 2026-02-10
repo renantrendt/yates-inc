@@ -21,7 +21,6 @@ export interface CartItem {
 export interface Employee {
   id: string;
   name: string;
-  password: string;
   role: string;
   bio?: string;
   mail_handle?: string;

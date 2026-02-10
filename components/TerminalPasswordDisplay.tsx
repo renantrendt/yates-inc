@@ -1,40 +1,51 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { 
-  getCurrentTerminalPassword, 
-  getSecondsUntilExpiry, 
-  formatTimeRemaining,
-  getCurrentTimeWindow
-} from '@/lib/terminalPassword';
+import { useState, useEffect, useCallback } from 'react';
 
 interface TerminalPasswordDisplayProps {
   onClose: () => void;
 }
 
 export default function TerminalPasswordDisplay({ onClose }: TerminalPasswordDisplayProps) {
-  const [password, setPassword] = useState(getCurrentTerminalPassword());
-  const [timeRemaining, setTimeRemaining] = useState(getSecondsUntilExpiry());
+  const [password, setPassword] = useState('------');
+  const [timeRemaining, setTimeRemaining] = useState(0);
   const [copied, setCopied] = useState(false);
-  const [lastTimeWindow, setLastTimeWindow] = useState(getCurrentTimeWindow());
+  const [lastTimeWindow, setLastTimeWindow] = useState(0);
 
-  // Update countdown every second
+  // Fetch password from server-side API
+  const fetchPassword = useCallback(async () => {
+    try {
+      const res = await fetch('/api/terminal/password');
+      const data = await res.json();
+      setPassword(data.password);
+      setTimeRemaining(data.secondsUntilExpiry);
+      setLastTimeWindow(data.timeWindow);
+    } catch (err) {
+      console.error('Failed to fetch terminal password:', err);
+    }
+  }, []);
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchPassword();
+  }, [fetchPassword]);
+
+  // Update countdown every second & refetch when password expires
   useEffect(() => {
     const interval = setInterval(() => {
-      const seconds = getSecondsUntilExpiry();
-      setTimeRemaining(seconds);
-      
-      // Check if we've entered a new time window (password changed)
-      const currentWindow = getCurrentTimeWindow();
-      if (currentWindow !== lastTimeWindow) {
-        setPassword(getCurrentTerminalPassword());
-        setLastTimeWindow(currentWindow);
-        setCopied(false); // Reset copied state when password changes
-      }
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          // Password expired — fetch new one from server
+          fetchPassword();
+          setCopied(false);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [lastTimeWindow]);
+  }, [fetchPassword]);
 
   const handleCopy = async () => {
     try {
@@ -46,7 +57,14 @@ export default function TerminalPasswordDisplay({ onClose }: TerminalPasswordDis
     }
   };
 
-  // Format time display with color based on urgency
+  // Format time display
+  const formatTimeRemaining = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Color based on urgency
   const getTimeColor = () => {
     if (timeRemaining <= 30) return 'text-red-500';
     if (timeRemaining <= 60) return 'text-yellow-500';

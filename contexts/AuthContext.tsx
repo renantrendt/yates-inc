@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Employee, AuthContextType } from '@/types';
-import { supabase } from '@/lib/supabase';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -19,30 +18,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (id: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Query Supabase for employee with matching ID
-      const { data, error } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('id', id)
-        .single();
+      // Call server-side API route — password is compared on the server, never returned
+      const res = await fetch('/api/auth/employee-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, password }),
+      });
 
-      if (error || !data) {
-        return { success: false, error: 'id' };
+      const data = await res.json();
+
+      if (!data.success) {
+        return { success: false, error: data.error };
       }
 
-      // Check password
-      if (data.password !== password) {
-        return { success: false, error: 'password' };
-      }
-
-      // Success! Store employee
+      // Employee data from server has NO password field
       const employeeData: Employee = {
-        id: data.id,
-        name: data.name,
-        password: data.password,
-        role: data.role,
-        bio: data.bio,
-        mail_handle: data.mail_handle,
+        id: data.employee.id,
+        name: data.employee.name,
+        role: data.employee.role,
+        bio: data.employee.bio,
+        mail_handle: data.employee.mail_handle,
       };
 
       setEmployee(employeeData);
@@ -83,4 +78,3 @@ export function useAuth() {
   }
   return context;
 }
-

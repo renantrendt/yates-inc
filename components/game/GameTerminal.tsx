@@ -7,7 +7,7 @@ import { useClient } from '@/contexts/ClientContext';
 import { PICKAXES, ROCKS } from '@/lib/gameData';
 import { supabase } from '@/lib/supabase';
 import { TRINKETS, TITLES, ACHIEVEMENTS, getPrestigePriceMultiplier } from '@/types/game';
-import { validateTerminalPassword } from '@/lib/terminalPassword';
+// Terminal password validation is now server-side via /api/terminal/validate
 
 // Admin IDs that can ban users (only Bernardo and Logan)
 const BAN_ADMIN_IDS = ['123456', '000001'];
@@ -104,23 +104,35 @@ export default function GameTerminal({ isOpen, onClose, onMine }: GameTerminalPr
     };
   }, [isOpen, handleClose]);
 
-  // Handle password submission for guests
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  // Handle password submission for guests — validated server-side
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateTerminalPassword(passwordInput)) {
-      setGuestAuthenticated(true);
-      setPasswordInput('');
-      setPasswordError('');
-      // Reset history to welcome message for guests
-      setHistory([
-        '🔓 GUEST ACCESS GRANTED',
-        '💀 Welcome to the shadow realm...',
-        'Type help for commands',
-        '(Type S0 to sign out)',
-        '',
-      ]);
-    } else {
-      setPasswordError('Invalid password. Nice try tho 😏');
+    try {
+      const res = await fetch('/api/terminal/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: passwordInput }),
+      });
+      const data = await res.json();
+
+      if (data.valid) {
+        setGuestAuthenticated(true);
+        setPasswordInput('');
+        setPasswordError('');
+        // Reset history to welcome message for guests
+        setHistory([
+          '🔓 GUEST ACCESS GRANTED',
+          '💀 Welcome to the shadow realm...',
+          'Type help for commands',
+          '(Type S0 to sign out)',
+          '',
+        ]);
+      } else {
+        setPasswordError('Invalid password. Nice try tho 😏');
+        setPasswordInput('');
+      }
+    } catch (err) {
+      setPasswordError('Failed to validate. Try again.');
       setPasswordInput('');
     }
   };

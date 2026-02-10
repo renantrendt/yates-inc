@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 
 export default function ClientSignupPage() {
   const router = useRouter();
@@ -47,55 +46,32 @@ export default function ClientSignupPage() {
     setIsChecking(true);
 
     try {
-      const mailHandle = username.toLowerCase() + '.mail';
+      // Call server-side API — password handled on the server, never returned
+      const res = await fetch('/api/auth/client-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
 
-      // Check if username already exists
-      const { data: existingUser } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('username', username.toLowerCase())
-        .single();
+      const data = await res.json();
 
-      if (existingUser) {
-        setError('Username already taken! Try another one.');
+      if (!data.success) {
+        setError(data.error || 'Error creating account.');
         setIsChecking(false);
         return;
       }
 
-      // Create new client with password
-      const { data: newClient, error: createError } = await supabase
-        .from('clients')
-        .insert([
-          {
-            username: username.toLowerCase(),
-            mail_handle: mailHandle,
-            password: password, // Save password
-          },
-        ])
-        .select()
-        .single();
+      // Store in localStorage — NO password included
+      localStorage.setItem('yates-client', JSON.stringify({
+        id: data.client.id,
+        username: data.client.username,
+        mail_handle: data.client.mail_handle,
+      }));
 
-      if (createError) {
-        console.error('Error creating client:', createError);
-        setError('Error creating account. Make sure you ran the SQL setup!');
-        setIsChecking(false);
-        return;
-      }
-
-      if (newClient) {
-        // Store in localStorage
-        localStorage.setItem('yates-client', JSON.stringify({
-          id: newClient.id,
-          username: newClient.username,
-          mail_handle: newClient.mail_handle,
-        }));
-
-        // Keep button disabled and show success message briefly before redirect
-        // This gives contexts time to pick up the new client
-        setTimeout(() => {
-          router.push('/');
-        }, 800);
-      }
+      // Keep button disabled and show success message briefly before redirect
+      setTimeout(() => {
+        router.push('/');
+      }, 800);
     } catch (err) {
       console.error('Registration error:', err);
       setError('Something went wrong. Check console for details.');
@@ -114,42 +90,31 @@ export default function ClientSignupPage() {
     setIsChecking(true);
 
     try {
-      // Find existing client
-      const { data: existingClient, error: fetchError } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('username', username.toLowerCase())
-        .single();
+      // Call server-side API — password compared on the server, never returned
+      const res = await fetch('/api/auth/client-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
 
-      if (fetchError || !existingClient) {
-        setError('Account not found. Check your username or create a new one!');
+      const data = await res.json();
+
+      if (!data.success) {
+        if (data.error === 'needs_password') {
+          setNeedsPassword(true);
+          setError(data.message || 'This account has a password. Please enter it.');
+        } else {
+          setError(data.error || 'Something went wrong.');
+        }
         setIsChecking(false);
         return;
       }
 
-      // Check if user has a password set
-      if (existingClient.password) {
-        // User has a password - verify it
-        if (!password) {
-          setNeedsPassword(true);
-          setError('This account has a password. Please enter it.');
-          setIsChecking(false);
-          return;
-        }
-        
-        if (existingClient.password !== password) {
-          setError('Wrong password! Try again.');
-          setIsChecking(false);
-          return;
-        }
-      }
-      // If no password set, let them in (they'll be prompted to create one via PasswordSetupPopup)
-
-      // Store in localStorage
+      // Store in localStorage — NO password included
       localStorage.setItem('yates-client', JSON.stringify({
-        id: existingClient.id,
-        username: existingClient.username,
-        mail_handle: existingClient.mail_handle,
+        id: data.client.id,
+        username: data.client.username,
+        mail_handle: data.client.mail_handle,
       }));
 
       // Redirect to home

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useClient } from '@/contexts/ClientContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 
 // Emergency logout - run window.emergencyLogout() in browser console
 if (typeof window !== 'undefined') {
@@ -26,7 +25,7 @@ export default function PasswordSetupPopup() {
   const [needsPassword, setNeedsPassword] = useState(false);
   const [checkingPassword, setCheckingPassword] = useState(true);
 
-  // Check if client needs to set a password
+  // Check if client needs to set a password — via server-side API (no password data returned)
   useEffect(() => {
     async function checkPassword() {
       // Only show for clients, not employees
@@ -36,25 +35,15 @@ export default function PasswordSetupPopup() {
       }
 
       try {
-        // Check if client has a password set
-        // Select all fields since 'password' column might not exist yet
-        const { data, error } = await supabase
-          .from('clients')
-          .select('*')
-          .eq('id', client.id)
-          .single();
+        const res = await fetch('/api/auth/client-check-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: client.id }),
+        });
 
-        if (error) {
-          // Column might not exist yet - that's ok, show the popup
-          console.log('Password column may not exist yet, showing setup popup');
-          setNeedsPassword(true);
-          setCheckingPassword(false);
-          return;
-        }
+        const data = await res.json();
 
-        // If no password or password is null/empty, show popup
-        // Check if password property exists and has a value
-        if (!data?.password) {
+        if (data.needsPassword) {
           setNeedsPassword(true);
         }
       } catch (err) {
@@ -86,14 +75,17 @@ export default function PasswordSetupPopup() {
     setLoading(true);
 
     try {
-      // Save password to database
-      const { error: updateError } = await supabase
-        .from('clients')
-        .update({ password: password })
-        .eq('id', client!.id);
+      // Save password via server-side API — password never returned to client
+      const res = await fetch('/api/auth/client-set-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: client!.id, password }),
+      });
 
-      if (updateError) {
-        throw updateError;
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to save password.');
       }
 
       // Success - close popup
