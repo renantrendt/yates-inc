@@ -618,8 +618,6 @@ export const getProgressiveUpgradeById = (id: ProgressiveUpgradeType): Progressi
 
 // =====================
 // POWERUP HELPERS
-// =====================
-
-export const getPowerupById = (id: PowerupType): Powerup | undefined => {
+// =====================export const getPowerupById = (id: PowerupType): Powerup | undefined => {
   return POWERUPS.find((p) => p.id === id);
 };
