@@ -123,7 +123,7 @@ export default function GameSettings({ isOpen, onClose }: GameSettingsProps) {
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-gray-400">Rocks Broken</span>
-                <span className="text-white font-medium">{(gameState.totalRocksBroken || 0).toLocaleString()}</span>
+                <span className="text-white font-medium">{(gameState.rocksMinedCount || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-gray-400">Pickaxes Owned</span>
