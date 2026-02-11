@@ -2,16 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useGame } from '@/contexts/GameContext';
-import TrinketShopModal from './TrinketShopModal';
 import { RARITY_COLORS } from '@/types/game';
 
 interface TrinketShopButtonProps {
   hidden?: boolean;
   inline?: boolean; // Render as inline element instead of fixed-position floating button
+  onOpen: () => void;
 }
 
-export default function TrinketShopButton({ hidden = false, inline = false }: TrinketShopButtonProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function TrinketShopButton({ hidden = false, inline = false, onOpen }: TrinketShopButtonProps) {
   const [timeLeft, setTimeLeft] = useState(0);
   const { trinketShopItems, getTrinketShopTimeLeft, yatesTotemSpawned } = useGame();
   
@@ -50,7 +49,7 @@ export default function TrinketShopButton({ hidden = false, inline = false }: Tr
       
       {/* Trinket Shop Button */}
       <button
-        onClick={() => setIsOpen(true)}
+        onClick={onOpen}
         className={
           inline
             ? "w-full flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-95"
@@ -69,9 +68,6 @@ export default function TrinketShopButton({ hidden = false, inline = false }: Tr
           </p>
         </div>
       </button>
-      
-      <TrinketShopModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
     </>
   );
 }
-

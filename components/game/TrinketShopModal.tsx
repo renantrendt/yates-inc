@@ -36,7 +36,7 @@ function TrinketCard({ trinket, onBuy, owned, canAfford, scaledCost, onClickOwne
   
   return (
     <div 
-      className={`relative bg-gray-900/90 rounded-xl p-4 border-2 transition-all hover:scale-[1.02] ${owned ? 'cursor-pointer' : ''}`}
+      className={`relative bg-gray-900/90 rounded-xl p-2 sm:p-4 border-2 transition-all hover:scale-[1.02] ${owned ? 'cursor-pointer' : ''}`}
       style={{ borderColor: rarityColor, boxShadow: `0 0 15px ${rarityColor}40` }}
       onClick={owned ? onClickOwned : undefined}
     >
@@ -49,7 +49,7 @@ function TrinketCard({ trinket, onBuy, owned, canAfford, scaledCost, onClickOwne
       </div>
       
       {/* Image */}
-      <div className="w-24 h-24 mx-auto mb-3 relative">
+      <div className="w-16 h-16 sm:w-24 sm:h-24 mx-auto mb-2 sm:mb-3 relative">
         <Image
           src={trinket.image}
           alt={trinket.name}
@@ -59,12 +59,12 @@ function TrinketCard({ trinket, onBuy, owned, canAfford, scaledCost, onClickOwne
       </div>
       
       {/* Name */}
-      <h3 className="text-white font-bold text-center mb-1" style={{ color: rarityColor }}>
+      <h3 className="text-white font-bold text-center text-sm sm:text-base mb-1" style={{ color: rarityColor }}>
         {trinket.name}
       </h3>
       
       {/* Description */}
-      <p className="text-gray-400 text-xs text-center mb-3">
+      <p className="text-gray-400 text-[10px] sm:text-xs text-center mb-2 sm:mb-3">
         {trinket.description}
       </p>
       
@@ -194,7 +194,7 @@ export default function TrinketShopModal({ isOpen, onClose }: TrinketShopModalPr
             <p className="text-gray-500 text-sm">Check back when the shop refreshes!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-4">
             {trinketShopItems.map(trinket => {
               const scaledCost = Math.floor(trinket.cost * getPrestigePriceMultiplier(gameState.prestigeCount, gameState.isHardMode));
               const isOwned = ownsTrinket(trinket.id);

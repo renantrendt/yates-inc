@@ -11,6 +11,7 @@ import RockSelector from './RockSelector';
 import GameTerminal from './GameTerminal';
 import PrestigeButton from './PrestigeButton';
 import TrinketShopButton from './TrinketShopButton';
+import TrinketShopModal from './TrinketShopModal';
 import TrinketSlot from './TrinketSlot';
 import MinerSprites from './MinerSprite';
 import AchievementsPanel from './AchievementsPanel';
@@ -97,6 +98,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
   const [showRockSelector, setShowRockSelector] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const [showTrinketIndex, setShowTrinketIndex] = useState(false);
+  const [trinketShopOpen, setTrinketShopOpen] = useState(false);
   const [showRanking, setShowRanking] = useState(false);
   const [showSacrifice, setShowSacrifice] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -1004,7 +1006,7 @@ export default function MiningGame({ onExit }: MiningGameProps) {
 
             {/* Trinket Shop — below buildings */}
             <div className="border-t border-gray-700/30 px-4 py-3">
-              <TrinketShopButton hidden={showTrinketIndex} inline />
+              <TrinketShopButton hidden={showTrinketIndex} inline onOpen={() => setTrinketShopOpen(true)} />
             </div>
 
             {/* Miners Section */}
@@ -1118,8 +1120,9 @@ export default function MiningGame({ onExit }: MiningGameProps) {
       <ForemanJackTutorial />
       {/* Floating trinket shop button — mobile only (desktop uses inline version in right panel) */}
       <div className="lg:hidden">
-        <TrinketShopButton hidden={showTrinketIndex} />
+        <TrinketShopButton hidden={showTrinketIndex} onOpen={() => setTrinketShopOpen(true)} />
       </div>
+      <TrinketShopModal isOpen={trinketShopOpen} onClose={() => setTrinketShopOpen(false)} />
       <TrinketIndex isOpen={showTrinketIndex} onClose={() => setShowTrinketIndex(false)} />
       <GameTerminal isOpen={showTerminal} onClose={() => setShowTerminal(false)} onMine={handleMine} />
 
