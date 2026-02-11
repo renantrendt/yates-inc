@@ -8,6 +8,7 @@ import { TRINKETS, RARITY_COLORS, Trinket, RELIC_MULTIPLIERS, TALISMAN_MULTIPLIE
 export default function TrinketSlot() {
   const [showSelector, setShowSelector] = useState(false);
   const [showBonusDetails, setShowBonusDetails] = useState(false);
+  const [rarityFilter, setRarityFilter] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const { 
     gameState, 
@@ -169,10 +170,10 @@ export default function TrinketSlot() {
         })}
       </div>
       
-      {/* Active Bonuses Summary (Compact view below trinkets) */}
+      {/* Active Bonuses Summary (Compact view below trinkets) — hidden on desktop sidebar (bonuses shown in sidebar cards) */}
       {hasActiveBonuses && (
         <div 
-          className="absolute top-full left-0 mt-1 cursor-pointer max-w-[120px] sm:max-w-none"
+          className="absolute top-full left-0 mt-1 cursor-pointer max-w-[120px] sm:max-w-none lg:hidden"
           onClick={() => setShowBonusDetails(!showBonusDetails)}
         >
           {/* Mobile: Ultra compact single row with just icons and total bonus */}
@@ -418,24 +419,65 @@ export default function TrinketSlot() {
         />
       )}
       
-      {/* Trinket Selector Dropdown */}
+      {/* Trinket Selector Dropdown — with rarity filters & equipped pinning */}
       {showSelector && (
-        <div className="absolute top-full left-0 mt-2 w-72 bg-gray-900 rounded-xl p-3 border border-gray-600 shadow-xl z-[80]">
+        <div className="absolute top-full left-0 mt-2 w-72 bg-gray-900/95 backdrop-blur-sm rounded-xl p-3 border border-gray-600 shadow-xl z-[80]">
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-white font-bold text-sm">Your Trinkets</h4>
+            <h4 className="text-white font-bold text-xs">Trinkets <span className="text-gray-500 font-normal">({equippableItems.length})</span></h4>
             <button 
               onClick={() => setShowSelector(false)}
-              className="text-gray-400 hover:text-white"
+              className="text-gray-400 hover:text-white text-xs"
             >
               ✕
             </button>
           </div>
+
+          {/* Rarity Filters */}
+          {equippableItems.length > 0 && (
+            <div className="flex gap-1 mb-2 flex-wrap">
+              <button
+                onClick={() => setRarityFilter(null)}
+                className={`text-[9px] px-1.5 py-0.5 rounded transition-colors ${
+                  rarityFilter === null ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                All
+              </button>
+              {['common', 'uncommon', 'rare', 'epic', 'legendary'].filter(
+                r => equippableItems.some(item => item.baseTrinket.rarity === r)
+              ).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setRarityFilter(rarityFilter === r ? null : r)}
+                  className={`text-[9px] px-1.5 py-0.5 rounded transition-colors capitalize ${
+                    rarityFilter === r ? 'text-white' : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                  style={{ 
+                    backgroundColor: rarityFilter === r ? `${RARITY_COLORS[r as keyof typeof RARITY_COLORS]}40` : undefined,
+                    color: rarityFilter === r ? RARITY_COLORS[r as keyof typeof RARITY_COLORS] : undefined,
+                  }}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          )}
           
           {equippableItems.length === 0 ? (
             <p className="text-gray-500 text-xs">No trinkets owned. Buy some from the shop!</p>
           ) : (
             <div className="space-y-1 max-h-64 overflow-y-auto scrollable-touch">
-              {equippableItems.map(item => {
+              {/* Sort: equipped first, then by rarity, filter by selected rarity */}
+              {[...equippableItems]
+                .filter(item => !rarityFilter || item.baseTrinket.rarity === rarityFilter)
+                .sort((a, b) => {
+                  const aEquipped = gameState.equippedTrinketIds.includes(a.id) ? 0 : 1;
+                  const bEquipped = gameState.equippedTrinketIds.includes(b.id) ? 0 : 1;
+                  if (aEquipped !== bEquipped) return aEquipped - bEquipped;
+                  const rarityOrder = ['legendary', 'epic', 'rare', 'uncommon', 'common'];
+                  return rarityOrder.indexOf(a.baseTrinket.rarity) - rarityOrder.indexOf(b.baseTrinket.rarity);
+                })
+                .map(item => {
                 const isEquipped = gameState.equippedTrinketIds.includes(item.id);
                 const rarityColor = RARITY_COLORS[item.baseTrinket.rarity];
                 const isRelic = item.type === 'relic';

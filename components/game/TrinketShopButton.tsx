@@ -7,9 +7,10 @@ import { RARITY_COLORS } from '@/types/game';
 
 interface TrinketShopButtonProps {
   hidden?: boolean;
+  inline?: boolean; // Render as inline element instead of fixed-position floating button
 }
 
-export default function TrinketShopButton({ hidden = false }: TrinketShopButtonProps) {
+export default function TrinketShopButton({ hidden = false, inline = false }: TrinketShopButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const { trinketShopItems, getTrinketShopTimeLeft, yatesTotemSpawned } = useGame();
@@ -47,19 +48,23 @@ export default function TrinketShopButton({ hidden = false }: TrinketShopButtonP
         </div>
       )}
       
-      {/* Trinket Shop Button - positioned above the bottom stats panel on mobile */}
+      {/* Trinket Shop Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-[180px] sm:bottom-[200px] left-2 sm:left-4 z-30 flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95"
+        className={
+          inline
+            ? "w-full flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-95"
+            : "fixed bottom-[180px] sm:bottom-[200px] left-2 sm:left-4 z-30 flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95"
+        }
         style={{ 
           backgroundColor: buttonColor,
           boxShadow: `0 0 20px ${buttonColor}50`,
         }}
       >
-        <span className="text-lg sm:text-2xl">💎</span>
+        <span className={inline ? "text-2xl" : "text-lg sm:text-2xl"}>💎</span>
         <div className="text-left text-white">
-          <p className="font-bold text-xs sm:text-sm">Trinkets</p>
-          <p className="text-[10px] sm:text-xs opacity-80">
+          <p className={inline ? "font-bold text-sm" : "font-bold text-xs sm:text-sm"}>Trinkets</p>
+          <p className={inline ? "text-xs opacity-80" : "text-[10px] sm:text-xs opacity-80"}>
             {trinketShopItems.length} • {minutes}:{seconds.toString().padStart(2, '0')}
           </p>
         </div>

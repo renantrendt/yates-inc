@@ -163,8 +163,9 @@ export function safeMoney(value: number): number {
 }
 
 // Helper to safely convert large numbers for PostgreSQL NUMERIC(24)
-// Returns null ONLY for undefined/null input, clamps bad numbers to 0
-function safeBigInt(value: number | undefined | null): number | null {
+// Returns STRING for large numbers to avoid JS scientific notation (e.g. "1.23e+21")
+// which PostgreSQL cannot parse for bigint/numeric columns.
+function safeBigInt(value: number | undefined | null): string | number | null {
   if (value === undefined || value === null) return null;
   if (!Number.isFinite(value)) {
     // NaN or Infinity - clamp to 0 instead of returning null (prevents DB corruption)
@@ -173,7 +174,13 @@ function safeBigInt(value: number | undefined | null): number | null {
   }
   // Cap at SEXTILLION_CAP to match NUMERIC(24) in the database
   const safeValue = Math.min(Math.abs(value), SEXTILLION_CAP);
-  return Math.floor(value >= 0 ? safeValue : -safeValue);
+  const result = Math.floor(value >= 0 ? safeValue : -safeValue);
+  // For large numbers (>= 1e15), convert to string to prevent scientific notation
+  // e.g. 1007984345771996600000 -> "1007984345771996600000" instead of "1.00798e+21"
+  if (Math.abs(result) >= 1e15) {
+    return BigInt(result).toString();
+  }
+  return result;
 }
 
 // Save/update user game data to Supabase

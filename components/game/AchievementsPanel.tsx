@@ -9,9 +9,11 @@ import { supabase } from '@/lib/supabase';
 interface AchievementsPanelProps {
   isTrinketIndexOpen: boolean;
   setIsTrinketIndexOpen: (open: boolean) => void;
+  forceOpen?: boolean;
+  onForceOpenHandled?: () => void;
 }
 
-export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketIndexOpen }: AchievementsPanelProps) {
+export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketIndexOpen, forceOpen, onForceOpenHandled }: AchievementsPanelProps) {
   const { gameState, equipTitle, unequipTitle } = useGame();
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -20,6 +22,14 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Handle forceOpen from parent (bottom action bar)
+  useEffect(() => {
+    if (forceOpen) {
+      setIsAchievementsOpen(true);
+      onForceOpenHandled?.();
+    }
+  }, [forceOpen, onForceOpenHandled]);
 
   // Fetch title counts when panel opens
   useEffect(() => {
@@ -70,23 +80,20 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
   return (
     <>
       {/* Split button - Achievements & Trinket Index */}
-      <div className="flex rounded-lg overflow-hidden shadow-lg">
-        {/* Achievements (left half) */}
+      <div className="flex rounded-lg overflow-hidden shadow-lg lg:w-full">
         <button
           onClick={() => setIsAchievementsOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold transition-all border-r-2 border-amber-800"
+          className="flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold transition-all border-r border-amber-800 flex-1 lg:flex-initial justify-center"
         >
-          <span className="text-xl">🏆</span>
-          <span className="text-sm">{unlockedCount}/{totalCount}</span>
+          <span className="text-base sm:text-xl">🏆</span>
+          <span className="text-[10px] sm:text-sm">{unlockedCount}/{totalCount}</span>
         </button>
-
-        {/* Trinket Index (right half) */}
         <button
           onClick={() => setIsTrinketIndexOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold transition-all"
+          className="flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold transition-all flex-1 lg:flex-initial justify-center"
         >
-          <span className="text-xl">💎</span>
-          <span className="text-sm">{trinketOwnedCount}/{trinketTotalCount}</span>
+          <span className="text-base sm:text-xl">💎</span>
+          <span className="text-[10px] sm:text-sm">{trinketOwnedCount}/{trinketTotalCount}</span>
         </button>
       </div>
 
@@ -97,44 +104,78 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
           onClick={() => setIsAchievementsOpen(false)}
         >
           <div 
-            className="bg-gray-900 rounded-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto border-2 border-amber-500 z-[9999]"
+            className="bg-gray-900/95 backdrop-blur-sm rounded-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden border border-amber-500/40 z-[9999] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-amber-400 flex items-center gap-3">
-                <span className="text-3xl">🏆</span>
-                Achievements
-              </h2>
-              <div className="text-lg font-bold text-white">
-                {unlockedCount} / {totalCount}
+            {/* Header */}
+            <div className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-lg sm:text-xl font-bold text-amber-400 flex items-center gap-2">
+                  🏆 Achievements
+                </h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-bold text-white">{unlockedCount}/{totalCount}</span>
+                  <span className="text-[10px] text-gray-500">({Math.round((unlockedCount / totalCount) * 100)}%)</span>
+                  <button 
+                    onClick={() => setIsAchievementsOpen(false)}
+                    className="text-gray-400 hover:text-white text-lg ml-2"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-500"
+                  style={{ width: `${(unlockedCount / totalCount) * 100}%` }}
+                />
               </div>
             </div>
 
-            {/* Progress bar */}
-            <div className="w-full h-3 bg-gray-700 rounded-full mb-6 overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-500"
-                style={{ width: `${(unlockedCount / totalCount) * 100}%` }}
-              />
+            {/* Category tabs */}
+            <div className="flex border-b border-gray-700/50 overflow-x-auto px-2 sm:px-4">
+              {gameState.ownedTitleIds && gameState.ownedTitleIds.length > 0 && (
+                <button
+                  className="flex-shrink-0 py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs font-bold text-purple-400 border-b-2 border-transparent hover:border-purple-400/50 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const el = document.getElementById('titles-section');
+                    el?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  👑 Titles
+                </button>
+              )}
+              {categoryOrder.map(cat => (
+                <button
+                  key={cat}
+                  className="flex-shrink-0 py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs font-bold text-gray-400 hover:text-amber-400 border-b-2 border-transparent hover:border-amber-400/50 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const el = document.getElementById(`cat-${cat}`);
+                    el?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  {categoryNames[cat]}
+                </button>
+              ))}
             </div>
 
-            {/* Pro Player Section - Only shows if player has titles */}
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+
+            {/* Pro Player Titles — compact rows */}
             {gameState.ownedTitleIds && gameState.ownedTitleIds.length > 0 && (
-              <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-2 border-purple-500/50">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-bold text-purple-300 flex items-center gap-2">
-                    <span>👑</span> Pro Player Titles
-                  </h3>
-                  {/* Show equipped count */}
-                  <div className="text-xs text-gray-400">
-                    {gameState.equippedTitleIds?.length || 0} / {gameState.ownedPrestigeUpgradeIds?.includes('title_master') ? 2 : 1} equipped
-                    {gameState.ownedPrestigeUpgradeIds?.includes('title_master') && (
-                      <span className="ml-1 text-purple-400">✨ Title Master</span>
-                    )}
-                  </div>
+              <div id="titles-section" className="mb-4 p-3 rounded-xl bg-purple-950/30 border border-purple-500/20">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold text-purple-300">👑 Titles</h3>
+                  <span className="text-[10px] text-gray-500">
+                    {gameState.equippedTitleIds?.length || 0}/{gameState.ownedPrestigeUpgradeIds?.includes('title_master') ? 2 : 1} equipped
+                  </span>
                 </div>
-                <p className="text-xs text-gray-500 mb-3">Click to equip/unequip titles</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
                   {TITLES.filter(title => gameState.ownedTitleIds?.includes(title.id)).map(title => {
                     const isEquipped = gameState.equippedTitleIds?.includes(title.id);
                     const hasTitleMaster = gameState.ownedPrestigeUpgradeIds?.includes('title_master');
@@ -145,47 +186,28 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
                       <button
                         key={title.id}
                         onClick={() => {
-                          if (isEquipped) {
-                            unequipTitle(title.id);
-                          } else {
-                            equipTitle(title.id);
-                          }
+                          if (isEquipped) unequipTitle(title.id);
+                          else equipTitle(title.id);
                         }}
-                        className={`p-3 rounded-xl border-2 transition-all text-left ${
+                        className={`w-full flex items-center gap-2 p-2 rounded-lg border transition-all text-left ${
                           isEquipped 
-                            ? 'bg-purple-600/30 border-purple-400 shadow-lg shadow-purple-500/30' 
+                            ? 'bg-purple-600/20 border-purple-400/40' 
                             : canEquip
-                              ? 'bg-gray-800/50 border-gray-600 hover:border-purple-500/50 hover:bg-purple-900/20'
-                              : 'bg-gray-800/50 border-gray-600 opacity-60'
+                              ? 'bg-gray-800/30 border-gray-700/30 hover:border-purple-500/30'
+                              : 'bg-gray-800/20 border-gray-800/20 opacity-50'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">{title.icon}</span>
-                          <div className="flex-1">
-                            <p className={`font-bold ${TITLE_NAME_STYLES[title.nameStyle]}`}>
-                              {title.name}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {title.category === 'secret' && titleCounts[title.id] 
-                                ? `You are one of the ${titleCounts[title.id]} who have this title!`
-                                : title.description}
-                            </p>
-                            {/* Show buffs */}
-                            <div className="text-xs text-green-400 mt-1">
-                              {title.buffs.moneyBonus && `+${Math.round(title.buffs.moneyBonus * 100)}% money `}
-                              {title.buffs.allBonus && `+${Math.round(title.buffs.allBonus * 100)}% all `}
-                              {title.buffs.speedBonus && `+${Math.round(title.buffs.speedBonus * 100)}% speed `}
-                              {title.buffs.pcxDiscount && `${Math.round(title.buffs.pcxDiscount * 100)}% pcx discount `}
-                              {title.buffs.prestigeMoneyRetention && `keep ${Math.round(title.buffs.prestigeMoneyRetention * 100)}% on prestige`}
-                            </div>
+                        <span className="text-lg flex-shrink-0">{title.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`font-bold text-xs ${TITLE_NAME_STYLES[title.nameStyle]}`}>{title.name}</span>
+                            {isEquipped && <span className="text-[8px] bg-purple-500/30 text-purple-300 px-1 py-0.5 rounded font-bold">EQUIP</span>}
                           </div>
-                          {isEquipped ? (
-                            <span className="text-purple-400 text-xs font-bold px-2 py-1 bg-purple-500/20 rounded">EQUIPPED</span>
-                          ) : canEquip ? (
-                            <span className="text-gray-500 text-xs">Click to equip</span>
-                          ) : (
-                            <span className="text-gray-600 text-xs">Slot full</span>
-                          )}
+                          <span className="text-[10px] text-green-400/80">
+                            {title.buffs.moneyBonus ? `+${Math.round(title.buffs.moneyBonus * 100)}% money ` : ''}
+                            {title.buffs.allBonus ? `+${Math.round(title.buffs.allBonus * 100)}% all ` : ''}
+                            {title.buffs.speedBonus ? `+${Math.round(title.buffs.speedBonus * 100)}% speed ` : ''}
+                          </span>
                         </div>
                       </button>
                     );
@@ -194,42 +216,44 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
               </div>
             )}
 
-            {/* Achievements by category */}
+            {/* Achievements by category — compact rows */}
             {categoryOrder.map(category => {
               const categoryAchievements = ACHIEVEMENTS.filter(a => a.category === category);
+              const catUnlocked = categoryAchievements.filter(a => checkAchievementUnlocked(a, gameState)).length;
               return (
-                <div key={category} className="mb-6">
-                  <h3 className="text-lg font-bold text-gray-300 mb-3">
-                    {categoryNames[category]}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div key={category} id={`cat-${category}`} className="mb-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h3 className="text-xs sm:text-sm font-bold text-gray-300">
+                      {categoryNames[category]}
+                    </h3>
+                    <span className="text-[10px] text-gray-500">{catUnlocked}/{categoryAchievements.length}</span>
+                  </div>
+                  <div className="space-y-1">
                     {categoryAchievements.map(achievement => {
                       const isUnlocked = checkAchievementUnlocked(achievement, gameState);
                       return (
                         <div
                           key={achievement.id}
-                          className={`p-4 rounded-xl border-2 transition-all ${
+                          className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${
                             isUnlocked 
-                              ? 'bg-amber-900/30 border-amber-500 shadow-lg shadow-amber-500/20' 
-                              : 'bg-gray-800/50 border-gray-700 opacity-60'
+                              ? 'bg-amber-900/20 border-amber-500/30' 
+                              : 'bg-gray-800/20 border-gray-800/20 opacity-40'
                           }`}
                         >
-                          <div className="flex items-center gap-3">
-                            <span className={`text-3xl ${isUnlocked ? '' : 'grayscale'}`}>
-                              {isUnlocked ? achievement.icon : '🔒'}
+                          <span className={`text-lg sm:text-xl flex-shrink-0 ${isUnlocked ? '' : 'grayscale'}`}>
+                            {isUnlocked ? achievement.icon : '🔒'}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <span className={`font-bold text-xs sm:text-sm ${isUnlocked ? 'text-amber-400' : 'text-gray-600'}`}>
+                              {achievement.name}
                             </span>
-                            <div>
-                              <p className={`font-bold ${isUnlocked ? 'text-amber-400' : 'text-gray-500'}`}>
-                                {achievement.name}
-                              </p>
-                              <p className={`text-sm ${isUnlocked ? 'text-gray-300' : 'text-gray-600'}`}>
-                                {achievement.description}
-                              </p>
-                            </div>
-                            {isUnlocked && (
-                              <span className="ml-auto text-green-400 text-xl">✓</span>
-                            )}
+                            <p className={`text-[10px] sm:text-xs truncate ${isUnlocked ? 'text-gray-400' : 'text-gray-700'}`}>
+                              {achievement.description}
+                            </p>
                           </div>
+                          {isUnlocked && (
+                            <span className="text-green-400 text-xs flex-shrink-0">✓</span>
+                          )}
                         </div>
                       );
                     })}
@@ -237,13 +261,7 @@ export default function AchievementsPanel({ isTrinketIndexOpen, setIsTrinketInde
                 </div>
               );
             })}
-
-            <button
-              onClick={() => setIsAchievementsOpen(false)}
-              className="w-full mt-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-bold transition-all"
-            >
-              Close
-            </button>
+            </div>
           </div>
         </div>,
         document.body

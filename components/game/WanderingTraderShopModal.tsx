@@ -156,21 +156,22 @@ export default function WanderingTraderShopModal({ isOpen, onClose }: WanderingT
       onClick={onClose}
     >
       <div 
-        className="bg-gradient-to-b from-gray-900 via-purple-950/50 to-gray-900 rounded-2xl border-2 border-purple-500/50 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-gradient-to-b from-gray-950 via-purple-950/60 to-gray-950 rounded-2xl border border-amber-500/30 shadow-[0_0_40px_rgba(168,85,247,0.15)] max-w-2xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-900/80 to-gray-900/80 px-6 py-4 border-b border-purple-500/30 rounded-t-2xl">
+        {/* Header — mysterious merchant */}
+        <div className="bg-gradient-to-r from-purple-950/90 via-amber-950/30 to-purple-950/90 px-4 sm:px-6 py-3 sm:py-4 border-b border-amber-500/20 rounded-t-2xl">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">🧙</span>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="text-2xl sm:text-3xl">🧙</span>
               <div>
-                <h2 className="text-xl font-bold text-purple-200">Wandering Trader</h2>
-                <p className="text-purple-400 text-sm">Hmm... what do you seek?</p>
+                <h2 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-amber-300 to-purple-300 bg-clip-text text-transparent">Wandering Trader</h2>
+                <p className="text-purple-400/80 text-xs sm:text-sm italic">&quot;Hmm... what do you seek?&quot;</p>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-purple-400 text-sm">💎 {getStokens()} Stokens</div>
+            <div className="text-right flex flex-col gap-0.5">
+              <div className="text-yellow-400 text-xs sm:text-sm font-bold">💰 ${formatNumber(gameState.yatesDollars)}</div>
+              <div className="text-purple-400 text-[10px] sm:text-xs">💎 {getStokens()} Stokens</div>
             </div>
           </div>
         </div>
@@ -199,67 +200,70 @@ export default function WanderingTraderShopModal({ isOpen, onClose }: WanderingT
               </div>
             )}
 
-            {/* Offers */}
-            <div className="p-6 space-y-4">
+            {/* Offers — compact rows */}
+            <div className="p-3 sm:p-4 space-y-2">
               {offers.length === 0 ? (
-                <div className="text-center text-purple-400 py-8">
+                <div className="text-center text-purple-400/60 py-8">
                   <span className="text-4xl">🤷</span>
-                  <p className="mt-2">No more offers available...</p>
+                  <p className="mt-2 text-sm italic">The merchant has nothing left...</p>
                 </div>
               ) : (
                 offers.map((offer) => (
                   <div 
                     key={offer.id}
-                    className="bg-gray-800/50 border border-purple-500/20 rounded-xl p-4 hover:border-purple-400/50 transition-colors"
+                    className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg bg-gray-900/60 border border-purple-500/15 hover:border-amber-500/30 transition-all group"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold text-purple-200">{offer.name}</h3>
-                        <p className="text-gray-400 text-sm mt-1">{offer.description}</p>
-                        <div className="mt-2 text-sm">
-                          <span className="text-purple-400">Cost: </span>
-                          <span className={`font-bold ${
-                            offer.cost.type === 'free' ? 'text-green-400' :
-                            offer.cost.type === 'all_money' ? 'text-red-400' :
-                            'text-yellow-400'
-                          }`}>
-                            {getCostDisplay(offer)}
-                          </span>
-                        </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-white font-bold text-xs sm:text-sm truncate group-hover:text-amber-200 transition-colors">{offer.name}</span>
                       </div>
-                      <button
-                        onClick={() => handlePurchase(offer)}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors whitespace-nowrap"
-                      >
-                        {offer.effect.type === 'roulette' ? '🎰 SPIN' : '🛒 BUY'}
-                      </button>
+                      <p className="text-gray-500 text-[10px] sm:text-xs truncate">{offer.description}</p>
+                      <span className={`text-[10px] sm:text-xs font-bold ${
+                        offer.cost.type === 'free' ? 'text-green-400' :
+                        offer.cost.type === 'all_money' ? 'text-red-400' :
+                        'text-amber-400'
+                      }`}>
+                        {getCostDisplay(offer)}
+                      </span>
                     </div>
+
+                    {/* Action */}
+                    <button
+                      onClick={() => handlePurchase(offer)}
+                      className={`flex-shrink-0 font-bold py-1.5 px-3 sm:px-4 rounded-lg text-xs sm:text-sm transition-all touch-manipulation whitespace-nowrap ${
+                        offer.effect.type === 'roulette'
+                          ? 'bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-black shadow-lg shadow-amber-500/20'
+                          : 'bg-purple-600/80 hover:bg-purple-500 text-white'
+                      }`}
+                    >
+                      {offer.effect.type === 'roulette' ? '🎰 SPIN' : 'BUY'}
+                    </button>
                   </div>
                 ))
               )}
             </div>
 
             {/* Footer */}
-            <div className="bg-gray-900/50 px-6 py-4 border-t border-purple-500/30 rounded-b-2xl flex justify-between items-center">
-              <p className="text-purple-400/60 text-xs italic">
+            <div className="bg-gray-950/80 px-3 sm:px-6 py-3 border-t border-amber-500/10 rounded-b-2xl flex justify-between items-center gap-2">
+              <p className="text-purple-400/40 text-[10px] sm:text-xs italic flex-1 min-w-0 truncate">
                 {gameState.wtDialogCompleted 
                   ? `"${gameState.wtMoneyTax * 100}% of your earnings are mine now..."`
                   : '"The void whispers many secrets..."'
                 }
               </p>
-              <div className="flex gap-2">
-                {/* Browse More - only shows before dialog completed */}
+              <div className="flex gap-1.5 flex-shrink-0">
                 {!gameState.wtDialogCompleted && (
                   <button
                     onClick={() => setShowDialog(true)}
-                    className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-purple-200 rounded-lg transition-colors"
+                    className="px-3 py-1.5 bg-purple-800/60 hover:bg-purple-700 text-purple-300 rounded-lg transition-colors text-xs font-medium"
                   >
                     Browse More
                   </button>
                 )}
                 <button
                   onClick={handleLeave}
-                  className="px-4 py-2 bg-red-600/50 hover:bg-red-600 text-red-200 rounded-lg transition-colors"
+                  className="px-3 py-1.5 bg-red-900/40 hover:bg-red-800/60 text-red-300 rounded-lg transition-colors text-xs font-medium"
                 >
                   Leave
                 </button>

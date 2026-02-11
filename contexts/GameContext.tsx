@@ -3355,23 +3355,25 @@ export function GameProvider({ children, isHardMode = false }: GameProviderProps
     return true;
   }, []);
 
-  // Buy multiple miners at once (bulk buy)
+  // Buy multiple miners at once (bulk buy) — single state update to avoid stale closure debt bug
   const buyMiners = useCallback((count: number): number => {
-    let bought = 0;
-    for (let i = 0; i < count; i++) {
-      if (gameState.minerCount + bought >= MINER_MAX_COUNT) break;
-      const cost = getMinerCost(gameState.minerCount + bought, gameState.prestigeCount, gameState.isHardMode);
-      if (gameState.yatesDollars < cost) break;
-      
-      setGameState(prev => ({
-        ...prev,
-        yatesDollars: prev.yatesDollars - cost,
-        minerCount: prev.minerCount + 1,
-      }));
-      bought++;
-    }
-    return bought;
-  }, [gameState.minerCount, gameState.yatesDollars, gameState.prestigeCount]);
+    let totalBought = 0;
+    setGameState(prev => {
+      let money = prev.yatesDollars;
+      let miners = prev.minerCount;
+      for (let i = 0; i < count; i++) {
+        if (miners >= MINER_MAX_COUNT) break;
+        const cost = getMinerCost(miners, prev.prestigeCount, prev.isHardMode);
+        if (money < cost) break;
+        money -= cost;
+        miners++;
+        totalBought++;
+      }
+      if (totalBought === 0) return prev;
+      return { ...prev, yatesDollars: money, minerCount: miners };
+    });
+    return totalBought;
+  }, []);
 
   // Get what buff would be applied for sacrificing X miners
   const getSacrificeBuffForCount = useCallback((count: number): { buff: SacrificeBuff; duration: number } | null => {

@@ -474,45 +474,32 @@ export default function GameShop({ onClose }: GameShopProps) {
 
         {/* Content */}
         <div className="p-3 sm:p-6 overflow-y-auto max-h-[70vh] sm:max-h-[60vh]">
-          {/* PICKAXES TAB */}
+          {/* PICKAXES TAB — Compact list rows */}
           {activeTab === 'pickaxes' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div className="space-y-1.5">
               {PICKAXES.filter(p => shouldShowPickaxe(p.id)).map((pickaxe) => {
                 const owned = ownsPickaxe(pickaxe.id);
                 const equipped = currentPickaxe.id === pickaxe.id;
                 const canAfford = canAffordPickaxe(pickaxe.id);
                 const pathLabel = getPathLabel(pickaxe.id);
                 const canBuyForPath = canBuyPickaxeForPath(pickaxe.id);
-                // Calculate scaled price (10% increase every 5 prestiges + hard mode multiplier)
                 const scaledPrice = Math.floor(pickaxe.price * getPrestigePriceMultiplier(gameState.prestigeCount, gameState.isHardMode));
                 
-                // Sequential purchase: can only buy if you own the previous one
-                // Skip path-locked pickaxes in the sequence calculation
                 const regularOwnedIds = gameState.ownedPickaxeIds.filter(id => id !== YATES_PICKAXE_ID);
                 const highestOwnedId = regularOwnedIds.length > 0 ? Math.max(...regularOwnedIds) : 0;
-                
-                // Determine which pickaxe IDs to skip based on player's path
                 const skippedIds = new Set<number>([YATES_PICKAXE_ID]);
                 if (gameState.chosenPath === 'darkness') {
-                  // Darkness players skip Light pickaxes
                   LIGHT_PICKAXE_IDS.forEach(id => skippedIds.add(id));
                 } else if (gameState.chosenPath === 'light') {
-                  // Light players skip Darkness pickaxes
                   DARKNESS_PICKAXE_IDS.forEach(id => skippedIds.add(id));
                 } else {
-                  // No path chosen yet - skip all path-restricted pickaxes
                   LIGHT_PICKAXE_IDS.forEach(id => skippedIds.add(id));
                   DARKNESS_PICKAXE_IDS.forEach(id => skippedIds.add(id));
                 }
-                
-                // Find the effective next ID by skipping unbuyable pickaxes
                 let effectiveNextId = highestOwnedId + 1;
-                while (skippedIds.has(effectiveNextId) && effectiveNextId <= 30) {
-                  effectiveNextId++;
-                }
+                while (skippedIds.has(effectiveNextId) && effectiveNextId <= 30) effectiveNextId++;
                 
                 const isNextInSequence = pickaxe.id === effectiveNextId;
-                // A pickaxe is locked if it's beyond the effective next AND not a skipped one we already passed
                 const isLocked = !owned && !skippedIds.has(pickaxe.id) && pickaxe.id > effectiveNextId;
                 const isPathLocked = !canBuyForPath && !owned;
                 const canPurchase = !owned && isNextInSequence && canAfford && canBuyForPath;
@@ -520,102 +507,67 @@ export default function GameShop({ onClose }: GameShopProps) {
                 return (
                   <div
                     key={pickaxe.id}
-                    className={`relative rounded-lg sm:rounded-xl p-3 sm:p-4 border transition-all ${
+                    className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 rounded-lg border transition-all ${
                       equipped
-                        ? 'bg-amber-600/20 border-amber-400'
+                        ? 'bg-amber-600/20 border-amber-400/50'
                         : owned
-                          ? 'bg-green-600/10 border-green-600/30'
+                          ? 'bg-green-600/10 border-green-600/20'
                           : isLocked || isPathLocked
-                            ? 'bg-gray-900/50 border-gray-800/50 opacity-50'
+                            ? 'bg-gray-900/30 border-gray-800/30 opacity-40'
                             : isNextInSequence
-                              ? 'bg-amber-900/20 border-amber-600/50 hover:border-amber-500/50'
-                              : 'bg-gray-800/50 border-gray-700/50'
+                              ? 'bg-amber-900/20 border-amber-600/40 hover:border-amber-500/50'
+                              : 'bg-gray-800/30 border-gray-700/30'
                     }`}
                   >
-                    {/* Equipped Badge */}
-                    {equipped && (
-                      <div className="absolute -top-2 -right-2 bg-amber-500 text-black text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
-                        EQUIPPED
-                      </div>
-                    )}
-                    
-                    {/* Path Badge */}
-                    {pathLabel && !owned && (
-                      <div className={`absolute -top-2 -left-2 text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full ${
-                        pathLabel.includes('Darkness') ? 'bg-purple-600 text-white' :
-                        pathLabel.includes('Light') ? 'bg-yellow-500 text-black' :
-                        'bg-yellow-600 text-white'
-                      }`}>
-                        {pathLabel}
-                      </div>
-                    )}
-                    
-                    {/* Next Up Badge */}
-                    {isNextInSequence && !owned && !pathLabel && (
-                      <div className="absolute -top-2 -left-2 bg-green-500 text-black text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
-                        NEXT
-                      </div>
-                    )}
-                    
-                    {/* Locked Badge */}
-                    {(isLocked || isPathLocked) && !owned && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl">
-                        <span className="text-xl sm:text-2xl">{isPathLocked ? '🚫' : '🔒'}</span>
-                      </div>
-                    )}
-
-                    {/* Pickaxe Image */}
-                    <div className={`relative w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-2 sm:mb-3 ${(isLocked || isPathLocked) && !owned ? 'grayscale' : ''}`}>
-                      <Image
-                        src={pickaxe.image}
-                        alt={pickaxe.name}
-                        fill
-                        className="object-contain"
-                      />
+                    {/* Pickaxe Icon */}
+                    <div className={`relative w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 ${(isLocked || isPathLocked) && !owned ? 'grayscale opacity-50' : ''}`}>
+                      <Image src={pickaxe.image} alt={pickaxe.name} fill className="object-contain" />
                     </div>
 
                     {/* Info */}
-                    <h3 className="text-white font-bold text-center mb-1 text-sm sm:text-base">{pickaxe.name}</h3>
-                    <p className="text-gray-400 text-xs sm:text-sm text-center mb-2">
-                      +{formatNumber(pickaxe.clickPower)} power
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-white font-bold text-xs sm:text-sm truncate">{pickaxe.name}</span>
+                        {equipped && <span className="text-[9px] bg-amber-500 text-black font-bold px-1 py-0.5 rounded">EQUIPPED</span>}
+                        {isNextInSequence && !owned && !pathLabel && <span className="text-[9px] bg-green-500 text-black font-bold px-1 py-0.5 rounded">NEXT</span>}
+                        {pathLabel && !owned && (
+                          <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${
+                            pathLabel.includes('Darkness') ? 'bg-purple-600 text-white' : 'bg-yellow-500 text-black'
+                          }`}>{pathLabel}</span>
+                        )}
+                      </div>
+                      <div className="text-gray-400 text-[10px] sm:text-xs flex items-center gap-2">
+                        <span>+{formatNumber(pickaxe.clickPower)} power</span>
+                        {pickaxe.specialAbility && (
+                          <span className="text-purple-400 truncate">✨ {pickaxe.specialAbility}</span>
+                        )}
+                      </div>
+                    </div>
 
-                    {pickaxe.specialAbility && (
-                      <p className="text-purple-400 text-[10px] sm:text-xs text-center mb-2 italic">
-                        ✨ {pickaxe.specialAbility}
-                      </p>
-                    )}
-
-                    {/* Price / Action */}
-                    <div className="mt-auto">
+                    {/* Action */}
+                    <div className="flex-shrink-0">
                       {owned ? (
                         equipped ? (
-                          <div className="text-amber-400 text-center text-xs sm:text-sm font-medium">
-                            Currently Using
-                          </div>
+                          <span className="text-amber-400 text-[10px] sm:text-xs font-medium">Using</span>
                         ) : (
                           <button
                             onClick={() => equipPickaxe(pickaxe.id)}
-                            className="w-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white font-bold py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm touch-manipulation"
+                            className="bg-green-600 hover:bg-green-500 text-white font-bold py-1 px-3 rounded-lg text-[10px] sm:text-xs transition-colors touch-manipulation"
                           >
                             Equip
                           </button>
                         )
                       ) : isPathLocked ? (
-                        <div className="text-gray-500 text-center text-xs sm:text-sm">
-                          Wrong path
-                        </div>
+                        <span className="text-gray-500 text-sm">🚫</span>
                       ) : isLocked ? (
-                        <div className="text-gray-500 text-center text-xs sm:text-sm">
-                          Buy previous first
-                        </div>
+                        <span className="text-gray-500 text-sm">🔒</span>
                       ) : (
                         <button
                           onClick={() => buyPickaxe(pickaxe.id)}
                           disabled={!canPurchase}
-                          className={`w-full font-bold py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm touch-manipulation ${
+                          className={`font-bold py-1 px-3 rounded-lg text-[10px] sm:text-xs transition-colors touch-manipulation ${
                             canPurchase
-                              ? 'bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white'
+                              ? 'bg-amber-600 hover:bg-amber-500 text-white'
                               : 'bg-gray-700 text-gray-500 cursor-not-allowed'
                           }`}
                         >
@@ -629,21 +581,26 @@ export default function GameShop({ onClose }: GameShopProps) {
             </div>
           )}
 
-          {/* MINERS TAB */}
+          {/* MINERS TAB — Compact */}
           {activeTab === 'miners' && (
-            <div className="space-y-4">
-              {/* Current Miners Display */}
-              <div className="bg-orange-900/20 border border-orange-600/50 rounded-xl p-4 text-center">
-                <div className="text-4xl mb-2">👷</div>
-                <div className="text-2xl font-bold text-orange-400">
-                  {gameState.minerCount} / {MINER_MAX_COUNT}
+            <div className="space-y-3">
+              {/* Current Miners Display — compact */}
+              <div className="bg-orange-900/20 border border-orange-600/30 rounded-xl p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">👷</span>
+                  <div>
+                    <span className="text-lg font-bold text-orange-400">{gameState.minerCount} / {MINER_MAX_COUNT}</span>
+                    <span className="text-gray-400 text-xs ml-2">Miners Hired</span>
+                  </div>
                 </div>
-                <div className="text-gray-400 text-sm">Miners Hired</div>
+                {gameState.minerCount > 0 && (
+                  <span className="text-orange-300 text-xs">⛏️ {formatNumber(Math.ceil(gameState.minerCount * 10))} dmg/s</span>
+                )}
               </div>
 
               {/* Bulk Buy Section */}
-              <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
-                <h3 className="text-white font-bold mb-4 text-center">Hire Miners</h3>
+              <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-3">
+                <h3 className="text-white font-bold text-sm mb-3 text-center">Hire Miners</h3>
                 
                 {/* Amount Selector */}
                 <div className="flex items-center gap-4 mb-4">
@@ -713,86 +670,70 @@ export default function GameShop({ onClose }: GameShopProps) {
             </div>
           )}
 
-          {/* BUILDINGS TAB */}
+          {/* BUILDINGS TAB — Compact list rows */}
           {activeTab === 'buildings' && (
-            <div className="space-y-4">
-              {/* Buildings Header */}
-              <div className="bg-blue-900/20 border border-blue-600/50 rounded-xl p-4 text-center">
-                <div className="text-2xl mb-2">🏗️</div>
-                <h3 className="text-xl font-bold text-blue-400">Buildings</h3>
-                <p className="text-gray-400 text-sm mt-1">
-                  Construct buildings to boost your mining empire!
-                </p>
-              </div>
+            <div className="space-y-1.5">
+              {BUILDINGS.filter(building => {
+                if (building.id === 'shipment') return false;
+                if (building.pathRestriction === null) return true;
+                if (!gameState.chosenPath) return false;
+                return building.pathRestriction === gameState.chosenPath;
+              }).map(building => {
+                const count = building.id === 'bank' 
+                  ? (gameState.buildings.bank.owned ? 1 : 0)
+                  : building.id === 'temple'
+                    ? (gameState.buildings.temple.owned ? 1 : 0)
+                    : building.id === 'wizard_tower'
+                      ? (gameState.buildings.wizard_tower.owned ? 1 : 0)
+                      : building.id === 'mine'
+                        ? gameState.buildings.mine.count
+                        : building.id === 'factory'
+                          ? gameState.buildings.factory.count
+                          : gameState.buildings.shipment.count;
+                
+                const cost = getBuildingCostForType(building.id);
+                const canAfford = canAffordBuilding(building.id);
+                const isMaxed = building.maxCount !== -1 && count >= building.maxCount;
+                const pathLabel = building.pathRestriction === 'light' ? '☀️ Light' : building.pathRestriction === 'darkness' ? '🌑 Darkness' : null;
 
-              {/* Buildings Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {BUILDINGS.filter(building => {
-                  // Hide Shipment for now (no image yet)
-                  if (building.id === 'shipment') return false;
-                  // Filter by path restriction
-                  if (building.pathRestriction === null) return true;
-                  if (!gameState.chosenPath) return false;
-                  return building.pathRestriction === gameState.chosenPath;
-                }).map(building => {
-                  const count = building.id === 'bank' 
-                    ? (gameState.buildings.bank.owned ? 1 : 0)
-                    : building.id === 'temple'
-                      ? (gameState.buildings.temple.owned ? 1 : 0)
-                      : building.id === 'wizard_tower'
-                        ? (gameState.buildings.wizard_tower.owned ? 1 : 0)
-                        : building.id === 'mine'
-                          ? gameState.buildings.mine.count
-                          : building.id === 'factory'
-                            ? gameState.buildings.factory.count
-                            : gameState.buildings.shipment.count;
-                  
-                  const cost = getBuildingCostForType(building.id);
-                  const canAfford = canAffordBuilding(building.id);
-                  const isMaxed = building.maxCount !== -1 && count >= building.maxCount;
-                  const pathLabel = building.pathRestriction === 'light' ? '☀️ Light' : building.pathRestriction === 'darkness' ? '🌑 Darkness' : null;
+                return (
+                  <div
+                    key={building.id}
+                    className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 rounded-lg border transition-all ${
+                      isMaxed
+                        ? 'bg-green-600/10 border-green-600/20'
+                        : canAfford
+                          ? 'bg-blue-900/20 border-blue-600/30 hover:border-blue-500/50'
+                          : 'bg-gray-800/30 border-gray-700/30'
+                    }`}
+                  >
+                    {/* Building Icon */}
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <Image 
+                        src={`/game/buildings/${building.id}.png`}
+                        alt={building.name}
+                        width={48}
+                        height={48}
+                        className="object-contain"
+                        style={{ imageRendering: 'pixelated' }}
+                      />
+                    </div>
 
-                  return (
-                    <div
-                      key={building.id}
-                      className={`relative rounded-xl p-4 border transition-all ${
-                        isMaxed
-                          ? 'bg-green-600/10 border-green-600/30'
-                          : canAfford
-                            ? 'bg-blue-900/20 border-blue-600/50 hover:border-blue-500'
-                            : 'bg-gray-800/50 border-gray-700/50'
-                      }`}
-                    >
-                      {/* Path Label */}
-                      {pathLabel && (
-                        <div className="absolute top-2 right-2 text-xs bg-black/50 px-2 py-1 rounded">
-                          {pathLabel}
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-14 h-14 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden">
-                          <Image 
-                            src={`/game/buildings/${building.id}.png`}
-                            alt={building.name}
-                            width={56}
-                            height={56}
-                            className="object-contain"
-                            style={{ imageRendering: 'pixelated' }}
-                          />
-                        </div>
-                        <div>
-                          <h4 className="text-white font-bold">{building.name}</h4>
-                          <div className="text-sm text-gray-400">
-                            Owned: <span className="text-blue-400">{count}</span>
-                            {building.maxCount !== -1 && <span className="text-gray-500">/{building.maxCount}</span>}
-                          </div>
-                        </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-white font-bold text-xs sm:text-sm">{building.name}</span>
+                        <span className="text-blue-400 text-[10px] sm:text-xs">×{count}{building.maxCount !== -1 ? `/${building.maxCount}` : ''}</span>
+                        {pathLabel && <span className="text-[9px] bg-black/50 px-1 py-0.5 rounded">{pathLabel}</span>}
                       </div>
+                      <p className="text-gray-400 text-[10px] sm:text-xs truncate">{building.description}</p>
+                    </div>
 
-                      <p className="text-gray-400 text-xs mb-3">{building.description}</p>
-
-                      {!isMaxed && (
+                    {/* Action */}
+                    <div className="flex-shrink-0">
+                      {isMaxed ? (
+                        <span className="text-green-400 text-[10px] sm:text-xs font-bold">✓ MAX</span>
+                      ) : (
                         <button
                           onClick={() => {
                             if (buyBuilding(building.id)) {
@@ -800,39 +741,25 @@ export default function GameShop({ onClose }: GameShopProps) {
                             }
                           }}
                           disabled={!canAfford}
-                          className={`w-full py-2 rounded-lg font-bold text-sm transition-all ${
+                          className={`font-bold py-1 px-3 rounded-lg text-[10px] sm:text-xs transition-all touch-manipulation ${
                             canAfford
-                              ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white'
+                              ? 'bg-blue-600 hover:bg-blue-500 text-white'
                               : 'bg-gray-700 text-gray-500 cursor-not-allowed'
                           }`}
                         >
-                          {building.id === 'bank' ? `Buy (${Math.round((cost / gameState.yatesDollars) * 100)}% of money)` : `Buy - $${formatNumber(cost)}`}
+                          {building.id === 'bank' ? `${Math.round((cost / gameState.yatesDollars) * 100)}%` : `$${formatNumber(cost)}`}
                         </button>
                       )}
-
-                      {isMaxed && (
-                        <div className="w-full py-2 rounded-lg bg-green-600/20 text-green-400 text-center font-bold text-sm">
-                          ✓ MAX
-                        </div>
-                      )}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
           {/* UPGRADES TAB */}
           {activeTab === 'upgrades' && (
-            <div className="space-y-4">
-              {/* Upgrades Header */}
-              <div className="bg-green-900/20 border border-green-600/50 rounded-xl p-4 text-center">
-                <div className="text-2xl mb-2">📈</div>
-                <h3 className="text-xl font-bold text-green-400">Progressive Upgrades</h3>
-                <p className="text-gray-400 text-sm mt-1">
-                  Permanently increase your stats by purchasing upgrades!
-                </p>
-              </div>
+            <div className="space-y-3">
 
               {/* Upgrades Grid */}
               <div className="space-y-3">
@@ -908,89 +835,76 @@ export default function GameShop({ onClose }: GameShopProps) {
             </div>
           )}
 
-          {/* POWERUPS TAB */}
+          {/* POWERUPS TAB — Compact list rows */}
           {activeTab === 'powerups' && (
-            <div className="space-y-4">
-              {/* Powerups Header */}
-              <div className="bg-pink-900/20 border border-pink-600/50 rounded-xl p-4 text-center">
-                <div className="text-2xl mb-2">⚡</div>
-                <h3 className="text-xl font-bold text-pink-400">Powerups</h3>
-                <p className="text-gray-400 text-sm mt-1">
-                  Buy consumable powerups for temporary boosts!
-                </p>
-              </div>
+            <div className="space-y-1.5">
+              {POWERUPS.map(powerup => {
+                const count = getPowerupCount(powerup.id);
+                const dynamicCostIds = ['goldenTouch', 'miningFrenzy', 'buildingBoost'];
+                const isDynamicCost = dynamicCostIds.includes(powerup.id);
+                const cost = isDynamicCost 
+                  ? Math.floor(gameState.yatesDollars * 0.80) 
+                  : powerup.cost;
+                const canAfford = isDynamicCost 
+                  ? gameState.yatesDollars >= 1000 
+                  : gameState.yatesDollars >= cost;
 
-              {/* Powerups Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {POWERUPS.map(powerup => {
-                  const count = getPowerupCount(powerup.id);
-                  // Golden Touch, Mining Frenzy, Building Boost cost 80% of current money
-                  const dynamicCostIds = ['goldenTouch', 'miningFrenzy', 'buildingBoost'];
-                  const isDynamicCost = dynamicCostIds.includes(powerup.id);
-                  const cost = isDynamicCost 
-                    ? Math.floor(gameState.yatesDollars * 0.80) 
-                    : powerup.cost;
-                  const canAfford = isDynamicCost 
-                    ? gameState.yatesDollars >= 1000 
-                    : gameState.yatesDollars >= cost;
+                return (
+                  <div
+                    key={powerup.id}
+                    className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 rounded-lg border transition-all ${
+                      canAfford
+                        ? 'bg-pink-900/20 border-pink-600/30 hover:border-pink-500/50'
+                        : 'bg-gray-800/30 border-gray-700/30'
+                    }`}
+                  >
+                    {/* Icon */}
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 bg-gray-700 rounded-lg flex items-center justify-center text-xl flex-shrink-0">
+                      {powerup.icon}
+                    </div>
 
-                  return (
-                    <div
-                      key={powerup.id}
-                      className={`rounded-xl p-4 border transition-all ${
-                        canAfford
-                          ? 'bg-pink-900/20 border-pink-600/50 hover:border-pink-500'
-                          : 'bg-gray-800/50 border-gray-700/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center text-2xl">
-                          {powerup.icon}
-                        </div>
-                        <div>
-                          <h4 className="text-white font-bold">{powerup.name}</h4>
-                          <div className="text-sm text-gray-400">
-                            Owned: <span className="text-pink-400">{count}</span>
-                          </div>
-                        </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-white font-bold text-xs sm:text-sm">{powerup.name}</span>
+                        {count > 0 && <span className="text-pink-400 text-[10px] sm:text-xs">×{count}</span>}
                       </div>
+                      <p className="text-gray-400 text-[10px] sm:text-xs truncate">{powerup.description}</p>
+                    </div>
 
-                      <p className="text-gray-400 text-xs mb-3">{powerup.description}</p>
-
-                      <div className="flex gap-2">
+                    {/* Actions */}
+                    <div className="flex-shrink-0 flex items-center gap-1.5">
+                      {count > 0 && (
                         <button
                           onClick={() => {
-                            if (buyPowerup(powerup.id)) {
-                              showToast(`⚡ Bought ${powerup.name}!`, 'success');
+                            if (usePowerup(powerup.id)) {
+                              showToast(`⚡ ${powerup.name} activated!`, 'success');
                             }
                           }}
-                          disabled={!canAfford}
-                          className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${
-                            canAfford
-                              ? 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white'
-                              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                          }`}
+                          className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1 px-2.5 rounded-lg text-[10px] sm:text-xs transition-all touch-manipulation"
                         >
-                          {isDynamicCost ? `Buy - 80% ($${formatNumber(cost)})` : `Buy - $${formatNumber(cost)}`}
+                          USE
                         </button>
-
-                        {count > 0 && (
-                          <button
-                            onClick={() => {
-                              if (usePowerup(powerup.id)) {
-                                showToast(`⚡ ${powerup.name} activated!`, 'success');
-                              }
-                            }}
-                            className="px-4 py-2 rounded-lg font-bold text-sm bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white transition-all"
-                          >
-                            USE
-                          </button>
-                        )}
-                      </div>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (buyPowerup(powerup.id)) {
+                            showToast(`⚡ Bought ${powerup.name}!`, 'success');
+                          }
+                        }}
+                        disabled={!canAfford}
+                        className={`font-bold py-1 px-3 rounded-lg text-[10px] sm:text-xs transition-all touch-manipulation ${
+                          canAfford
+                            ? 'bg-pink-600 hover:bg-pink-500 text-white'
+                            : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        {isDynamicCost ? `80% ($${formatNumber(cost)})` : `$${formatNumber(cost)}`}
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -1132,8 +1046,8 @@ export default function GameShop({ onClose }: GameShopProps) {
                 ))}
               </div>
 
-              {/* Store items grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+              {/* Store items — compact rows */}
+              <div className="space-y-1.5">
                 {storeCategoryItems.map(item => {
                   const owned = isStoreItemOwned(item);
                   const affordable = canAffordStore(item.price);
@@ -1142,44 +1056,49 @@ export default function GameShop({ onClose }: GameShopProps) {
                   return (
                     <div
                       key={item.id}
-                      className={`p-3 rounded-xl border transition-all ${
+                      className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 rounded-lg border transition-all ${
                         owned
-                          ? 'bg-green-900/20 border-green-600/30 opacity-60'
+                          ? 'bg-green-900/15 border-green-600/20 opacity-50'
                           : affordable
-                          ? `bg-gray-800/80 border-gray-600/40 hover:bg-gray-700/80 ${isStokens ? 'hover:border-blue-500/50' : 'hover:border-amber-500/50'}`
-                          : 'bg-gray-800/40 border-gray-700/30 opacity-50'
+                          ? `bg-gray-800/50 border-gray-600/30 ${isStokens ? 'hover:border-blue-500/50' : 'hover:border-amber-500/50'}`
+                          : 'bg-gray-800/30 border-gray-700/20 opacity-40'
                       }`}
                     >
-                      <div className="flex justify-between items-start mb-1">
-                        <h4 className="font-bold text-white text-sm truncate flex-1">
-                          {displayName}
-                          {owned && <span className="text-green-400 ml-1 text-xs">✓ Owned</span>}
-                        </h4>
-                        <span className={`text-xs font-bold ${isStokens ? 'text-blue-400' : 'text-amber-400'} ml-2 whitespace-nowrap`}>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-white font-bold text-xs sm:text-sm truncate">{displayName}</span>
+                          {owned && <span className="text-green-400 text-[9px] font-bold">✓</span>}
+                          {item.requiresPath && (
+                            <span className={`text-[9px] px-1 py-0.5 rounded ${
+                              item.requiresPath === 'light' ? 'bg-yellow-900/30 text-yellow-400' : 'bg-purple-900/30 text-purple-400'
+                            }`}>
+                              {item.requiresPath === 'light' ? '☀️' : '🌑'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-gray-400 text-[10px] sm:text-xs truncate">{item.description}</p>
+                      </div>
+
+                      {/* Price + Action */}
+                      <div className="flex-shrink-0 flex items-center gap-1.5">
+                        <span className={`text-[10px] sm:text-xs font-bold ${isStokens ? 'text-blue-400' : 'text-amber-400'} whitespace-nowrap`}>
                           {item.price.toLocaleString()} {storeCurrencyEmoji}
                         </span>
+                        <button
+                          onClick={() => purchaseStoreItem(item)}
+                          disabled={owned || !affordable}
+                          className={`font-bold py-1 px-2.5 rounded-lg text-[10px] sm:text-xs transition-all touch-manipulation ${
+                            owned
+                              ? 'bg-green-800/30 text-green-400 cursor-not-allowed'
+                              : affordable
+                              ? `${isStokens ? 'bg-blue-600 hover:bg-blue-500' : 'bg-amber-600 hover:bg-amber-500'} text-white`
+                              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                          }`}
+                        >
+                          {owned ? '✓' : 'Buy'}
+                        </button>
                       </div>
-                      <p className="text-gray-400 text-xs mb-2 line-clamp-2">{item.description}</p>
-                      {item.requiresPath && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          item.requiresPath === 'light' ? 'bg-yellow-900/30 text-yellow-400' : 'bg-purple-900/30 text-purple-400'
-                        } mr-2`}>
-                          {item.requiresPath === 'light' ? '☀️ Light' : '🌑 Darkness'}
-                        </span>
-                      )}
-                      <button
-                        onClick={() => purchaseStoreItem(item)}
-                        disabled={owned || !affordable}
-                        className={`w-full mt-1 py-1.5 rounded-lg font-bold text-xs transition-all ${
-                          owned
-                            ? 'bg-green-800/30 text-green-400 cursor-not-allowed'
-                            : affordable
-                            ? `${isStokens ? 'bg-blue-600 hover:bg-blue-500' : 'bg-amber-600 hover:bg-amber-500'} text-white`
-                            : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                        }`}
-                      >
-                        {owned ? 'Owned' : affordable ? 'Buy' : 'Can\'t Afford'}
-                      </button>
                     </div>
                   );
                 })}

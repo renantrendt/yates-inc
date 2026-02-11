@@ -93,8 +93,8 @@ export default function BuildingDisplay() {
         </div>
       </div>
 
-      {/* Desktop: Full building display with images */}
-      <div className="hidden sm:flex fixed right-4 bottom-[200px] z-[35] flex-col gap-2 pointer-events-auto items-end">
+      {/* Desktop (sm-lg only): Full building display with images — hidden on lg+ where right panel exists */}
+      <div className="hidden sm:flex lg:hidden fixed right-4 bottom-[200px] z-[35] flex-col gap-2 pointer-events-auto items-end">
         {ownedBuildings.map((building) => {
           const isClickable = clickableBuildings.includes(building.id);
           const maxVisible = 2;
