@@ -318,8 +318,8 @@ export async function savePurchase(purchase: UserPurchase): Promise<boolean> {
 
 // Throttled save - saves at most every SAVE_INTERVAL ms
 const BASE_SAVE_INTERVAL = 3000; // Save every 3 seconds normally
-const ACTIVE_SAVE_INTERVAL = 6000; // Save every 6 seconds when autoclicker/miners active (more time for state to settle)
-const FORCE_SAVE_COOLDOWN = 3000; // Block regular saves for 3s after force save (match interval)
+const ACTIVE_SAVE_INTERVAL = 4000; // Save every 4 seconds when autoclicker/miners active
+const FORCE_SAVE_COOLDOWN = 2000; // Block regular saves for 2s after force save
 const IDLE_SAVE_DELAY = 3000; // Save after 3s of no state changes
 let saveTimeout: NodeJS.Timeout | null = null;
 let idleSaveTimeout: NodeJS.Timeout | null = null; // For idle save mechanism
@@ -349,19 +349,25 @@ export function debouncedSaveUserGameData(data: Partial<UserGameData> & { user_i
     return;
   }
   
-  // Block saves during cooldown after force save (prevents stale useEffect data from overwriting)
+  // Always accumulate latest data first (so nothing is ever dropped)
+  pendingData = { ...pendingData, ...data, _isHardMode: isHardMode };
+  
+  // Block EXECUTING saves during cooldown after force save (prevents stale data from overwriting)
+  // But data is still accumulated above so it's ready when cooldown expires
   const timeSinceForceSave = Date.now() - lastForceSaveTime;
   if (timeSinceForceSave < FORCE_SAVE_COOLDOWN) {
-    console.log('🚫 DEBOUNCED SAVE BLOCKED: Force save cooldown active', { 
-      timeSinceForceSave, 
-      cooldown: FORCE_SAVE_COOLDOWN,
-      blockedPrestige: data.prestige_count 
-    });
+    // Schedule a save for right after cooldown expires (if not already scheduled)
+    if (!saveTimeout) {
+      const timeUntilCooldownEnds = FORCE_SAVE_COOLDOWN - timeSinceForceSave + 100;
+      saveTimeout = setTimeout(() => {
+        saveTimeout = null;
+        if (pendingData && !isSaving) {
+          executeSave();
+        }
+      }, timeUntilCooldownEnds);
+    }
     return;
   }
-  
-  // Accumulate latest data (include isHardMode flag)
-  pendingData = { ...pendingData, ...data, _isHardMode: isHardMode };
   
   const now = Date.now();
   const timeSinceLastSave = now - lastSaveTime;
@@ -400,12 +406,11 @@ async function executeSave(): Promise<void> {
   // Check cooldown BEFORE executing - this catches saves that were queued before prestige
   const timeSinceForceSave = Date.now() - lastForceSaveTime;
   if (timeSinceForceSave < FORCE_SAVE_COOLDOWN) {
-    console.log('🚫 EXECUTE SAVE BLOCKED: Force save cooldown active', { 
+    console.log('🚫 EXECUTE SAVE BLOCKED: Force save cooldown active (data preserved)', { 
       timeSinceForceSave, 
       cooldown: FORCE_SAVE_COOLDOWN,
-      blockedPrestige: pendingData.prestige_count 
     });
-    pendingData = null; // Clear the stale data
+    // DON'T null pendingData — keep it for the next save cycle
     return;
   }
   
@@ -454,17 +459,29 @@ export async function flushPendingData(): Promise<void> {
     idleSaveTimeout = null;
   }
   
-  if (pendingData && !isSaving) {
-    isSaving = true;
-    const dataToSave = pendingData;
-    pendingData = null;
+  if (pendingData) {
+    // Wait briefly for in-flight save to finish, then save
+    if (isSaving) {
+      // Give the in-flight save up to 2s to finish
+      let waited = 0;
+      while (isSaving && waited < 2000) {
+        await new Promise(r => setTimeout(r, 100));
+        waited += 100;
+      }
+    }
     
-    try {
-      await saveUserGameData(dataToSave);
-    } catch (err) {
-      console.error('Failed to flush game data:', err);
-    } finally {
-      isSaving = false;
+    if (pendingData && !isSaving) {
+      isSaving = true;
+      const dataToSave = pendingData;
+      pendingData = null;
+      
+      try {
+        await saveUserGameData(dataToSave);
+      } catch (err) {
+        console.error('Failed to flush game data:', err);
+      } finally {
+        isSaving = false;
+      }
     }
   }
 }
