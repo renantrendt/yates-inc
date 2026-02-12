@@ -443,7 +443,7 @@ export default function TrinketSlot() {
               >
                 All
               </button>
-              {['common', 'uncommon', 'rare', 'epic', 'legendary'].filter(
+              {['common', 'rare', 'epic', 'legendary', 'mythic', 'secret'].filter(
                 r => equippableItems.some(item => item.baseTrinket.rarity === r)
               ).map(r => (
                 <button
@@ -474,7 +474,7 @@ export default function TrinketSlot() {
                   const aEquipped = gameState.equippedTrinketIds.includes(a.id) ? 0 : 1;
                   const bEquipped = gameState.equippedTrinketIds.includes(b.id) ? 0 : 1;
                   if (aEquipped !== bEquipped) return aEquipped - bEquipped;
-                  const rarityOrder = ['legendary', 'epic', 'rare', 'uncommon', 'common'];
+                  const rarityOrder = ['secret', 'mythic', 'legendary', 'epic', 'rare', 'common'];
                   return rarityOrder.indexOf(a.baseTrinket.rarity) - rarityOrder.indexOf(b.baseTrinket.rarity);
                 })
                 .map(item => {

@@ -213,7 +213,7 @@ export default function TrinketShopModal({ isOpen, onClose }: TrinketShopModalPr
           </div>
         )}
         
-        {/* ALL Owned Trinkets - Click to Convert */}
+        {/* ALL Owned Trinkets - Grouped by Rarity */}
         <div className="mt-6 pt-6 border-t border-gray-600">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-white font-bold">
@@ -232,31 +232,63 @@ export default function TrinketShopModal({ isOpen, onClose }: TrinketShopModalPr
           {gameState.ownedTrinketIds.length === 0 ? (
             <p className="text-gray-500 text-sm">You don&apos;t own any trinkets yet.</p>
           ) : (
-            <div className="max-h-48 overflow-y-auto scrollable-touch pr-2">
-              <div className="flex flex-wrap gap-2">
-                {gameState.ownedTrinketIds.map(id => {
-                  const trinket = TRINKETS.find(t => t.id === id);
-                  const hasRelic = ownsRelic(id);
-                  const hasTalisman = ownsTalisman(id);
-                  
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => setSelectedTrinket(id)}
-                      className="px-3 py-1.5 rounded-lg text-sm transition-all hover:scale-105 hover:brightness-125 flex items-center gap-1"
-                      style={{ 
-                        backgroundColor: trinket ? `${RARITY_COLORS[trinket.rarity]}25` : '#374151',
-                        color: trinket ? RARITY_COLORS[trinket.rarity] : '#9ca3af',
-                        border: `2px solid ${trinket ? RARITY_COLORS[trinket.rarity] + '60' : '#4b5563'}`,
-                      }}
+            <div className="max-h-64 overflow-y-auto scrollable-touch pr-2 space-y-3">
+              {(['common', 'rare', 'epic', 'legendary', 'mythic', 'secret'] as const).map(rarity => {
+                const ownedInRarity = gameState.ownedTrinketIds
+                  .map(id => TRINKETS.find(t => t.id === id))
+                  .filter((t): t is Trinket => t !== undefined && t.rarity === rarity);
+                
+                if (ownedInRarity.length === 0) return null;
+                
+                const rarityColor = RARITY_COLORS[rarity];
+                
+                return (
+                  <div key={rarity}>
+                    <p 
+                      className="text-[10px] font-bold uppercase tracking-wider mb-1.5"
+                      style={{ color: rarityColor }}
                     >
-                      {trinket?.name || id.replace(/_/g, ' ')}
-                      {hasRelic && <span className="text-yellow-400">✦</span>}
-                      {hasTalisman && <span className="text-purple-400">✧</span>}
-                    </button>
-                  );
-                })}
-              </div>
+                      {rarity} ({ownedInRarity.length})
+                    </p>
+                    <div className="space-y-1">
+                      {ownedInRarity.map(trinket => {
+                        const hasRelic = ownsRelic(trinket.id);
+                        const hasTalisman = ownsTalisman(trinket.id);
+                        
+                        return (
+                          <div key={trinket.id} className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              onClick={() => setSelectedTrinket(trinket.id)}
+                              className="px-2.5 py-1 rounded-md text-xs transition-all hover:scale-105 hover:brightness-125"
+                              style={{ 
+                                backgroundColor: `${rarityColor}20`,
+                                color: rarityColor,
+                                border: `1.5px solid ${rarityColor}50`,
+                              }}
+                            >
+                              {trinket.name}
+                            </button>
+                            {hasRelic && (
+                              <span 
+                                className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-yellow-600/20 text-yellow-400 border border-yellow-600/40"
+                              >
+                                ✦ Relic
+                              </span>
+                            )}
+                            {hasTalisman && (
+                              <span 
+                                className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-purple-600/20 text-purple-400 border border-purple-600/40"
+                              >
+                                ✧ Talisman
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
           
